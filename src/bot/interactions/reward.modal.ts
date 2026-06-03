@@ -6,14 +6,14 @@ import { ComponentType, TextInputStyle } from "discord.js";
 
 export const REWARD_MODAL_PREFIX = "reward_modal:";
 
-// Tier amounts mirror the bug-bounty post: $50 Critical / $1 High / $0.50 Medium
-// / $0.25 Low. Custom lets staff type a free-form amount.
+// Tier amounts mirror the bug-bounty post: $0.25 Low / $0.50 Medium / $1 High
+// / $50 Critical. Ascending order so the cheapest tier is the default-ish first
+// option and staff escalate consciously. No custom amount.
 export const REWARD_TIERS = [
-  { label: "Critical - $50", value: "50", description: "Auth bypass, data leak, RCE, billing/quota exploit" },
-  { label: "High - $1", value: "1", description: "Broken core feature, security flaw, money loss" },
-  { label: "Medium - $0.50", value: "0.5", description: "Functional bug with a workaround" },
   { label: "Low - $0.25", value: "0.25", description: "UI/cosmetic, typo, minor glitch" },
-  { label: "Custom", value: "custom", description: "Type a different amount in the next field" },
+  { label: "Medium - $0.50", value: "0.5", description: "Functional bug with a workaround" },
+  { label: "High - $1", value: "1", description: "Broken core feature, security flaw, money loss" },
+  { label: "Critical - $50", value: "50", description: "Auth bypass, data leak, RCE, billing/quota exploit" },
 ] as const;
 
 // discord.js 14 ModalBuilder doesn't expose LabelBuilder (Components V2) yet,
@@ -44,18 +44,6 @@ export function buildRewardModal(
             value: t.value,
             description: t.description,
           })),
-        },
-      },
-      {
-        type: 18,
-        label: "Custom amount (only if Custom tier picked)",
-        component: {
-          type: ComponentType.TextInput,
-          custom_id: "reward_amount",
-          style: TextInputStyle.Short,
-          required: false,
-          placeholder: "e.g. 2.5 = $2.50",
-          max_length: 16,
         },
       },
       {
@@ -95,15 +83,7 @@ export function parseRewardModal(
   // tree.
   const tier = readSelectValue(interaction, "reward_tier");
   if (!tier) return null;
-
-  let amount: number;
-  if (tier === "custom") {
-    const raw = readTextValue(interaction, "reward_amount");
-    if (!raw) return null;
-    amount = parseFloat(raw.trim());
-  } else {
-    amount = parseFloat(tier);
-  }
+  const amount = parseFloat(tier);
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
   const reason = readTextValue(interaction, "reward_reason")?.trim();
