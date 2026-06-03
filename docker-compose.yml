@@ -11,6 +11,8 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - "5442:5432"
 
   unorouter-bot-pgbackup:
     container_name: unorouter-bot-pgbackup
