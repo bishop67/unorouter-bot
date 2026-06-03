@@ -85,7 +85,7 @@ export function parseRewardModal(
   const tier = readSelectValue(interaction, "reward_tier");
   if (!tier) {
     botLogger.warn("reward.modal: tier missing", {
-      raw: JSON.stringify(interaction.toJSON()).slice(0, 2000),
+      raw: safeStringify(interaction.toJSON()).slice(0, 2000),
     });
     return null;
   }
@@ -142,4 +142,10 @@ function readTextValue(
   } catch {
     return null;
   }
+}
+
+function safeStringify(value: unknown): string {
+  return JSON.stringify(value, (_k, v) =>
+    typeof v === "bigint" ? v.toString() : v,
+  );
 }
