@@ -3,6 +3,7 @@ import type {
   ModalSubmitInteraction,
 } from "discord.js";
 import { ComponentType, TextInputStyle } from "discord.js";
+import { botLogger } from "@/lib/telemetry";
 
 export const REWARD_MODAL_PREFIX = "reward_modal:";
 
@@ -82,7 +83,12 @@ export function parseRewardModal(
   // don't know about the select shape yet, so reach through the raw component
   // tree.
   const tier = readSelectValue(interaction, "reward_tier");
-  if (!tier) return null;
+  if (!tier) {
+    botLogger.warn("reward.modal: tier missing", {
+      raw: JSON.stringify(interaction.toJSON()).slice(0, 2000),
+    });
+    return null;
+  }
   const amount = parseFloat(tier);
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
@@ -96,22 +102,35 @@ function readSelectValue(
   interaction: ModalSubmitInteraction,
   customId: string,
 ): string | null {
-  const raw = interaction.toJSON() as unknown as {
-    data?: {
-      components?: Array<{
-        component?: { custom_id?: string; values?: string[] };
-        components?: Array<{ custom_id?: string; values?: string[] }>;
-      }>;
-    };
+  // Walk every nested component shape Discord may send. With Components V2
+  // labels (type 18) wrap a single child under `.component`; legacy action rows
+  // (type 1) put children under `.components`. Recurse to find a node with
+  // matching custom_id and a `values[]` array.
+  type Node = {
+    custom_id?: string;
+    values?: string[];
+    component?: Node;
+    components?: Node[];
   };
-  const top = raw.data?.components ?? [];
-  for (const row of top) {
-    const inner = row.component ?? row.components?.[0];
-    if (inner?.custom_id === customId && inner.values?.length) {
-      return inner.values[0];
+  const walk = (n: Node): string | null => {
+    if (n.custom_id === customId && Array.isArray(n.values) && n.values.length > 0) {
+      return n.values[0]!;
     }
-  }
-  return null;
+    if (n.component) {
+      const v = walk(n.component);
+      if (v) return v;
+    }
+    if (Array.isArray(n.components)) {
+      for (const c of n.components) {
+        const v = walk(c);
+        if (v) return v;
+      }
+    }
+    return null;
+  };
+  const raw = interaction.toJSON() as unknown as { data?: Node };
+  if (!raw.data) return null;
+  return walk(raw.data);
 }
 
 function readTextValue(
