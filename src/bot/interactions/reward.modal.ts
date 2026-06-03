@@ -3,7 +3,6 @@ import type {
   ModalSubmitInteraction,
 } from "discord.js";
 import { ComponentType, TextInputStyle } from "discord.js";
-import { botLogger } from "@/lib/telemetry";
 
 export const REWARD_MODAL_PREFIX = "reward_modal:";
 
@@ -83,12 +82,7 @@ export function parseRewardModal(
   // don't know about the select shape yet, so reach through the raw component
   // tree.
   const tier = readSelectValue(interaction, "reward_tier");
-  if (!tier) {
-    botLogger.warn("reward.modal: tier missing", {
-      raw: safeStringify(interaction.toJSON()).slice(0, 2000),
-    });
-    return null;
-  }
+  if (!tier) return null;
   const amount = parseFloat(tier);
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
@@ -102,18 +96,18 @@ function readSelectValue(
   interaction: ModalSubmitInteraction,
   customId: string,
 ): string | null {
-  // Walk every nested component shape Discord may send. With Components V2
-  // labels (type 18) wrap a single child under `.component`; legacy action rows
-  // (type 1) put children under `.components`. Recurse to find a node with
-  // matching custom_id and a `values[]` array.
+  // discord.js camelCases the API payload, so `customId` (not `custom_id`)
+  // and the components live at the top level of interaction.toJSON(), not
+  // under `.data`. Label components (type 18) wrap a single child under
+  // `.component`; action rows (type 1) put children under `.components`.
   type Node = {
-    custom_id?: string;
+    customId?: string;
     values?: string[];
     component?: Node;
     components?: Node[];
   };
   const walk = (n: Node): string | null => {
-    if (n.custom_id === customId && Array.isArray(n.values) && n.values.length > 0) {
+    if (n.customId === customId && Array.isArray(n.values) && n.values.length > 0) {
       return n.values[0]!;
     }
     if (n.component) {
@@ -128,9 +122,7 @@ function readSelectValue(
     }
     return null;
   };
-  const raw = interaction.toJSON() as unknown as { data?: Node };
-  if (!raw.data) return null;
-  return walk(raw.data);
+  return walk(interaction.toJSON() as unknown as Node);
 }
 
 function readTextValue(
@@ -144,8 +136,3 @@ function readTextValue(
   }
 }
 
-function safeStringify(value: unknown): string {
-  return JSON.stringify(value, (_k, v) =>
-    typeof v === "bigint" ? v.toString() : v,
-  );
-}
