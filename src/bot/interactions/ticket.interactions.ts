@@ -72,26 +72,6 @@ export class TicketInteractions {
     }
   }
 
-  @ButtonComponent({ id: "ticket_claim" })
-  async claim(interaction: ButtonInteraction) {
-    const member = interaction.member as GuildMember | null;
-    if (!isStaff(member)) {
-      await interaction.reply({
-        content: "Staff only.",
-        flags: [MessageFlags.Ephemeral],
-      });
-      return;
-    }
-    const claimed = await TicketService.claim(
-      interaction.channel as GuildTextBasedChannel,
-      member!,
-    );
-    await interaction.reply({
-      content: claimed ? `Claimed by ${member}.` : "Not an open ticket.",
-      allowedMentions: { users: [] },
-    });
-  }
-
   @ButtonComponent({ id: "ticket_close" })
   async close(interaction: ButtonInteraction) {
     const member = interaction.member as GuildMember | null;

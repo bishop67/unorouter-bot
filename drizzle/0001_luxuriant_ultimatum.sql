@@ -1,0 +1,1 @@
+ALTER TABLE "tickets" DROP COLUMN "claimed_by";

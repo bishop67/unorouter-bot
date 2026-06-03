@@ -55,10 +55,6 @@ export class TicketService {
   static buildControls(): ActionRowBuilder<ButtonBuilder> {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId("ticket_claim")
-        .setLabel("Claim")
-        .setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder()
         .setCustomId("ticket_reward")
         .setLabel("Approve & Reward")
         .setStyle(ButtonStyle.Success),
@@ -198,19 +194,6 @@ export class TicketService {
         content: message.content || "(no text content)",
       })
       .catch(() => {});
-  }
-
-  static async claim(
-    channel: GuildTextBasedChannel,
-    staff: GuildMember,
-  ): Promise<boolean> {
-    const row = await this.getOpenTicket(channel.id);
-    if (!row) return false;
-    await db
-      .update(ticket)
-      .set({ claimedBy: staff.id })
-      .where(eq(ticket.id, row.id));
-    return true;
   }
 
   static async close(channel: GuildTextBasedChannel): Promise<boolean> {

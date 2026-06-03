@@ -8,6 +8,13 @@
       "when": 1780486364629,
       "tag": "0000_outgoing_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780527846080,
+      "tag": "0001_luxuriant_ultimatum",
+      "breakpoints": true
     }
   ]
 }

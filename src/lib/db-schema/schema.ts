@@ -124,7 +124,6 @@ export const ticket = pgTable(
     openerId: text("opener_id").notNull(),
     category: text("category").default("support").notNull(),
     status: text("status").default("open").notNull(),
-    claimedBy: text("claimed_by"),
     createdAt: createdAt(),
     closedAt: timestamp("closed_at", { precision: 3, mode: "string" }),
   },
