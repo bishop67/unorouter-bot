@@ -1,60 +1,14 @@
-import "@dotenvx/dotenvx/config";
-import { PostHog } from "posthog-node";
+type Attrs = Record<string, unknown> | undefined;
 
-const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === "development";
-
-const posthog =
-  !isDev && process.env.POSTHOG_KEY
-    ? new PostHog(process.env.POSTHOG_KEY, {
-        host: "https://eu.i.posthog.com",
-        flushAt: 10,
-        flushInterval: 5000,
-      })
-    : null;
-
-export const shutdownTelemetry = () => posthog?.shutdown();
-
-function makeLogger(name: string) {
-  const emit = (
-    level: "debug" | "info" | "warn" | "error",
-    msg: string,
-    attrs?: Record<string, unknown>,
-  ) => {
-    if (posthog) {
-      posthog.capture({
-        distinctId: name,
-        event: "bot_log",
-        properties: {
-          severity: level.toUpperCase(),
-          message: msg,
-          service: name,
-          ...attrs,
-        },
-      });
-    }
-    const prefix =
-      level === "error"
-        ? "ERR"
-        : level === "warn"
-          ? "WRN"
-          : level === "debug"
-            ? "DBG"
-            : "INF";
-    const stream =
-      level === "error" || level === "warn" ? process.stderr : process.stdout;
-    stream.write(`${prefix} ${JSON.stringify({ name, msg, ...attrs })}\n`);
-  };
-  return {
-    debug: (msg: string, attrs?: Record<string, unknown>) =>
-      emit("debug", msg, attrs),
-    info: (msg: string, attrs?: Record<string, unknown>) =>
-      emit("info", msg, attrs),
-    warn: (msg: string, attrs?: Record<string, unknown>) =>
-      emit("warn", msg, attrs),
-    error: (msg: string, attrs?: Record<string, unknown>) =>
-      emit("error", msg, attrs),
-  };
+function emit(stream: NodeJS.WriteStream, prefix: string, msg: string, attrs: Attrs) {
+  stream.write(`${prefix} ${JSON.stringify({ msg, ...attrs })}\n`);
 }
 
-const SERVICE_NAME = process.env.BOT_NAME?.trim() || "bot";
-export const botLogger = makeLogger(`${SERVICE_NAME}-bot`);
+export const botLogger = {
+  debug: (msg: string, attrs?: Attrs) => emit(process.stdout, "DBG", msg, attrs),
+  info: (msg: string, attrs?: Attrs) => emit(process.stdout, "INF", msg, attrs),
+  warn: (msg: string, attrs?: Attrs) => emit(process.stderr, "WRN", msg, attrs),
+  error: (msg: string, attrs?: Attrs) => emit(process.stderr, "ERR", msg, attrs),
+};
+
+export const shutdownTelemetry = async (): Promise<void> => {};

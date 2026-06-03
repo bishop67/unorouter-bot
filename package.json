@@ -22,7 +22,6 @@
     "drizzle-orm": "0.45.2",
     "drizzle-typebox": "0.3.3",
     "lru-cache": "11.5.1",
-    "posthog-node": "5.35.11",
     "postgres": "3.4.9",
     "zod": "4.4.3"
   },
