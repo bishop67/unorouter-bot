@@ -5,6 +5,7 @@ import {
   type GuildBasedChannel,
   type TextChannel,
 } from "discord.js";
+import { botLogger } from "@/lib/telemetry";
 
 // Channels match by NAME substring so emoji/separator renames
 // ("ticket-logs" -> "📄│ticket-logs") keep resolving.
@@ -24,6 +25,17 @@ function findChannelByName(
       (type === undefined || c.type === type) &&
       normalize(c.name).includes(target),
   );
+  if (!match) {
+    botLogger.warn("findChannelByName: miss", {
+      target,
+      type,
+      cacheSize: guild.channels.cache.size,
+      sample: guild.channels.cache
+        .filter((c) => type === undefined || c.type === type)
+        .map((c) => c.name)
+        .slice(0, 10),
+    });
+  }
   return match ?? null;
 }
 
