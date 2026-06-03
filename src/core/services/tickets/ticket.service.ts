@@ -65,12 +65,34 @@ export class TicketService {
       (name) => guild.roles.cache.find((r) => r.name === name)?.id,
     ).filter((id): id is string => Boolean(id));
 
+    // Bot's own member must be allowed to view + manage the new channel;
+    // without an explicit allow the @everyone deny below wins for the bot too,
+    // and the post-create channel.send returns 50001 Missing Access.
+    const botMemberId = guild.members.me?.id;
+
     const overwrites = [
       {
         id: guild.roles.everyone.id,
         type: OverwriteType.Role,
         deny: PermissionFlagsBits.ViewChannel,
       },
+      ...(botMemberId
+        ? [
+            {
+              id: botMemberId,
+              type: OverwriteType.Member,
+              allow:
+                PermissionFlagsBits.ViewChannel |
+                PermissionFlagsBits.SendMessages |
+                PermissionFlagsBits.ReadMessageHistory |
+                PermissionFlagsBits.EmbedLinks |
+                PermissionFlagsBits.AttachFiles |
+                PermissionFlagsBits.ManageChannels |
+                PermissionFlagsBits.ManageRoles |
+                PermissionFlagsBits.ManageMessages,
+            },
+          ]
+        : []),
       {
         id: opener.id,
         type: OverwriteType.Member,
