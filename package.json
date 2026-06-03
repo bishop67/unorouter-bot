@@ -10,7 +10,8 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:introspect": "drizzle-kit introspect"
+    "db:introspect": "drizzle-kit introspect",
+    "db:reset": "tsx drizzle/reset-db.ts && drizzle-kit generate"
   },
   "dependencies": {
     "@ai-sdk/google": "3.0.80",
