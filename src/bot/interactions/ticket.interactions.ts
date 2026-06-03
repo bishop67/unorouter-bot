@@ -1,5 +1,9 @@
 import { dollarsToQuota, GrantService } from "@/core/services/grant/grant.service";
-import { TicketService } from "@/core/services/tickets/ticket.service";
+import {
+  TicketCategory,
+  TicketOpenStatus,
+  TicketService,
+} from "@/core/services/tickets/ticket.service";
 import { isStaff } from "@/core/utils/command.utils";
 import { botLogger } from "@/lib/telemetry";
 import {
@@ -20,17 +24,17 @@ import { ButtonComponent, Discord, ModalComponent } from "discordx";
 export class TicketInteractions {
   @ButtonComponent({ id: "ticket_open_support" })
   async openSupport(interaction: ButtonInteraction) {
-    await this.open(interaction, "support");
+    await this.open(interaction, TicketCategory.Support);
   }
 
   @ButtonComponent({ id: "ticket_open_bug" })
   async openBug(interaction: ButtonInteraction) {
-    await this.open(interaction, "bug");
+    await this.open(interaction, TicketCategory.Bug);
   }
 
   private async open(
     interaction: ButtonInteraction,
-    category: "support" | "bug",
+    category: TicketCategory,
   ) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     const member = interaction.member as GuildMember | null;
@@ -39,14 +43,29 @@ export class TicketInteractions {
       return;
     }
     try {
-      const thread = await TicketService.open(interaction.guild, member, category);
-      if (!thread) {
-        await interaction.editReply(
-          "Could not open a ticket. A configured ticket category channel is required.",
-        );
-        return;
+      const result = await TicketService.open(
+        interaction.guild,
+        member,
+        category,
+      );
+      switch (result.status) {
+        case TicketOpenStatus.Ok:
+          await interaction.editReply(`Ticket created: ${result.channel}`);
+          return;
+        case TicketOpenStatus.AlreadyOpen:
+          await interaction.editReply(
+            `You already have an open ticket: <#${result.channelId}>. Close it before opening another.`,
+          );
+          return;
+        case TicketOpenStatus.NoCategory:
+          await interaction.editReply(
+            "Could not open a ticket. A configured ticket category channel is required.",
+          );
+          return;
+        case TicketOpenStatus.Error:
+          await interaction.editReply("Failed to open ticket.");
+          return;
       }
-      await interaction.editReply(`Ticket created: ${thread}`);
     } catch (err) {
       botLogger.error("Ticket open failed", { error: String(err) });
       await interaction.editReply("Failed to open ticket.");
@@ -75,13 +94,35 @@ export class TicketInteractions {
 
   @ButtonComponent({ id: "ticket_close" })
   async close(interaction: ButtonInteraction) {
-    if (!isStaff(interaction.member as GuildMember)) {
+    const member = interaction.member as GuildMember | null;
+    const row = await TicketService.getOpenTicket(interaction.channelId);
+    if (!row) {
       await interaction.reply({
-        content: "Staff only.",
+        content: "Not an open ticket.",
         flags: [MessageFlags.Ephemeral],
       });
       return;
     }
+
+    // Support: opener or staff can close. Bug: staff only (reward decision pending).
+    const isOpener = member?.id === row.openerId;
+    const staff = isStaff(member);
+    const allowed =
+      staff ||
+      (isOpener && row.category === TicketCategory.Support);
+
+    if (!allowed) {
+      const msg =
+        row.category === TicketCategory.Bug
+          ? "Only staff can close bug reports."
+          : "Only the opener or staff can close this ticket.";
+      await interaction.reply({
+        content: msg,
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+
     await interaction.reply({ content: "Closing ticket..." });
     await TicketService.close(interaction.channel as GuildTextBasedChannel);
   }

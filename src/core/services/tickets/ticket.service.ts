@@ -24,7 +24,32 @@ const TICKET_CATEGORY_NAME = process.env.TICKET_CATEGORY?.trim() || "tickets";
 const TICKET_LOG_CHANNEL_NAME =
   process.env.TICKET_LOG_CHANNEL?.trim() || "ticket-logs";
 
-export type TicketCategory = "support" | "bug";
+export const TicketCategory = {
+  Support: "support",
+  Bug: "bug",
+} as const;
+export type TicketCategory = (typeof TicketCategory)[keyof typeof TicketCategory];
+
+export const TicketStatus = {
+  Open: "open",
+  Closed: "closed",
+} as const;
+export type TicketStatus = (typeof TicketStatus)[keyof typeof TicketStatus];
+
+export const TicketOpenStatus = {
+  Ok: "ok",
+  AlreadyOpen: "already_open",
+  NoCategory: "no_category",
+  Error: "error",
+} as const;
+export type TicketOpenStatus =
+  (typeof TicketOpenStatus)[keyof typeof TicketOpenStatus];
+
+export type TicketOpenResult =
+  | { status: typeof TicketOpenStatus.Ok; channel: TextChannel }
+  | { status: typeof TicketOpenStatus.AlreadyOpen; channelId: string }
+  | { status: typeof TicketOpenStatus.NoCategory }
+  | { status: typeof TicketOpenStatus.Error; error: string };
 
 export class TicketService {
   static buildControls(): ActionRowBuilder<ButtonBuilder> {
@@ -52,13 +77,29 @@ export class TicketService {
     guild: Guild,
     opener: GuildMember,
     category: TicketCategory,
-  ): Promise<TextChannel | null> {
+  ): Promise<TicketOpenResult> {
+    // One-ticket-per-user guard: refuse if the opener already has an open ticket
+    // in this guild.
+    const existing = await db.query.ticket.findFirst({
+      where: and(
+        eq(ticket.guildId, guild.id),
+        eq(ticket.openerId, opener.id),
+        eq(ticket.status, TicketStatus.Open),
+      ),
+    });
+    if (existing) {
+      return {
+        status: TicketOpenStatus.AlreadyOpen,
+        channelId: existing.channelId,
+      };
+    }
+
     const ticketsCategory = findCategory(guild, TICKET_CATEGORY_NAME);
     if (!ticketsCategory) {
       botLogger.error("Ticket open failed: TICKETS category not found", {
         name: TICKET_CATEGORY_NAME,
       });
-      return null;
+      return { status: TicketOpenStatus.NoCategory };
     }
 
     const staffRoleIds = STAFF_ROLES.map(
@@ -121,7 +162,7 @@ export class TicketService {
       });
     } catch (err) {
       botLogger.error("Ticket channel create failed", { error: String(err) });
-      return null;
+      return { status: TicketOpenStatus.Error, error: String(err) };
     }
 
     await db.insert(ticket).values({
@@ -138,7 +179,7 @@ export class TicketService {
       allowedMentions: { users: [opener.id], roles: staffRoleIds },
     });
 
-    return channel;
+    return { status: TicketOpenStatus.Ok, channel };
   }
 
   static async logTicketMessage(message: Message): Promise<void> {
@@ -178,7 +219,7 @@ export class TicketService {
 
     await db
       .update(ticket)
-      .set({ status: "closed", closedAt: new Date().toISOString() })
+      .set({ status: TicketStatus.Closed, closedAt: new Date().toISOString() })
       .where(eq(ticket.id, row.id));
 
     const transcript = await this.buildTranscript(row.id, channel.name);
@@ -197,7 +238,10 @@ export class TicketService {
 
   static async getOpenTicket(channelId: string) {
     return db.query.ticket.findFirst({
-      where: and(eq(ticket.channelId, channelId), eq(ticket.status, "open")),
+      where: and(
+        eq(ticket.channelId, channelId),
+        eq(ticket.status, TicketStatus.Open),
+      ),
     });
   }
 
