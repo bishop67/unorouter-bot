@@ -86,10 +86,7 @@ export class TicketService {
                 PermissionFlagsBits.SendMessages |
                 PermissionFlagsBits.ReadMessageHistory |
                 PermissionFlagsBits.EmbedLinks |
-                PermissionFlagsBits.AttachFiles |
-                PermissionFlagsBits.ManageChannels |
-                PermissionFlagsBits.ManageRoles |
-                PermissionFlagsBits.ManageMessages,
+                PermissionFlagsBits.AttachFiles,
             },
           ]
         : []),
