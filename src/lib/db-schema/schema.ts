@@ -165,12 +165,16 @@ export const bugReport = pgTable(
     status: text("status").default("open").notNull(),
     rewardedQuota: integer("rewarded_quota").default(0).notNull(),
     resolvedBy: text("resolved_by"),
-    // Same pending-reward intent as tickets: staff approve sets these, reporter
-    // redeem (or instant grant when already linked) clears them + stamps
-    // resolvedAt. Re-rewards are blocked once resolvedAt is set.
+    // Same pending-reward intent as tickets: staff approve sets these, the
+    // recipient redeems (or instant grant when already linked) clears them +
+    // stamps resolvedAt. Re-rewards are blocked once resolvedAt is set. The
+    // recipient may differ from the reporter (some other thread participant
+    // may have actually identified the bug), so pendingRewardTargetId is
+    // recorded explicitly.
     pendingRewardQuota: integer("pending_reward_quota"),
     pendingRewardReason: text("pending_reward_reason"),
     pendingRewardGrantedBy: text("pending_reward_granted_by"),
+    pendingRewardTargetId: text("pending_reward_target_id"),
     createdAt: createdAt(),
     resolvedAt: timestamp("resolved_at", { precision: 3, mode: "string" }),
   },

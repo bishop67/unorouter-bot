@@ -87,6 +87,7 @@ export class BugReportService {
     quota: number;
     reason: string;
     grantedBy: string;
+    targetId: string;
   }): Promise<void> {
     await db
       .update(bugReport)
@@ -94,6 +95,7 @@ export class BugReportService {
         pendingRewardQuota: args.quota,
         pendingRewardReason: args.reason,
         pendingRewardGrantedBy: args.grantedBy,
+        pendingRewardTargetId: args.targetId,
       })
       .where(eq(bugReport.id, args.bugId));
   }

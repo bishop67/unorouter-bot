@@ -56,4 +56,5 @@ export const ModalIdPattern = {
 export const RewardModalField = {
   Tier: "reward_tier",
   Reason: "reward_reason",
+  Recipient: "reward_recipient",
 } as const;

@@ -118,12 +118,15 @@ export class BugInteractions {
         return;
       }
 
-      // Not linked: stash pending intent + post self-redeem button.
+      // Not linked: stash pending intent + post self-redeem button. The
+      // recipient may differ from the thread starter (someone else found the
+      // bug), so persist parsed.targetId explicitly.
       await BugReportService.setPendingReward({
         bugId,
         quota,
         reason: parsed.reason,
         grantedBy: interaction.user.id,
+        targetId: parsed.targetId,
       });
 
       const thread = interaction.channel as ThreadChannel | null;
@@ -154,22 +157,25 @@ export class BugInteractions {
       await interaction.editReply("Already redeemed.");
       return;
     }
-    if (interaction.user.id !== row.reporterId) {
-      await interaction.editReply("Only the reporter can redeem this.");
-      return;
-    }
     if (
       row.pendingRewardQuota == null ||
       !row.pendingRewardReason ||
-      !row.pendingRewardGrantedBy
+      !row.pendingRewardGrantedBy ||
+      !row.pendingRewardTargetId
     ) {
       await interaction.editReply("No pending reward on this report.");
+      return;
+    }
+    if (interaction.user.id !== row.pendingRewardTargetId) {
+      await interaction.editReply(
+        "Only the picked recipient can redeem this reward.",
+      );
       return;
     }
 
     try {
       const result = await GrantService.grantQuota({
-        targetDiscordId: row.reporterId,
+        targetDiscordId: row.pendingRewardTargetId,
         quota: row.pendingRewardQuota,
         reason: row.pendingRewardReason,
         sourceType: "bug",

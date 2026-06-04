@@ -7,7 +7,7 @@ import type {
   APIModalInteractionResponseCallbackData,
   ModalSubmitInteraction,
 } from "discord.js";
-import { ComponentType, TextInputStyle } from "discord.js";
+import { ComponentType, SelectMenuDefaultValueType, TextInputStyle } from "discord.js";
 
 // Re-export so existing call sites can keep importing from here.
 export const REWARD_MODAL_PREFIX = `${ModalIdPrefix.Reward}:`;
@@ -24,17 +24,51 @@ export const REWARD_TIERS = [
 
 // discord.js 14 ModalBuilder doesn't expose LabelBuilder (Components V2) yet,
 // so we hand-craft the raw modal payload. type 18 = Label, type 3 = String
-// Select, type 4 = Text Input. discord.js still happily forwards this to the
-// Discord API via interaction.showModal(APIModalInteractionResponseCallbackData).
+// Select, type 4 = Text Input, type 5 = User Select. discord.js forwards the
+// shape verbatim to the Discord API via interaction.showModal(APIModal...).
+//
+// targetDiscordId encoded in the custom_id is the DEFAULT recipient (ticket
+// opener / thread starter). For bug-bounty staff can override it via the
+// UserSelect inside the modal because the real fixer may not be the thread
+// starter; for tickets the opener is always the recipient so the field is
+// omitted.
 export function buildRewardModal(
   source: "ticket" | "bug",
   sourceId: string,
-  targetDiscordId: string,
+  defaultRecipientId: string,
 ): APIModalInteractionResponseCallbackData {
+  const recipientField =
+    source === "bug"
+      ? [
+          {
+            type: 18,
+            label: "Recipient",
+            description:
+              "Who finds the bug isn't always who reported it. Pick the user that gets paid.",
+            component: {
+              type: ComponentType.UserSelect,
+              custom_id: RewardModalField.Recipient,
+              placeholder: "Pick a user (defaults to thread starter)",
+              required: true,
+              min_values: 1,
+              max_values: 1,
+              default_values: [
+                { id: defaultRecipientId, type: SelectMenuDefaultValueType.User },
+              ],
+            },
+          },
+        ]
+      : [];
+
+  // Cast: the modal-side component types (Components V2 LabelComponent wrapping
+  // a UserSelect with default_values) aren't fully expressed in discord.js
+  // 14.26's APIModal* types yet, so we hand the runtime-correct object to
+  // showModal() and tell TS to trust us.
   return {
-    custom_id: ModalIdBuilder.reward(source, sourceId, targetDiscordId),
+    custom_id: ModalIdBuilder.reward(source, sourceId, defaultRecipientId),
     title: "Approve & Reward",
     components: [
+      ...recipientField,
       {
         type: 18,
         label: "Severity tier",
@@ -65,7 +99,7 @@ export function buildRewardModal(
         },
       },
     ],
-  };
+  } as unknown as APIModalInteractionResponseCallbackData;
 }
 
 interface ParsedRewardModal {
@@ -80,8 +114,8 @@ export function parseRewardModal(
   interaction: ModalSubmitInteraction,
 ): ParsedRewardModal | null {
   const rest = interaction.customId.slice(REWARD_MODAL_PREFIX.length);
-  const [source, sourceId, targetId] = rest.split(":");
-  if (!source || !sourceId || !targetId) return null;
+  const [source, sourceId, defaultTargetId] = rest.split(":");
+  if (!source || !sourceId || !defaultTargetId) return null;
 
   // Select menus inside modals don't fire InteractionCreate; the picked values
   // live on interaction.fields like any other modal input. discord.js types
@@ -94,6 +128,12 @@ export function parseRewardModal(
 
   const reason = readTextValue(interaction, RewardModalField.Reason)?.trim();
   if (!reason) return null;
+
+  // For bug-bounty the UserSelect (required) wins over the default in the
+  // custom_id; for tickets the field is absent so we fall back to the encoded
+  // default (the opener).
+  const targetId =
+    readSelectValue(interaction, RewardModalField.Recipient) ?? defaultTargetId;
 
   return { source, sourceId, targetId, amount, reason };
 }
