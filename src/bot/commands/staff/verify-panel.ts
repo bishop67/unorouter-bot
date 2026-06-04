@@ -5,6 +5,7 @@ import {
   safeEditReply,
 } from "@/core/utils/command.utils";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
+import { ButtonId } from "@/types/custom-ids";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -57,14 +58,14 @@ export class VerifyPanelCommand {
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId("claim_connect")
+        .setCustomId(ButtonId.ClaimConnect)
         .setLabel("Verify & Claim")
         .setEmoji("🔗")
         .setStyle(ButtonStyle.Success),
     );
 
     try {
-      await purgeOwnPanels(channel as TextChannel, "claim_connect");
+      await purgeOwnPanels(channel as TextChannel, ButtonId.ClaimConnect);
       await (channel as TextChannel).send({ embeds: [embed], components: [row] });
       await safeEditReply(interaction, "Verify panel posted.");
     } catch (err) {

@@ -7,9 +7,13 @@ import {
 import { isStaff } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import {
+  ButtonId,
+  ButtonIdPattern,
+  ModalIdPattern,
+} from "@/types/custom-ids";
+import {
   buildRewardModal,
   parseRewardModal,
-  REWARD_MODAL_PREFIX,
 } from "@/bot/interactions/reward.modal";
 import {
   ButtonInteraction,
@@ -22,12 +26,12 @@ import { ButtonComponent, Discord, ModalComponent } from "discordx";
 
 @Discord()
 export class TicketInteractions {
-  @ButtonComponent({ id: "ticket_open_support" })
+  @ButtonComponent({ id: ButtonId.TicketOpenSupport })
   async openSupport(interaction: ButtonInteraction) {
     await this.open(interaction, TicketCategory.Support);
   }
 
-  @ButtonComponent({ id: "ticket_open_bug" })
+  @ButtonComponent({ id: ButtonId.TicketOpenBug })
   async openBug(interaction: ButtonInteraction) {
     await this.open(interaction, TicketCategory.Bug);
   }
@@ -72,7 +76,7 @@ export class TicketInteractions {
     }
   }
 
-  @ButtonComponent({ id: "ticket_close" })
+  @ButtonComponent({ id: ButtonId.TicketClose })
   async close(interaction: ButtonInteraction) {
     const member = interaction.member as GuildMember | null;
     const row = await TicketService.getOpenTicket(interaction.channelId);
@@ -107,7 +111,7 @@ export class TicketInteractions {
     await TicketService.close(interaction.channel as GuildTextBasedChannel);
   }
 
-  @ButtonComponent({ id: "ticket_reward" })
+  @ButtonComponent({ id: ButtonId.TicketReward })
   async reward(interaction: ButtonInteraction) {
     if (!isStaff(interaction.member as GuildMember)) {
       await interaction.reply({
@@ -136,7 +140,7 @@ export class TicketInteractions {
     );
   }
 
-  @ModalComponent({ id: new RegExp(`^${REWARD_MODAL_PREFIX}ticket:`) })
+  @ModalComponent({ id: ModalIdPattern.RewardTicket })
   async rewardSubmit(interaction: ModalSubmitInteraction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     const parsed = parseRewardModal(interaction);
@@ -199,7 +203,7 @@ export class TicketInteractions {
     }
   }
 
-  @ButtonComponent({ id: /^ticket_redeem:\d+$/ })
+  @ButtonComponent({ id: ButtonIdPattern.TicketRedeem })
   async redeem(interaction: ButtonInteraction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     const ticketId = Number(interaction.customId.split(":")[1]);

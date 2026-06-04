@@ -5,6 +5,7 @@ import {
   safeEditReply,
 } from "@/core/utils/command.utils";
 import { BOT_NAME } from "@/shared/config/branding";
+import { ButtonId } from "@/types/custom-ids";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -51,19 +52,19 @@ export class TicketPanelCommand {
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId("ticket_open_support")
+        .setCustomId(ButtonId.TicketOpenSupport)
         .setLabel("Open Ticket")
         .setEmoji("🎫")
         .setStyle(ButtonStyle.Primary),
       new ButtonBuilder()
-        .setCustomId("ticket_open_bug")
+        .setCustomId(ButtonId.TicketOpenBug)
         .setLabel("Report a Bug")
         .setEmoji("🐞")
         .setStyle(ButtonStyle.Secondary),
     );
 
     try {
-      await purgeOwnPanels(channel as TextChannel, "ticket_open_support");
+      await purgeOwnPanels(channel as TextChannel, ButtonId.TicketOpenSupport);
       await (channel as TextChannel).send({ embeds: [embed], components: [row] });
       await safeEditReply(interaction, "Ticket panel posted.");
     } catch (err) {

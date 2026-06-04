@@ -5,8 +5,12 @@ import { logger } from "@/lib/logger";
 import {
   buildRewardModal,
   parseRewardModal,
-  REWARD_MODAL_PREFIX,
 } from "@/bot/interactions/reward.modal";
+import {
+  ButtonId,
+  ButtonIdPattern,
+  ModalIdPattern,
+} from "@/types/custom-ids";
 import {
   ButtonInteraction,
   GuildMember,
@@ -18,7 +22,7 @@ import { ButtonComponent, Discord, ModalComponent } from "discordx";
 
 @Discord()
 export class BugInteractions {
-  @ButtonComponent({ id: "bug_reward" })
+  @ButtonComponent({ id: ButtonId.BugReward })
   async reward(interaction: ButtonInteraction) {
     if (!isStaff(interaction.member as GuildMember)) {
       await interaction.reply({
@@ -47,7 +51,7 @@ export class BugInteractions {
     );
   }
 
-  @ButtonComponent({ id: "bug_reject" })
+  @ButtonComponent({ id: ButtonId.BugReject })
   async reject(interaction: ButtonInteraction) {
     if (!isStaff(interaction.member as GuildMember)) {
       await interaction.reply({
@@ -70,7 +74,7 @@ export class BugInteractions {
     await thread.setArchived(true).catch(() => {});
   }
 
-  @ModalComponent({ id: new RegExp(`^${REWARD_MODAL_PREFIX}bug:`) })
+  @ModalComponent({ id: ModalIdPattern.RewardBug })
   async rewardSubmit(interaction: ModalSubmitInteraction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     const parsed = parseRewardModal(interaction);
@@ -137,7 +141,7 @@ export class BugInteractions {
     }
   }
 
-  @ButtonComponent({ id: /^bug_redeem:\d+$/ })
+  @ButtonComponent({ id: ButtonIdPattern.BugRedeem })
   async redeem(interaction: ButtonInteraction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     const bugId = Number(interaction.customId.split(":")[1]);

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { bugReport } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { ButtonId, ButtonIdBuilder } from "@/types/custom-ids";
 import { eq } from "drizzle-orm";
 import {
   ActionRowBuilder,
@@ -31,11 +32,11 @@ export class BugReportService {
   static buildControls(): ActionRowBuilder<ButtonBuilder> {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId("bug_reward")
+        .setCustomId(ButtonId.BugReward)
         .setLabel("Approve & Reward")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId("bug_reject")
+        .setCustomId(ButtonId.BugReject)
         .setLabel("Reject")
         .setStyle(ButtonStyle.Danger),
     );
@@ -63,7 +64,7 @@ export class BugReportService {
   static buildRedeemButton(bugId: number): ActionRowBuilder<ButtonBuilder> {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`bug_redeem:${bugId}`)
+        .setCustomId(ButtonIdBuilder.bugRedeem(bugId))
         .setLabel("Redeem reward")
         .setEmoji("🎁")
         .setStyle(ButtonStyle.Success),

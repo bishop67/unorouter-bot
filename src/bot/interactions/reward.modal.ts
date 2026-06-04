@@ -1,10 +1,16 @@
+import {
+  ModalIdBuilder,
+  ModalIdPrefix,
+  RewardModalField,
+} from "@/types/custom-ids";
 import type {
   APIModalInteractionResponseCallbackData,
   ModalSubmitInteraction,
 } from "discord.js";
 import { ComponentType, TextInputStyle } from "discord.js";
 
-export const REWARD_MODAL_PREFIX = "reward_modal:";
+// Re-export so existing call sites can keep importing from here.
+export const REWARD_MODAL_PREFIX = `${ModalIdPrefix.Reward}:`;
 
 // Tier amounts mirror the bug-bounty post: $0.25 Low / $0.50 Medium / $1 High
 // / $50 Critical. Ascending order so the cheapest tier is the default-ish first
@@ -26,7 +32,7 @@ export function buildRewardModal(
   targetDiscordId: string,
 ): APIModalInteractionResponseCallbackData {
   return {
-    custom_id: `${REWARD_MODAL_PREFIX}${source}:${sourceId}:${targetDiscordId}`,
+    custom_id: ModalIdBuilder.reward(source, sourceId, targetDiscordId),
     title: "Approve & Reward",
     components: [
       {
@@ -34,7 +40,7 @@ export function buildRewardModal(
         label: "Severity tier",
         component: {
           type: ComponentType.StringSelect,
-          custom_id: "reward_tier",
+          custom_id: RewardModalField.Tier,
           placeholder: "Pick a tier",
           required: true,
           min_values: 1,
@@ -51,7 +57,7 @@ export function buildRewardModal(
         label: "Reason",
         component: {
           type: ComponentType.TextInput,
-          custom_id: "reward_reason",
+          custom_id: RewardModalField.Reason,
           style: TextInputStyle.Paragraph,
           required: true,
           placeholder: "e.g. Valid bug report: fixed login crash",
@@ -81,12 +87,12 @@ export function parseRewardModal(
   // live on interaction.fields like any other modal input. discord.js types
   // don't know about the select shape yet, so reach through the raw component
   // tree.
-  const tier = readSelectValue(interaction, "reward_tier");
+  const tier = readSelectValue(interaction, RewardModalField.Tier);
   if (!tier) return null;
   const amount = parseFloat(tier);
   if (!Number.isFinite(amount) || amount <= 0) return null;
 
-  const reason = readTextValue(interaction, "reward_reason")?.trim();
+  const reason = readTextValue(interaction, RewardModalField.Reason)?.trim();
   if (!reason) return null;
 
   return { source, sourceId, targetId, amount, reason };

@@ -3,6 +3,7 @@ import { ticket, ticketMessage } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { STAFF_ROLES } from "@/shared/config/roles";
 import { findCategory, findTextChannel } from "@/shared/utils/channel.utils";
+import { ButtonId, ButtonIdBuilder } from "@/types/custom-ids";
 import { and, eq } from "drizzle-orm";
 import {
   ActionRowBuilder,
@@ -55,11 +56,11 @@ export class TicketService {
   static buildControls(): ActionRowBuilder<ButtonBuilder> {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId("ticket_reward")
+        .setCustomId(ButtonId.TicketReward)
         .setLabel("Approve & Reward")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId("ticket_close")
+        .setCustomId(ButtonId.TicketClose)
         .setLabel("Close")
         .setStyle(ButtonStyle.Danger),
     );
@@ -199,7 +200,7 @@ export class TicketService {
   static buildRedeemButton(ticketId: number): ActionRowBuilder<ButtonBuilder> {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`ticket_redeem:${ticketId}`)
+        .setCustomId(ButtonIdBuilder.ticketRedeem(ticketId))
         .setLabel("Redeem reward")
         .setEmoji("🎁")
         .setStyle(ButtonStyle.Success),

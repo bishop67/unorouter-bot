@@ -1,11 +1,12 @@
 import { GrantService } from "@/core/services/grant/grant.service";
 import { logger } from "@/lib/logger";
+import { ButtonId } from "@/types/custom-ids";
 import { ButtonInteraction, GuildMember, MessageFlags } from "discord.js";
 import { ButtonComponent, Discord } from "discordx";
 
 @Discord()
 export class ClaimInteractions {
-  @ButtonComponent({ id: "claim_connect" })
+  @ButtonComponent({ id: ButtonId.ClaimConnect })
   async claim(interaction: ButtonInteraction) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
