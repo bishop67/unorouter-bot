@@ -1,3 +1,4 @@
+import { MemberDataService } from "@/core/services/members/member-data.service";
 import { logger } from "@/lib/logger";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import type { Guild, TextChannel } from "discord.js";
@@ -28,31 +29,41 @@ export class VerifyAllUsersService {
 
     this.running.add(guild.id);
     try {
-      const members = await guild.members.fetch();
-      const targets = members.filter(
-        (m) =>
-          !m.user.bot &&
-          !m.roles.cache.has(verifiedRole.id) &&
-          !(JAIL && m.roles.cache.some((r) => r.name === JAIL)),
-      );
+      await MemberDataService.upsertGuild(guild);
 
-      const total = targets.size;
+      const members = await guild.members.fetch();
+      const nonBots = members.filter((m) => !m.user.bot);
+      const total = nonBots.size;
       if (total === 0) {
-        await channel.send("All members already verified.");
+        await channel.send("No members to process.");
         return;
       }
 
-      const progress = await channel.send(`Verifying ${total} members...`);
+      const progress = await channel.send(
+        `Syncing ${total} members (DB + Verified role)...`,
+      );
       let done = 0;
+      let verified = 0;
       let failed = 0;
 
-      for (const member of targets.values()) {
+      for (const m of nonBots.values()) {
         try {
-          await member.roles.add(verifiedRole, "Bulk verify");
+          // Always upsert member + roles into DB so the audit table stays fresh
+          // even when no role change is needed.
+          await MemberDataService.updateCompleteMemberData(m);
+
+          // Skip role add for jailed users; everyone else gets Verified if
+          // they don't already have it.
+          const isJailed =
+            JAIL && m.roles.cache.some((r) => r.name === JAIL);
+          if (!isJailed && !m.roles.cache.has(verifiedRole.id)) {
+            await m.roles.add(verifiedRole, "Bulk verify");
+            verified++;
+          }
         } catch (e) {
           failed++;
           logger.error("Bulk verify failed for member", {
-            member: member.id,
+            member: m.id,
             error: String(e),
           });
         }
@@ -60,7 +71,7 @@ export class VerifyAllUsersService {
         if (done % 25 === 0 || done === total) {
           await progress
             .edit(
-              `Verifying: ${done}/${total} (${Math.round((done / total) * 100)}%)`,
+              `Syncing: ${done}/${total} (${Math.round((done / total) * 100)}%)`,
             )
             .catch(() => {});
         }
@@ -69,8 +80,8 @@ export class VerifyAllUsersService {
       await progress
         .edit(
           failed > 0
-            ? `Done. Verified ${total - failed}/${total} (${failed} failed).`
-            : `Done. Verified ${total} members.`,
+            ? `Done. Synced ${total - failed}/${total} (${verified} newly verified, ${failed} failed).`
+            : `Done. Synced ${total} members (${verified} newly verified).`,
         )
         .catch(() => {});
     } catch (err) {
