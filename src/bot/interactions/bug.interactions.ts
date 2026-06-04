@@ -47,27 +47,35 @@ export class BugInteractions {
       return;
     }
 
-    // Fetch thread members so the modal's recipient picker is scoped to people
-    // who actually engaged with this bug. Discord caps StringSelect at 25
-    // options; the modal builder slices defensively.
+    // Build the recipient picker from everyone who's engaged with this bug.
+    // thread.members.fetch() only returns people Discord has flagged as
+    // participants; the OP is often missing until they post in the thread,
+    // so we explicitly fold in thread.ownerId. Discord caps StringSelect at
+    // 25 options; the modal builder slices defensively.
     const thread = interaction.channel as ThreadChannel | null;
+    const seen = new Set<string>();
     const recipientOptions: { id: string; label: string }[] = [];
+
+    const pushMember = async (userId: string) => {
+      if (seen.has(userId)) return;
+      const gm = await interaction.guild?.members.fetch(userId).catch(() => null);
+      const user = gm?.user;
+      if (!user || user.bot) return;
+      seen.add(userId);
+      const nick = gm.displayName ?? user.username ?? user.id;
+      const handle = user.username ?? user.id;
+      const label = nick && nick !== handle ? `${nick} (${handle})` : handle;
+      recipientOptions.push({ id: userId, label });
+    };
+
     if (thread?.isThread()) {
+      // OP first so the default option (reporter) is guaranteed present.
+      if (thread.ownerId) await pushMember(thread.ownerId);
+
       const members = await thread.members.fetch().catch(() => null);
       if (members) {
         for (const tm of members.values()) {
-          // ThreadMember has guildMember after fetch; fall back to user when missing.
-          const gm = tm.guildMember;
-          const user = gm?.user ?? tm.user;
-          if (!user || user.bot) continue;
-          // Show "Server Nick (discord_handle)" so staff can disambiguate
-          // members who share a server display name. Fall back to handle-only
-          // when nickname == username.
-          const nick = gm?.displayName ?? user.username ?? user.id;
-          const handle = user.username ?? user.id;
-          const label =
-            nick && nick !== handle ? `${nick} (${handle})` : handle;
-          recipientOptions.push({ id: tm.id, label });
+          await pushMember(tm.id);
         }
       }
     }
