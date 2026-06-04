@@ -14,6 +14,8 @@ export const ButtonId = {
   // Bug-report control row
   BugReward: "bug_reward",
   BugReject: "bug_reject",
+  BugLock: "bug_lock",
+  BugClose: "bug_close",
 } as const;
 export type ButtonId = (typeof ButtonId)[keyof typeof ButtonId];
 

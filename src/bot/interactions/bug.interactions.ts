@@ -46,8 +46,28 @@ export class BugInteractions {
       });
       return;
     }
+
+    // Fetch thread members so the modal's recipient picker is scoped to people
+    // who actually engaged with this bug. Discord caps StringSelect at 25
+    // options; the modal builder slices defensively.
+    const thread = interaction.channel as ThreadChannel | null;
+    const recipientOptions: { id: string; label: string }[] = [];
+    if (thread?.isThread()) {
+      const members = await thread.members.fetch().catch(() => null);
+      if (members) {
+        for (const tm of members.values()) {
+          // ThreadMember has guildMember after fetch; fall back to user when missing.
+          const gm = tm.guildMember;
+          const user = gm?.user ?? tm.user;
+          if (!user || user.bot) continue;
+          const display = gm?.displayName ?? user.username ?? user.id;
+          recipientOptions.push({ id: tm.id, label: display });
+        }
+      }
+    }
+
     await interaction.showModal(
-      buildRewardModal("bug", String(row.id), row.reporterId),
+      buildRewardModal("bug", String(row.id), row.reporterId, recipientOptions),
     );
   }
 
@@ -72,6 +92,49 @@ export class BugInteractions {
     await interaction.reply({ content: "Bug report rejected." });
     const thread = interaction.channel as ThreadChannel;
     await thread.setArchived(true).catch(() => {});
+  }
+
+  @ButtonComponent({ id: ButtonId.BugLock })
+  async lock(interaction: ButtonInteraction) {
+    if (!isStaff(interaction.member as GuildMember)) {
+      await interaction.reply({
+        content: "Staff only.",
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+    const thread = interaction.channel as ThreadChannel | null;
+    if (!thread?.isThread()) {
+      await interaction.reply({
+        content: "Thread only.",
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+    await thread.setLocked(true, `Locked by ${interaction.user.tag}`).catch(() => {});
+    await interaction.reply({ content: `Thread locked by ${interaction.user}.` });
+  }
+
+  @ButtonComponent({ id: ButtonId.BugClose })
+  async close(interaction: ButtonInteraction) {
+    if (!isStaff(interaction.member as GuildMember)) {
+      await interaction.reply({
+        content: "Staff only.",
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+    const thread = interaction.channel as ThreadChannel | null;
+    if (!thread?.isThread()) {
+      await interaction.reply({
+        content: "Thread only.",
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
+    await interaction.reply({ content: `Closing thread.` });
+    await thread.setLocked(true, `Closed by ${interaction.user.tag}`).catch(() => {});
+    await thread.setArchived(true, `Closed by ${interaction.user.tag}`).catch(() => {});
   }
 
   @ModalComponent({ id: ModalIdPattern.RewardBug })

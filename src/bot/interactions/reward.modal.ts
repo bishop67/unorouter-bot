@@ -7,7 +7,12 @@ import type {
   APIModalInteractionResponseCallbackData,
   ModalSubmitInteraction,
 } from "discord.js";
-import { ComponentType, SelectMenuDefaultValueType, TextInputStyle } from "discord.js";
+import { ComponentType, TextInputStyle } from "discord.js";
+
+export interface RewardRecipientOption {
+  id: string;
+  label: string; // <= 100 chars
+}
 
 // Re-export so existing call sites can keep importing from here.
 export const REWARD_MODAL_PREFIX = `${ModalIdPrefix.Reward}:`;
@@ -36,9 +41,14 @@ export function buildRewardModal(
   source: "ticket" | "bug",
   sourceId: string,
   defaultRecipientId: string,
+  recipientOptions: RewardRecipientOption[] = [],
 ): APIModalInteractionResponseCallbackData {
+  // UserSelect inside a modal can't be scoped to thread members (Discord limit),
+  // so for bug-bounty we hand-build a StringSelect from the thread participants
+  // the caller fetched. The default option puts the thread starter first.
+  const cappedOptions = recipientOptions.slice(0, 25);
   const recipientField =
-    source === "bug"
+    source === "bug" && cappedOptions.length > 0
       ? [
           {
             type: 18,
@@ -46,15 +56,17 @@ export function buildRewardModal(
             description:
               "Who finds the bug isn't always who reported it. Pick the user that gets paid.",
             component: {
-              type: ComponentType.UserSelect,
+              type: ComponentType.StringSelect,
               custom_id: RewardModalField.Recipient,
-              placeholder: "Pick a user (defaults to thread starter)",
+              placeholder: "Pick a thread participant",
               required: true,
               min_values: 1,
               max_values: 1,
-              default_values: [
-                { id: defaultRecipientId, type: SelectMenuDefaultValueType.User },
-              ],
+              options: cappedOptions.map((o) => ({
+                label: o.label.slice(0, 100),
+                value: o.id,
+                default: o.id === defaultRecipientId,
+              })),
             },
           },
         ]

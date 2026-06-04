@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { bugReport } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { ButtonId, ButtonIdBuilder } from "@/types/custom-ids";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -39,11 +39,40 @@ export class BugReportService {
         .setCustomId(ButtonId.BugReject)
         .setLabel("Reject")
         .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(ButtonId.BugLock)
+        .setLabel("Lock")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(ButtonId.BugClose)
+        .setLabel("Close")
+        .setStyle(ButtonStyle.Secondary),
     );
   }
 
   static async register(thread: ThreadChannel): Promise<void> {
     if (!thread.guild || !thread.ownerId) return;
+
+    // One-open-per-reporter guard: refuse if this reporter already has an open
+    // bug report in this guild. Delete the duplicate thread + DM the reporter
+    // a pointer to the existing one so they consolidate context there.
+    const existing = await db.query.bugReport.findFirst({
+      where: and(
+        eq(bugReport.guildId, thread.guild.id),
+        eq(bugReport.reporterId, thread.ownerId),
+        eq(bugReport.status, "open"),
+      ),
+    });
+    if (existing) {
+      const opener = await thread.guild.members.fetch(thread.ownerId).catch(() => null);
+      await opener?.user
+        .send({
+          content: `You already have an open bug report: <#${existing.forumThreadId}>. Close or wait for staff to resolve it before opening another. The new thread you just created has been removed.`,
+        })
+        .catch(() => {});
+      await thread.delete(`Duplicate bug report from <@${thread.ownerId}>`).catch(() => {});
+      return;
+    }
 
     try {
       await db.insert(bugReport).values({
