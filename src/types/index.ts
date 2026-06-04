@@ -87,12 +87,23 @@ export interface SpamDetectionResult {
 }
 
 // Grant
-export type GrantSourceType =
-  | "command"
-  | "ticket"
-  | "bug"
-  | "boost"
-  | "connect";
+export const GrantSource = {
+  Command: "command",
+  Ticket: "ticket",
+  Bug: "bug",
+  Boost: "boost",
+  Connect: "connect",
+} as const;
+export type GrantSourceType = (typeof GrantSource)[keyof typeof GrantSource];
+
+// Human-readable label for grants-log announce + dashboards.
+export const GRANT_SOURCE_LABEL: Record<GrantSourceType, string> = {
+  command: "manual",
+  ticket: "support ticket",
+  bug: "bug bounty",
+  boost: "server boost",
+  connect: "connect bonus",
+};
 
 export interface GrantResult {
   linked: boolean;

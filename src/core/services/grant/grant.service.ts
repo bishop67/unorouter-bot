@@ -4,7 +4,7 @@ import { logger } from "@/lib/logger";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import { bot } from "@/main";
-import type { GrantResult, GrantSourceType } from "@/types";
+import { GRANT_SOURCE_LABEL, type GrantResult, type GrantSourceType } from "@/types";
 import { and, eq } from "drizzle-orm";
 import {
   type Guild,
@@ -124,7 +124,12 @@ export class GrantService {
       })
       .catch((e) => logger.error("grantLog insert failed", { error: String(e) }));
 
-    await this.announce(params.targetDiscordId, params.quota, params.reason);
+    await this.announce(
+      params.targetDiscordId,
+      params.quota,
+      params.reason,
+      params.sourceType,
+    );
 
     return { linked: true, userId, quota: params.quota };
   }
@@ -195,6 +200,7 @@ export class GrantService {
     targetDiscordId: string,
     quota: number,
     reason: string,
+    sourceType: GrantSourceType,
   ): Promise<void> {
     const guild = bot.guilds.cache.first();
     if (!guild) return;
@@ -204,9 +210,10 @@ export class GrantService {
     const dollarLabel = Number.isInteger(dollars)
       ? `$${dollars}`
       : `$${dollars.toFixed(2)}`;
+    const tag = GRANT_SOURCE_LABEL[sourceType] ?? sourceType;
     await channel
       .send({
-        content: `Granted **${dollarLabel}** (${quota} quota) to <@${targetDiscordId}> - ${reason}`,
+        content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to <@${targetDiscordId}> - ${reason}`,
         allowedMentions: { users: [], roles: [] },
       })
       .catch((e) => logger.error("Grant announce failed", { error: String(e) }));
