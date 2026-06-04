@@ -44,14 +44,20 @@ export class VerifyPanelCommand {
     }
 
     const settingsLink = `${WEBSITE_URL}/settings?redirect=/settings`;
+    const bonus = parseFloat(process.env.CONNECT_GRANT_DOLLARS || "0");
+    const bonusLabel = bonus > 0 ? `**$${formatDollars(bonus)}**` : "free balance";
+    const buttonLabel = bonus > 0 ? `Verify & Claim $${formatDollars(bonus)}` : "Verify & Claim";
 
     const embed = new EmbedBuilder()
-      .setTitle(`Link your ${BOT_NAME} account`)
+      .setTitle(`🎁 Link your ${BOT_NAME} account - get ${bonusLabel}`)
       .setDescription(
         [
-          `Connect your Discord to your ${BOT_NAME} account to unlock the linked role and claim your one-time welcome bonus.`,
+          `Connect your Discord to your ${BOT_NAME} account and receive a one-time **${bonusLabel} bonus** straight to your linked balance.`,
           "",
-          `**How:** [connect Discord in your account settings](${settingsLink}), then click the button below.`,
+          `**How:**`,
+          `1. [Connect Discord in your account settings](${settingsLink})`,
+          `2. Click **${buttonLabel}** below`,
+          `3. Bonus lands automatically`,
         ].join("\n"),
       )
       .setColor(0x9b59ff);
@@ -59,8 +65,8 @@ export class VerifyPanelCommand {
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
         .setCustomId(ButtonId.ClaimConnect)
-        .setLabel("Verify & Claim")
-        .setEmoji("🔗")
+        .setLabel(buttonLabel)
+        .setEmoji("🎁")
         .setStyle(ButtonStyle.Success),
     );
 
@@ -75,4 +81,8 @@ export class VerifyPanelCommand {
       );
     }
   }
+}
+
+function formatDollars(n: number): string {
+  return Number.isInteger(n) ? `${n}` : n.toFixed(2);
 }
