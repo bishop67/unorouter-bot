@@ -60,8 +60,14 @@ export class BugInteractions {
           const gm = tm.guildMember;
           const user = gm?.user ?? tm.user;
           if (!user || user.bot) continue;
-          const display = gm?.displayName ?? user.username ?? user.id;
-          recipientOptions.push({ id: tm.id, label: display });
+          // Show "Server Nick (discord_handle)" so staff can disambiguate
+          // members who share a server display name. Fall back to handle-only
+          // when nickname == username.
+          const nick = gm?.displayName ?? user.username ?? user.id;
+          const handle = user.username ?? user.id;
+          const label =
+            nick && nick !== handle ? `${nick} (${handle})` : handle;
+          recipientOptions.push({ id: tm.id, label });
         }
       }
     }
