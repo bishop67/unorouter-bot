@@ -65,7 +65,7 @@ export class BugInteractions {
 
   @ModalComponent({ id: new RegExp(`^${REWARD_MODAL_PREFIX}bug:`) })
   async rewardSubmit(interaction: ModalSubmitInteraction) {
-    await interaction.deferReply();
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     const parsed = parseRewardModal(interaction);
     if (!parsed) {
       await interaction.editReply("Invalid amount.");
@@ -83,8 +83,13 @@ export class BugInteractions {
       });
 
       if (!result.linked) {
+        const thread = interaction.channel as ThreadChannel | null;
+        await thread?.send({
+          content: `<@${parsed.targetId}> your reward of **$${parsed.amount}** is waiting. ${GrantService.linkPrompt()} A staff member will then reclick **Approve & Reward** to release it.`,
+          allowedMentions: { users: [parsed.targetId] },
+        });
         await interaction.editReply(
-          `Reporter has not linked their Discord. ${GrantService.linkPrompt()}`,
+          `Reporter not linked yet. I pinged them in the thread; reclick **Approve & Reward** after they link.`,
         );
         return;
       }

@@ -148,8 +148,13 @@ export class TicketInteractions {
       });
       if (!result.linked) {
         await interaction.editReply(
-          `Reporter has not linked their Discord. ${GrantService.linkPrompt()}`,
+          `Reporter not linked yet. I pinged them in the channel; reclick **Approve & Reward** after they link.`,
         );
+        const channel = interaction.channel as GuildTextBasedChannel | null;
+        await channel?.send({
+          content: `<@${parsed.targetId}> your reward of **$${parsed.amount}** is waiting. ${GrantService.linkPrompt()} A staff member will then reclick **Approve & Reward** to release it.`,
+          allowedMentions: { users: [parsed.targetId] },
+        });
         return;
       }
       await interaction.editReply(
