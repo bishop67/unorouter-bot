@@ -1,6 +1,6 @@
 import { buildSpamContextText, SPAM_SYSTEM_PROMPT } from "@/shared/ai/prompts";
 import { googleClient, ImageDownloadError } from "@/shared/integrations/google-ai";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import type { SpamDetectionContext, SpamDetectionResult } from "@/types";
 import { generateText, Output } from "ai";
 import { z } from "zod";
@@ -48,7 +48,7 @@ export class AiSpamService {
       result = await runAI(buildMessages(images));
     } catch (error) {
       if (error instanceof ImageDownloadError) {
-        botLogger.warn("Retrying spam analysis without images");
+        logger.warn("Retrying spam analysis without images");
         result = await runAI(buildMessages([]));
       } else {
         throw error;

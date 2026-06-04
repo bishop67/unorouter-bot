@@ -1,7 +1,7 @@
 import { BugReportService } from "@/core/services/bugs/bug-report.service";
 import { dollarsToQuota, GrantService } from "@/core/services/grant/grant.service";
 import { isStaff } from "@/core/utils/command.utils";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import {
   buildRewardModal,
   parseRewardModal,
@@ -105,7 +105,7 @@ export class BugInteractions {
       const thread = interaction.channel as ThreadChannel;
       await thread.setArchived(true).catch(() => {});
     } catch (err) {
-      botLogger.error("Bug reward failed", { error: String(err) });
+      logger.error("Bug reward failed", { error: String(err) });
       await interaction.editReply("Grant failed.");
     }
   }

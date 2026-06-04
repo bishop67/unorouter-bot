@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import { and, eq } from "drizzle-orm";
 import type { GuildMember } from "discord.js";
@@ -29,7 +29,7 @@ export async function handleGuildMemberAdd(
       await member.roles
         .set([jailRole.id], "Re-jailed on rejoin")
         .catch((e) =>
-          botLogger.error("Re-jail on join failed", {
+          logger.error("Re-jail on join failed", {
             member: member.id,
             error: String(e),
           }),
@@ -54,7 +54,7 @@ export async function handleGuildMemberAdd(
   await member.roles
     .add([...restoreIds], "Restore roles + auto-verify on join")
     .catch((e) =>
-      botLogger.error("Role restore on join failed", {
+      logger.error("Role restore on join failed", {
         member: member.id,
         error: String(e),
       }),

@@ -1,8 +1,9 @@
 import "@dotenvx/dotenvx/config";
 
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { WEBSITE_URL } from "@/shared/config/branding";
 import { ConfigValidator } from "@/shared/config/validator";
+import { ErrorBoundary } from "@/bot/guards/error-boundary.guard";
 import { ActivityType, GatewayIntentBits, Partials } from "discord.js";
 import { Client } from "discordx";
 import "./bot";
@@ -33,9 +34,15 @@ export const bot = new Client({
   ...(guildIds && guildIds.length ? { botGuilds: guildIds } : {}),
 });
 
+// Global discordx guard. Wraps every handler (slash, button, modal,
+// simple-command, gateway @On) in try/catch + structured log + ephemeral
+// fallback reply on interactions. discordx has no built-in error middleware
+// so this is the idiomatic boundary.
+bot.guards = [ErrorBoundary];
+
 bot.once("clientReady", async () => {
   await bot.initApplicationCommands();
-  botLogger.info("Bot started", { clientId: bot.user?.id });
+  logger.info("Bot started", { clientId: bot.user?.id });
 });
 
 bot.on("interactionCreate", (interaction) => {
@@ -55,26 +62,26 @@ bot.on("messageCreate", (message) => {
 // bot mid-deploy. discord.js gateway-level errors land on client.{error,warn,
 // shardError} instead and never reach process.
 process.on("unhandledRejection", (reason) =>
-  botLogger.error("Unhandled rejection", { error: String(reason) }),
+  logger.error("Unhandled rejection", { error: String(reason) }),
 );
 process.on("uncaughtException", (err) =>
-  botLogger.error("Uncaught exception", { error: String(err) }),
+  logger.error("Uncaught exception", { error: String(err) }),
 );
 
-bot.on("error", (err) => botLogger.error("Client error", { error: String(err) }));
-bot.on("warn", (msg) => botLogger.warn("Client warn", { msg }));
-bot.on("shardError", (err) => botLogger.error("Shard error", { error: String(err) }));
+bot.on("error", (err) => logger.error("Client error", { error: String(err) }));
+bot.on("warn", (msg) => logger.warn("Client warn", { msg }));
+bot.on("shardError", (err) => logger.error("Shard error", { error: String(err) }));
 
 for (const sig of ["SIGTERM", "SIGINT"] as const) {
   process.once(sig, () => {
-    botLogger.info(`Received ${sig}, shutting down`);
+    logger.info(`Received ${sig}, shutting down`);
     process.exit(0);
   });
 }
 
 const main = async () => {
   if (!token) {
-    botLogger.error("Could not find TOKEN in environment");
+    logger.error("Could not find TOKEN in environment");
     throw new Error("Could not find TOKEN in your environment");
   }
 

@@ -1,5 +1,5 @@
 import { GrantService } from "@/core/services/grant/grant.service";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { ButtonInteraction, GuildMember, MessageFlags } from "discord.js";
 import { ButtonComponent, Discord } from "discordx";
 
@@ -38,7 +38,7 @@ export class ClaimInteractions {
         );
       }
     } catch (err) {
-      botLogger.error("Claim connect failed", { error: String(err) });
+      logger.error("Claim connect failed", { error: String(err) });
       await interaction.editReply("Something went wrong. Try again later.");
     }
   }

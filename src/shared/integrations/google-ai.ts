@@ -1,4 +1,4 @@
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import {
   createGoogleGenerativeAI,
   type GoogleGenerativeAIProvider
@@ -134,7 +134,7 @@ class GoogleClientRotator {
   private rotateKey() {
     if (this.providers.length > 1) {
       this.currentKeyIndex = (this.currentKeyIndex + 1) % this.providers.length;
-      botLogger.info("Rotated API key", {
+      logger.info("Rotated API key", {
         keyIndex: this.currentKeyIndex + 1,
         totalKeys: this.providers.length
       });
@@ -145,7 +145,7 @@ class GoogleClientRotator {
     const nextModelIndex = this.currentModelIndex + 1;
     if (nextModelIndex < FALLBACK_MODELS.length) {
       this.currentModelIndex = nextModelIndex;
-      botLogger.info("Rotated model", {
+      logger.info("Rotated model", {
         model: FALLBACK_MODELS[this.currentModelIndex],
         modelIndex: this.currentModelIndex + 1,
         totalModels: FALLBACK_MODELS.length
@@ -161,7 +161,7 @@ class GoogleClientRotator {
     ) => Promise<T>
   ): Promise<T | null> {
     if (this.providers.length === 0) {
-      botLogger.error("No API keys configured");
+      logger.error("No API keys configured");
       return null;
     }
 
@@ -170,7 +170,7 @@ class GoogleClientRotator {
     let lastError: unknown;
     let lastCategory: ErrorCategory = "unknown";
 
-    botLogger.info("Starting AI request", {
+    logger.info("Starting AI request", {
       model: FALLBACK_MODELS[this.currentModelIndex],
       keyIndex: this.currentKeyIndex + 1,
       totalKeys: this.providers.length
@@ -189,13 +189,13 @@ class GoogleClientRotator {
               ? !!(result as { text?: string }).text?.trim()
               : !!result;
           if (!hasContent) {
-            botLogger.warn("Empty response, rotating", {
+            logger.warn("Empty response, rotating", {
               model: FALLBACK_MODELS[this.currentModelIndex]
             });
             this.rotateKey();
             continue;
           }
-          botLogger.info("AI request succeeded", {
+          logger.info("AI request succeeded", {
             model: FALLBACK_MODELS[this.currentModelIndex]
           });
           return result;
@@ -205,7 +205,7 @@ class GoogleClientRotator {
             error instanceof Error ? error.message : String(error);
           lastCategory = categorizeError(error);
 
-          botLogger.error("AI error", {
+          logger.error("AI error", {
             model: FALLBACK_MODELS[this.currentModelIndex],
             keyIndex: this.currentKeyIndex + 1,
             category: lastCategory,
@@ -213,21 +213,21 @@ class GoogleClientRotator {
           });
 
           if (lastCategory === "image_download") {
-            botLogger.warn(
+            logger.warn(
               "Image download failed, caller should retry without images"
             );
             throw new ImageDownloadError(message);
           }
 
           if (lastCategory === "non_retryable") {
-            botLogger.warn("Non-retryable error, stopping");
+            logger.warn("Non-retryable error, stopping");
             return null;
           }
 
           if (lastCategory === "key_error") {
             const expiredKey = getApiKeys()[this.currentKeyIndex];
             if (expiredKey) {
-              botLogger.warn("API key invalid", {
+              logger.warn("API key invalid", {
                 key: maskApiKey(expiredKey)
               });
             }
@@ -240,7 +240,7 @@ class GoogleClientRotator {
       // All keys exhausted for this model
       // If last error was key_error, don't try other models (same keys will fail)
       if (lastCategory === "key_error") {
-        botLogger.warn("All keys invalid, stopping");
+        logger.warn("All keys invalid, stopping");
         this.currentModelIndex = startModelIndex;
         this.currentKeyIndex = startKeyIndex;
         return null;
@@ -255,13 +255,13 @@ class GoogleClientRotator {
       this.currentKeyIndex = 0;
     } while (this.currentModelIndex !== startModelIndex);
 
-    botLogger.warn("All models and keys exhausted", {
+    logger.warn("All models and keys exhausted", {
       totalModels: FALLBACK_MODELS.length,
       totalKeys: this.providers.length
     });
     const finalMessage =
       lastError instanceof Error ? lastError.message : String(lastError);
-    botLogger.error("Last error", { message: finalMessage });
+    logger.error("Last error", { message: finalMessage });
 
     return null;
   }

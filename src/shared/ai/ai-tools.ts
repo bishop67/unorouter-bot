@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod/v4";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { ConfigValidator } from "@/shared/config/validator";
 import { bot } from "@/main";
 
@@ -10,7 +10,7 @@ const KLIPY_CUSTOMER_ID = process.env.BOT_NAME?.trim() || "unorouter-bot";
 
 async function searchGifs(query: string, limit: number = 5): Promise<string[]> {
   if (!KLIPY_API_KEY) {
-    botLogger.warn("KLIPY_API_KEY not configured - GIF search disabled");
+    logger.warn("KLIPY_API_KEY not configured - GIF search disabled");
     return [];
   }
 
@@ -40,7 +40,7 @@ async function searchGifs(query: string, limit: number = 5): Promise<string[]> {
         .filter(Boolean) || []
     );
   } catch (error) {
-    botLogger.error("Error fetching GIFs", { error: String(error) });
+    logger.error("Error fetching GIFs", { error: String(error) });
     return [];
   }
 }
@@ -62,7 +62,7 @@ const gatherChannelContext = tool({
   }),
   execute: async ({ channelId, guildId, messageCount }) => {
     try {
-      botLogger.info("Gathering AI context", { channelId, guildId });
+      logger.info("Gathering AI context", { channelId, guildId });
       const guild = await bot.guilds.fetch(guildId).catch(() => null);
       if (!guild) {
         return { success: false, error: "Guild not found" };
@@ -100,7 +100,7 @@ const gatherChannelContext = tool({
         },
       };
     } catch (error) {
-      botLogger.error("Error gathering channel context", { error: String(error) });
+      logger.error("Error gathering channel context", { error: String(error) });
       return {
         success: false,
         error: `Failed to gather channel context: ${error instanceof Error ? error.message : "Unknown error"}`,

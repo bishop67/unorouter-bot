@@ -1,4 +1,4 @@
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import type { Guild, TextChannel } from "discord.js";
 
@@ -51,7 +51,7 @@ export class VerifyAllUsersService {
           await member.roles.add(verifiedRole, "Bulk verify");
         } catch (e) {
           failed++;
-          botLogger.error("Bulk verify failed for member", {
+          logger.error("Bulk verify failed for member", {
             member: member.id,
             error: String(e),
           });
@@ -75,7 +75,7 @@ export class VerifyAllUsersService {
         .catch(() => {});
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      botLogger.error("Bulk verify failed", { error: msg });
+      logger.error("Bulk verify failed", { error: msg });
       await channel.send(`Error: ${msg}`);
     } finally {
       this.running.delete(guild.id);

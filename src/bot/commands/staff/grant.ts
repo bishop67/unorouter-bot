@@ -1,6 +1,6 @@
 import { dollarsToQuota, GrantService } from "@/core/services/grant/grant.service";
 import { isStaff, safeDeferReply, safeEditReply } from "@/core/utils/command.utils";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
@@ -85,7 +85,7 @@ export class GrantCommand {
         `Granted **$${amount}** to ${user.tag}. Reason: ${reason}`,
       );
     } catch (err) {
-      botLogger.error("/grant failed", { error: String(err) });
+      logger.error("/grant failed", { error: String(err) });
       await safeEditReply(interaction, "Grant failed. Check the bot logs.");
     }
   }

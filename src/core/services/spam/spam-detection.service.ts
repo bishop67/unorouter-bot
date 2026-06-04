@@ -5,7 +5,7 @@ import { memberMessages } from "@/lib/db-schema";
 import { and, count, eq } from "drizzle-orm";
 import { extractImageUrls } from "@/shared/ai/attachment-processor";
 import { ConfigValidator } from "@/shared/config/validator";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import type { SpamDetectionContext } from "@/types";
 import dayjs from "dayjs";
 import { Message, ThreadChannel } from "discord.js";
@@ -42,7 +42,7 @@ export class SpamDetectionService {
         collectibles: userProfile.collectibles || null,
       };
     } catch (error) {
-      botLogger.error("Error fetching user profile", { error: String(error) });
+      logger.error("Error fetching user profile", { error: String(error) });
       return {
         banner: null,
         accentColor: null,
@@ -130,7 +130,7 @@ export class SpamDetectionService {
         return false;
       }
 
-      botLogger.info("Spam detection result", {
+      logger.info("Spam detection result", {
         user: message.author.username,
         displayName: message.author.globalName,
         isSpam: result.isSpam,
@@ -150,7 +150,7 @@ export class SpamDetectionService {
       }
       return false;
     } catch (error) {
-      botLogger.error("Spam detection error", { error: String(error) });
+      logger.error("Spam detection error", { error: String(error) });
       return false;
     }
   }

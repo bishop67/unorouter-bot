@@ -5,7 +5,7 @@ import {
   TicketService,
 } from "@/core/services/tickets/ticket.service";
 import { isStaff } from "@/core/utils/command.utils";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import {
   buildRewardModal,
   parseRewardModal,
@@ -67,7 +67,7 @@ export class TicketInteractions {
           return;
       }
     } catch (err) {
-      botLogger.error("Ticket open failed", { error: String(err) });
+      logger.error("Ticket open failed", { error: String(err) });
       await interaction.editReply("Failed to open ticket.");
     }
   }
@@ -161,7 +161,7 @@ export class TicketInteractions {
         `Granted **$${parsed.amount}** to <@${parsed.targetId}>.`,
       );
     } catch (err) {
-      botLogger.error("Ticket reward failed", { error: String(err) });
+      logger.error("Ticket reward failed", { error: String(err) });
       await interaction.editReply("Grant failed.");
     }
   }

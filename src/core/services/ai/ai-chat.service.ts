@@ -4,7 +4,7 @@ import {
 } from "@/shared/ai/attachment-processor";
 import { CHAT_SYSTEM_PROMPT } from "@/shared/ai/prompts";
 import { googleClient, ImageDownloadError } from "@/shared/integrations/google-ai";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { generateText, ModelMessage, stepCountIs } from "ai";
 import { Message } from "discord.js";
 import { LRUCache } from "lru-cache";
@@ -59,7 +59,7 @@ export class AiChatService {
       result = await runAI();
     } catch (error) {
       if (error instanceof ImageDownloadError) {
-        botLogger.warn("Retrying AI request without images");
+        logger.warn("Retrying AI request without images");
         userMessage = this.buildUserMessage(fullMessage, []);
         for (let i = 0; i < messages.length; i++) {
           messages[i] = this.stripImagesFromMessage(messages[i]);
@@ -72,14 +72,14 @@ export class AiChatService {
     }
 
     if (!result) {
-      botLogger.warn("AI returned null result");
+      logger.warn("AI returned null result");
       return null;
     }
 
     const { text, steps } = result;
     const responseText = this.stripFakeGifUrls(text?.trim() || "");
 
-    botLogger.info("AI response", {
+    logger.info("AI response", {
       hasText: !!responseText,
       textLength: responseText.length,
       hasSteps: !!steps?.length,

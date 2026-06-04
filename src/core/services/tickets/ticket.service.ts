@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { ticket, ticketMessage } from "@/lib/db-schema";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { STAFF_ROLES } from "@/shared/config/roles";
 import { findCategory, findTextChannel } from "@/shared/utils/channel.utils";
 import { and, eq } from "drizzle-orm";
@@ -92,7 +92,7 @@ export class TicketService {
 
     const ticketsCategory = findCategory(guild, TICKET_CATEGORY_NAME);
     if (!ticketsCategory) {
-      botLogger.error("Ticket open failed: TICKETS category not found", {
+      logger.error("Ticket open failed: TICKETS category not found", {
         name: TICKET_CATEGORY_NAME,
       });
       return { status: TicketOpenStatus.NoCategory };
@@ -157,7 +157,7 @@ export class TicketService {
         reason: `Ticket opened by ${opener.user.tag}`,
       });
     } catch (err) {
-      botLogger.error("Ticket channel create failed", { error: String(err) });
+      logger.error("Ticket channel create failed", { error: String(err) });
       return { status: TicketOpenStatus.Error, error: String(err) };
     }
 

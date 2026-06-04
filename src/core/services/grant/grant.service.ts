@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { grantLog } from "@/lib/db-schema";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import { bot } from "@/main";
@@ -66,7 +66,7 @@ export class GrantService {
     grantedByDiscordId: string;
   }): Promise<GrantResult> {
     if (!this.isConfigured()) {
-      botLogger.warn("Grant skipped: NEW_API_URL / NEW_API_ADMIN_TOKEN missing");
+      logger.warn("Grant skipped: NEW_API_URL / NEW_API_ADMIN_TOKEN missing");
       return { linked: false, quota: params.quota };
     }
     if (params.quota <= 0) {
@@ -88,7 +88,7 @@ export class GrantService {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      botLogger.error("Grant request failed", {
+      logger.error("Grant request failed", {
         status: res.status,
         body: text.slice(0, 300),
       });
@@ -122,7 +122,7 @@ export class GrantService {
         sourceId: params.sourceId ?? null,
         grantedByDiscordId: params.grantedByDiscordId,
       })
-      .catch((e) => botLogger.error("grantLog insert failed", { error: String(e) }));
+      .catch((e) => logger.error("grantLog insert failed", { error: String(e) }));
 
     await this.announce(params.targetDiscordId, params.quota, params.reason);
 
@@ -184,7 +184,7 @@ export class GrantService {
     await member.roles
       .add(role, `Discord linked to ${BOT_NAME}`)
       .catch((e) =>
-        botLogger.error("Connected role add failed", {
+        logger.error("Connected role add failed", {
           member: member.id,
           error: String(e),
         }),
@@ -209,7 +209,7 @@ export class GrantService {
         content: `Granted **${dollarLabel}** (${quota} quota) to <@${targetDiscordId}> - ${reason}`,
         allowedMentions: { users: [], roles: [] },
       })
-      .catch((e) => botLogger.error("Grant announce failed", { error: String(e) }));
+      .catch((e) => logger.error("Grant announce failed", { error: String(e) }));
   }
 
   /**
@@ -250,7 +250,7 @@ export class GrantService {
         );
       }
     } catch (e) {
-      botLogger.error("Boost grant failed", { error: String(e) });
+      logger.error("Boost grant failed", { error: String(e) });
     }
   }
 
@@ -263,7 +263,7 @@ export class GrantService {
     await channel
       .send({ content, allowedMentions: { users: [] } })
       .catch((e) =>
-        botLogger.error("Boost channel post failed", { error: String(e) }),
+        logger.error("Boost channel post failed", { error: String(e) }),
       );
   }
 }

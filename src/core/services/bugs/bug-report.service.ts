@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { bugReport } from "@/lib/db-schema";
-import { botLogger } from "@/lib/telemetry";
+import { logger } from "@/lib/logger";
 import { eq } from "drizzle-orm";
 import {
   ActionRowBuilder,
@@ -56,7 +56,7 @@ export class BugReportService {
         components: [this.buildControls()],
       });
     } catch (err) {
-      botLogger.error("Bug report register failed", { error: String(err) });
+      logger.error("Bug report register failed", { error: String(err) });
     }
   }
 
