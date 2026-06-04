@@ -23,5 +23,5 @@
       "@/*": ["./src/*"]
     }
   },
-  "exclude": ["dist", "node_modules", "drizzle", "drizzle.config.ts", "tsup.config.ts"]
+  "exclude": ["dist", "node_modules", "drizzle.config.ts", "tsup.config.ts"]
 }
