@@ -45,14 +45,15 @@ export class VerifyPanelCommand {
 
     const settingsLink = `${WEBSITE_URL}/settings?redirect=/settings`;
     const bonus = parseFloat(process.env.CONNECT_GRANT_DOLLARS || "0");
-    const bonusLabel = bonus > 0 ? `**$${formatDollars(bonus)}**` : "free balance";
-    const buttonLabel = bonus > 0 ? `Verify & Claim $${formatDollars(bonus)}` : "Verify & Claim";
+    const plainBonus = bonus > 0 ? `$${formatDollars(bonus)}` : "free balance";
+    const boldBonus = bonus > 0 ? `**$${formatDollars(bonus)}**` : "**free balance**";
+    const buttonLabel = bonus > 0 ? `Verify & Claim ${plainBonus}` : "Verify & Claim";
 
     const embed = new EmbedBuilder()
-      .setTitle(`🎁 Link your ${BOT_NAME} account - get ${bonusLabel}`)
+      .setTitle(`🎁 Link your ${BOT_NAME} account - get ${plainBonus}`)
       .setDescription(
         [
-          `Connect your Discord to your ${BOT_NAME} account and receive a one-time **${bonusLabel} bonus** straight to your linked balance.`,
+          `Connect your Discord to your ${BOT_NAME} account and receive a one-time ${boldBonus} bonus straight to your linked balance.`,
           "",
           `**How:**`,
           `1. [Connect Discord in your account settings](${settingsLink})`,
