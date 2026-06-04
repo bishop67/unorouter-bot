@@ -1,5 +1,5 @@
 {
-  "id": "113eddb6-5abd-4fb0-92e3-8a40d5c3465e",
+  "id": "13507ea0-0498-4e0a-9300-f23228164250",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -48,6 +48,30 @@
         },
         "resolved_by": {
           "name": "resolved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_reward_quota": {
+          "name": "pending_reward_quota",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_reward_reason": {
+          "name": "pending_reward_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_reward_granted_by": {
+          "name": "pending_reward_granted_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_reward_target_id": {
+          "name": "pending_reward_target_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -729,9 +753,27 @@
           "notNull": true,
           "default": "'open'"
         },
-        "claimed_by": {
-          "name": "claimed_by",
+        "pending_reward_quota": {
+          "name": "pending_reward_quota",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_reward_reason": {
+          "name": "pending_reward_reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_reward_granted_by": {
+          "name": "pending_reward_granted_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "redeemed_at": {
+          "name": "redeemed_at",
+          "type": "timestamp(3)",
           "primaryKey": false,
           "notNull": false
         },

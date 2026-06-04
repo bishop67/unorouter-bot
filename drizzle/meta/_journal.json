@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1780486364629,
-      "tag": "0000_outgoing_raider",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1780527846080,
-      "tag": "0001_luxuriant_ultimatum",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1780584183142,
-      "tag": "0002_rich_arachne",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1780585632345,
-      "tag": "0003_premium_strong_guy",
+      "when": 1780586537113,
+      "tag": "0000_gifted_reavers",
       "breakpoints": true
     }
   ]

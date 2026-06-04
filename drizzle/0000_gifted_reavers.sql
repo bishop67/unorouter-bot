@@ -6,6 +6,10 @@ CREATE TABLE "bug_reports" (
 	"status" text DEFAULT 'open' NOT NULL,
 	"rewarded_quota" integer DEFAULT 0 NOT NULL,
 	"resolved_by" text,
+	"pending_reward_quota" integer,
+	"pending_reward_reason" text,
+	"pending_reward_granted_by" text,
+	"pending_reward_target_id" text,
 	"created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	"resolved_at" timestamp(3)
 );
@@ -83,7 +87,10 @@ CREATE TABLE "tickets" (
 	"opener_id" text NOT NULL,
 	"category" text DEFAULT 'support' NOT NULL,
 	"status" text DEFAULT 'open' NOT NULL,
-	"claimed_by" text,
+	"pending_reward_quota" integer,
+	"pending_reward_reason" text,
+	"pending_reward_granted_by" text,
+	"redeemed_at" timestamp(3),
 	"created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
 	"closed_at" timestamp(3)
 );

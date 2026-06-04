@@ -1,1 +1,0 @@
-ALTER TABLE "bug_reports" ADD COLUMN "pending_reward_target_id" text;
