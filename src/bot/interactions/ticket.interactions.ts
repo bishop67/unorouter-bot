@@ -124,6 +124,13 @@ export class TicketInteractions {
       });
       return;
     }
+    if (row.redeemedAt) {
+      await interaction.reply({
+        content: "This ticket has already been rewarded.",
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
     await interaction.showModal(
       buildRewardModal("ticket", String(row.id), row.openerId),
     );
@@ -137,32 +144,107 @@ export class TicketInteractions {
       await interaction.editReply("Invalid amount.");
       return;
     }
+
+    const ticketId = Number(parsed.sourceId);
+    const row = await TicketService.getById(ticketId);
+    if (!row) {
+      await interaction.editReply("Ticket not found.");
+      return;
+    }
+    if (row.redeemedAt) {
+      await interaction.editReply("This ticket has already been rewarded.");
+      return;
+    }
+
+    const quota = dollarsToQuota(parsed.amount);
     try {
       const result = await GrantService.grantQuota({
         targetDiscordId: parsed.targetId,
-        quota: dollarsToQuota(parsed.amount),
+        quota,
         reason: parsed.reason,
         sourceType: "ticket",
         sourceId: parsed.sourceId,
         grantedByDiscordId: interaction.user.id,
       });
-      if (!result.linked) {
+
+      if (result.linked) {
+        await TicketService.markRedeemed(ticketId);
         await interaction.editReply(
-          `Reporter not linked yet. I pinged them in the channel; reclick **Approve & Reward** after they link.`,
+          `Granted **$${parsed.amount}** to <@${parsed.targetId}>.`,
         );
-        const channel = interaction.channel as GuildTextBasedChannel | null;
-        await channel?.send({
-          content: `<@${parsed.targetId}> your reward of **$${parsed.amount}** is waiting. ${GrantService.linkPrompt()} A staff member will then reclick **Approve & Reward** to release it.`,
-          allowedMentions: { users: [parsed.targetId] },
-        });
         return;
       }
+
+      // Not linked: persist the intent so the opener can self-redeem with a
+      // single click after they link. Approve & Reward stays locked until then.
+      await TicketService.setPendingReward({
+        ticketId,
+        quota,
+        reason: parsed.reason,
+        grantedBy: interaction.user.id,
+      });
+
+      const channel = interaction.channel as GuildTextBasedChannel | null;
+      await channel?.send({
+        content: `<@${parsed.targetId}> your reward of **$${parsed.amount}** is waiting. ${GrantService.linkPrompt()} Then click below to redeem.`,
+        components: [TicketService.buildRedeemButton(ticketId)],
+        allowedMentions: { users: [parsed.targetId] },
+      });
       await interaction.editReply(
-        `Granted **$${parsed.amount}** to <@${parsed.targetId}>.`,
+        `Pending **$${parsed.amount}** for <@${parsed.targetId}>. They'll self-redeem after linking.`,
       );
     } catch (err) {
       logger.error("Ticket reward failed", { error: String(err) });
       await interaction.editReply("Grant failed.");
+    }
+  }
+
+  @ButtonComponent({ id: /^ticket_redeem:\d+$/ })
+  async redeem(interaction: ButtonInteraction) {
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+    const ticketId = Number(interaction.customId.split(":")[1]);
+    const row = await TicketService.getById(ticketId);
+    if (!row) {
+      await interaction.editReply("Ticket not found.");
+      return;
+    }
+    if (row.redeemedAt) {
+      await interaction.editReply("Already redeemed.");
+      return;
+    }
+    if (interaction.user.id !== row.openerId) {
+      await interaction.editReply("Only the ticket opener can redeem this.");
+      return;
+    }
+    if (
+      row.pendingRewardQuota == null ||
+      !row.pendingRewardReason ||
+      !row.pendingRewardGrantedBy
+    ) {
+      await interaction.editReply("No pending reward on this ticket.");
+      return;
+    }
+
+    try {
+      const result = await GrantService.grantQuota({
+        targetDiscordId: row.openerId,
+        quota: row.pendingRewardQuota,
+        reason: row.pendingRewardReason,
+        sourceType: "ticket",
+        sourceId: String(row.id),
+        grantedByDiscordId: row.pendingRewardGrantedBy,
+      });
+      if (!result.linked) {
+        await interaction.editReply(
+          `Still not linked. ${GrantService.linkPrompt()}`,
+        );
+        return;
+      }
+      await TicketService.markRedeemed(ticketId);
+      await interaction.editReply("Reward delivered to your balance.");
+    } catch (err) {
+      logger.error("Ticket redeem failed", { error: String(err) });
+      await interaction.editReply("Redeem failed. Try again in a moment.");
     }
   }
 }

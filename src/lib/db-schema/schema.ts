@@ -124,6 +124,13 @@ export const ticket = pgTable(
     openerId: text("opener_id").notNull(),
     category: text("category").default("support").notNull(),
     status: text("status").default("open").notNull(),
+    // Reward intent set when staff approves; consumed on opener-redeem (or
+    // immediately on grantQuota when the opener is already linked). Once
+    // redeemedAt is set the ticket cannot be re-rewarded.
+    pendingRewardQuota: integer("pending_reward_quota"),
+    pendingRewardReason: text("pending_reward_reason"),
+    pendingRewardGrantedBy: text("pending_reward_granted_by"),
+    redeemedAt: timestamp("redeemed_at", { precision: 3, mode: "string" }),
     createdAt: createdAt(),
     closedAt: timestamp("closed_at", { precision: 3, mode: "string" }),
   },
@@ -158,6 +165,12 @@ export const bugReport = pgTable(
     status: text("status").default("open").notNull(),
     rewardedQuota: integer("rewarded_quota").default(0).notNull(),
     resolvedBy: text("resolved_by"),
+    // Same pending-reward intent as tickets: staff approve sets these, reporter
+    // redeem (or instant grant when already linked) clears them + stamps
+    // resolvedAt. Re-rewards are blocked once resolvedAt is set.
+    pendingRewardQuota: integer("pending_reward_quota"),
+    pendingRewardReason: text("pending_reward_reason"),
+    pendingRewardGrantedBy: text("pending_reward_granted_by"),
     createdAt: createdAt(),
     resolvedAt: timestamp("resolved_at", { precision: 3, mode: "string" }),
   },

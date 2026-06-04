@@ -196,6 +196,43 @@ export class TicketService {
       .catch(() => {});
   }
 
+  static buildRedeemButton(ticketId: number): ActionRowBuilder<ButtonBuilder> {
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`ticket_redeem:${ticketId}`)
+        .setLabel("Redeem reward")
+        .setEmoji("🎁")
+        .setStyle(ButtonStyle.Success),
+    );
+  }
+
+  static async getById(ticketId: number) {
+    return db.query.ticket.findFirst({ where: eq(ticket.id, ticketId) });
+  }
+
+  static async setPendingReward(args: {
+    ticketId: number;
+    quota: number;
+    reason: string;
+    grantedBy: string;
+  }): Promise<void> {
+    await db
+      .update(ticket)
+      .set({
+        pendingRewardQuota: args.quota,
+        pendingRewardReason: args.reason,
+        pendingRewardGrantedBy: args.grantedBy,
+      })
+      .where(eq(ticket.id, args.ticketId));
+  }
+
+  static async markRedeemed(ticketId: number): Promise<void> {
+    await db
+      .update(ticket)
+      .set({ redeemedAt: new Date().toISOString() })
+      .where(eq(ticket.id, ticketId));
+  }
+
   static async close(channel: GuildTextBasedChannel): Promise<boolean> {
     const row = await this.getOpenTicket(channel.id);
     if (!row) return false;

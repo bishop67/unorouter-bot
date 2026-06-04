@@ -15,6 +15,13 @@
       "when": 1780527846080,
       "tag": "0001_luxuriant_ultimatum",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780584183142,
+      "tag": "0002_rich_arachne",
+      "breakpoints": true
     }
   ]
 }

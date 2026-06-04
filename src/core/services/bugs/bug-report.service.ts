@@ -60,11 +60,41 @@ export class BugReportService {
     }
   }
 
+  static buildRedeemButton(bugId: number): ActionRowBuilder<ButtonBuilder> {
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`bug_redeem:${bugId}`)
+        .setLabel("Redeem reward")
+        .setEmoji("🎁")
+        .setStyle(ButtonStyle.Success),
+    );
+  }
+
   static async getOpen(threadId: string) {
     const row = await db.query.bugReport.findFirst({
       where: eq(bugReport.forumThreadId, threadId),
     });
     return row && row.status === "open" ? row : null;
+  }
+
+  static async getById(bugId: number) {
+    return db.query.bugReport.findFirst({ where: eq(bugReport.id, bugId) });
+  }
+
+  static async setPendingReward(args: {
+    bugId: number;
+    quota: number;
+    reason: string;
+    grantedBy: string;
+  }): Promise<void> {
+    await db
+      .update(bugReport)
+      .set({
+        pendingRewardQuota: args.quota,
+        pendingRewardReason: args.reason,
+        pendingRewardGrantedBy: args.grantedBy,
+      })
+      .where(eq(bugReport.id, args.bugId));
   }
 
   static async markApproved(
