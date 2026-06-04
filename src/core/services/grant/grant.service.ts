@@ -43,9 +43,19 @@ const CONNECT_GRANT_DOLLARS = parseFloat(
   process.env.CONNECT_GRANT_DOLLARS || "0",
 );
 
+export const ConnectStatus = {
+  NotLinked: "not_linked",
+  Connected: "connected",
+} as const;
+export type ConnectStatus = (typeof ConnectStatus)[keyof typeof ConnectStatus];
+
 export type ConnectResult =
-  | { status: "not_linked" }
-  | { status: "connected"; bonusGranted: boolean; dollars: number };
+  | { status: typeof ConnectStatus.NotLinked }
+  | {
+      status: typeof ConnectStatus.Connected;
+      bonusGranted: boolean;
+      dollars: number;
+    };
 
 export class GrantService {
   static isConfigured(): boolean {
@@ -145,7 +155,7 @@ export class GrantService {
    * only ensure the role - no second bonus.
    */
   static async connectBonus(member: GuildMember): Promise<ConnectResult> {
-    if (!this.isConfigured()) return { status: "not_linked" };
+    if (!this.isConfigured()) return { status: ConnectStatus.NotLinked };
 
     const prior = await db.query.grantLog
       .findFirst({
@@ -159,7 +169,7 @@ export class GrantService {
     if (prior) {
       // Already claimed once: they were linked before. Just ensure the role.
       await this.ensureConnectedRole(member);
-      return { status: "connected", bonusGranted: false, dollars: 0 };
+      return { status: ConnectStatus.Connected, bonusGranted: false, dollars: 0 };
     }
 
     const quota = CONNECT_GRANT_QUOTA;
@@ -172,11 +182,11 @@ export class GrantService {
       grantedByDiscordId: "system",
     }).catch(() => ({ linked: false, quota }) as GrantResult);
 
-    if (!result.linked) return { status: "not_linked" };
+    if (!result.linked) return { status: ConnectStatus.NotLinked };
 
     await this.ensureConnectedRole(member);
     return {
-      status: "connected",
+      status: ConnectStatus.Connected,
       bonusGranted: quota > 0,
       dollars: CONNECT_GRANT_DOLLARS,
     };
@@ -219,58 +229,4 @@ export class GrantService {
       .catch((e) => logger.error("Grant announce failed", { error: String(e) }));
   }
 
-  /**
-   * Server boost auto-grant. Fires when premiumSince transitions null -> set.
-   */
-  static async handleBoost(
-    oldMember: GuildMember | PartialGuildMember,
-    newMember: GuildMember,
-  ): Promise<void> {
-    const startedBoosting = !oldMember.premiumSince && !!newMember.premiumSince;
-    if (!startedBoosting) return;
-    if (BOOST_GRANT_QUOTA <= 0 || !this.isConfigured()) return;
-
-    try {
-      const result = await this.grantQuota({
-        targetDiscordId: newMember.id,
-        quota: BOOST_GRANT_QUOTA,
-        reason: "server boost",
-        sourceType: "boost",
-        sourceId: null,
-        grantedByDiscordId: "system",
-      });
-
-      if (result.linked) {
-        await this.postBoostChannel(
-          newMember.guild,
-          `${newMember} boosted the server and earned **$${BOOST_GRANT_DOLLARS}** balance. Thank you!`,
-        );
-      } else {
-        await newMember
-          .send(
-            `Thanks for boosting! ${this.linkPrompt()} Once linked, ping a mod to receive your boost reward.`,
-          )
-          .catch(() => {});
-        await this.postBoostChannel(
-          newMember.guild,
-          `${newMember} boosted the server! Link your Discord on ${WEBSITE_URL} to claim your boost reward.`,
-        );
-      }
-    } catch (e) {
-      logger.error("Boost grant failed", { error: String(e) });
-    }
-  }
-
-  private static async postBoostChannel(
-    guild: Guild,
-    content: string,
-  ): Promise<void> {
-    const channel = findTextChannel(guild, BOOST_CHANNEL_NAME);
-    if (!channel) return;
-    await channel
-      .send({ content, allowedMentions: { users: [] } })
-      .catch((e) =>
-        logger.error("Boost channel post failed", { error: String(e) }),
-      );
-  }
 }

@@ -1,4 +1,4 @@
-import { GrantService } from "@/core/services/grant/grant.service";
+import { ConnectStatus, GrantService } from "@/core/services/grant/grant.service";
 import { logger } from "@/lib/logger";
 import { ButtonId } from "@/types/custom-ids";
 import { ButtonInteraction, GuildMember, MessageFlags } from "discord.js";
@@ -24,7 +24,7 @@ export class ClaimInteractions {
     try {
       const result = await GrantService.connectBonus(member);
 
-      if (result.status === "not_linked") {
+      if (result.status === ConnectStatus.NotLinked) {
         await interaction.editReply(GrantService.linkPrompt());
         return;
       }

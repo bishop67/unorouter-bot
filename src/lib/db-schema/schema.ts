@@ -183,6 +183,29 @@ export const bugReport = pgTable(
   ],
 );
 
+// One row per "boost slot" a user holds. Discord doesn't expose per-user boost
+// counts to bots, so we count rows here: each system boost message Discord
+// posts in the system channel adds one slot. nextPayoutAt advances by 30 days
+// each time the monthly cron credits the user; active flips to false when the
+// user drops their premiumSince (cancelled boost).
+export const boostSlot = pgTable(
+  "boost_slots",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    memberId: text("member_id").notNull(),
+    sourceMessageId: text("source_message_id"),
+    startedAt: createdAt(),
+    nextPayoutAt: timestamp("next_payout_at", { precision: 3, mode: "string" }).notNull(),
+    active: boolean("active").default(true).notNull(),
+    cancelledAt: timestamp("cancelled_at", { precision: 3, mode: "string" }),
+  },
+  (table) => [
+    index("idx_boost_slots_member_guild").on(table.memberId, table.guildId),
+    index("idx_boost_slots_due").on(table.active, table.nextPayoutAt),
+  ],
+);
+
 export const grantLog = pgTable(
   "grant_logs",
   {

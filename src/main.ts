@@ -1,6 +1,7 @@
 import "@dotenvx/dotenvx/config";
 
 import { logger } from "@/lib/logger";
+import { BoostService } from "@/core/services/boost/boost.service";
 import { WEBSITE_URL } from "@/shared/config/branding";
 import { ConfigValidator } from "@/shared/config/validator";
 import { ErrorBoundary } from "@/bot/guards/error-boundary.guard";
@@ -42,6 +43,7 @@ bot.guards = [ErrorBoundary];
 
 bot.once("clientReady", async () => {
   await bot.initApplicationCommands();
+  BoostService.startCron();
   logger.info("Bot started", { clientId: bot.user?.id });
 });
 

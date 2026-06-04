@@ -1,3 +1,14 @@
+CREATE TABLE "boost_slots" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"guild_id" text NOT NULL,
+	"member_id" text NOT NULL,
+	"source_message_id" text,
+	"created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	"next_payout_at" timestamp(3) NOT NULL,
+	"active" boolean DEFAULT true NOT NULL,
+	"cancelled_at" timestamp(3)
+);
+--> statement-breakpoint
 CREATE TABLE "bug_reports" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"guild_id" text NOT NULL,
@@ -111,6 +122,8 @@ ALTER TABLE "member_messages" ADD CONSTRAINT "member_messages_guild_id_guilds_gu
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_guild_id_guilds_guild_id_fk" FOREIGN KEY ("guild_id") REFERENCES "public"."guilds"("guild_id") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_member_id_members_member_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("member_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "ticket_messages" ADD CONSTRAINT "ticket_messages_ticket_id_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "public"."tickets"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
+CREATE INDEX "idx_boost_slots_member_guild" ON "boost_slots" USING btree ("member_id","guild_id");--> statement-breakpoint
+CREATE INDEX "idx_boost_slots_due" ON "boost_slots" USING btree ("active","next_payout_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_bug_reports_forum_thread" ON "bug_reports" USING btree ("forum_thread_id");--> statement-breakpoint
 CREATE INDEX "idx_grant_logs_target" ON "grant_logs" USING btree ("target_discord_id");--> statement-breakpoint
 CREATE INDEX "idx_grant_logs_source" ON "grant_logs" USING btree ("source_type","source_id");--> statement-breakpoint

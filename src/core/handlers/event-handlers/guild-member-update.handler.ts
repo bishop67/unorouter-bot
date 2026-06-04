@@ -1,7 +1,7 @@
 import type { GuildMember, PartialGuildMember } from "discord.js";
 import { EVERYONE } from "@/shared/config/roles";
 import { RolesService } from "@/core/services/roles/roles.service";
-import { GrantService } from "@/core/services/grant/grant.service";
+import { BoostService } from "@/core/services/boost/boost.service";
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
 import { and, eq } from "drizzle-orm";
@@ -11,7 +11,14 @@ export async function handleGuildMemberUpdate(
   newMember: GuildMember,
 ): Promise<void> {
   await syncRoles(oldMember, newMember);
-  await GrantService.handleBoost(oldMember, newMember);
+
+  // Boost cancellation: premiumSince transitions set -> null when the user drops
+  // all their boosts. Deactivate every active slot so the monthly cron stops
+  // paying them. New boosts and renewals are picked up via messageCreate on the
+  // PREMIUM_GUILD_SUBSCRIPTION system message instead, so we ignore null->set.
+  if (oldMember.premiumSince && !newMember.premiumSince) {
+    await BoostService.handleBoostCancelled(newMember);
+  }
 }
 
 async function syncRoles(

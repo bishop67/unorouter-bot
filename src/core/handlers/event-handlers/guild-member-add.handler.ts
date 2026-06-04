@@ -1,14 +1,39 @@
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
+import { findTextChannel } from "@/shared/utils/channel.utils";
 import { and, eq } from "drizzle-orm";
 import type { GuildMember } from "discord.js";
+
+const JOIN_EVENTS_CHANNEL_NAME =
+  process.env.JOIN_EVENTS_CHANNEL?.trim() || "join-events";
+
+async function postWelcome(member: GuildMember): Promise<void> {
+  const channel = findTextChannel(member.guild, JOIN_EVENTS_CHANNEL_NAME);
+  if (!channel) return;
+  await channel
+    .send({
+      content: `👋 Welcome ${member} to **${BOT_NAME}**! Head to the verify channel to link your account and grab your **\$1** welcome bonus. Pricing + docs at ${WEBSITE_URL}.`,
+      allowedMentions: { users: [member.id] },
+    })
+    .catch((e) =>
+      logger.error("Join-events welcome post failed", {
+        member: member.id,
+        error: String(e),
+      }),
+    );
+}
 
 export async function handleGuildMemberAdd(
   member: GuildMember,
 ): Promise<void> {
   if (member.user.bot) return;
+
+  // Welcome post in join-events. Native Discord join messages in the system
+  // channel are suppressed so this is the only welcome line.
+  await postWelcome(member);
 
   // Restore previously-saved roles (set on guildMemberUpdate). Re-jail if they
   // left while jailed; otherwise reapply saved roles + ensure Verified.
