@@ -55,29 +55,18 @@ bot.on("messageCreate", (message) => {
   void bot.executeCommand(message);
 });
 
-// Crash-guards. discordx invokes interaction/event handlers internally and has
-// no first-class error middleware, so any promise rejection that escapes a
-// handler bubbles up here. Without these listeners Node terminates the process
-// on unhandled rejection (>=15) and always on uncaught exception, killing the
-// bot mid-deploy. discord.js gateway-level errors land on client.{error,warn,
-// shardError} instead and never reach process.
+// Last-resort nets. The ErrorBoundary guard catches anything inside a discordx
+// handler; these catch errors outside (timers, raw promise chains, gateway).
+// Without them Node kills the process on unhandled rejection (>=15) / always
+// on uncaught exception.
 process.on("unhandledRejection", (reason) =>
   logger.error("Unhandled rejection", { error: String(reason) }),
 );
 process.on("uncaughtException", (err) =>
   logger.error("Uncaught exception", { error: String(err) }),
 );
-
 bot.on("error", (err) => logger.error("Client error", { error: String(err) }));
-bot.on("warn", (msg) => logger.warn("Client warn", { msg }));
 bot.on("shardError", (err) => logger.error("Shard error", { error: String(err) }));
-
-for (const sig of ["SIGTERM", "SIGINT"] as const) {
-  process.once(sig, () => {
-    logger.info(`Received ${sig}, shutting down`);
-    process.exit(0);
-  });
-}
 
 const main = async () => {
   if (!token) {
