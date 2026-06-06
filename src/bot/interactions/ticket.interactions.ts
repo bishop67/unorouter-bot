@@ -7,6 +7,8 @@ import {
   TicketOpenStatus,
   TicketService,
 } from "@/core/services/tickets/ticket.service";
+import { TicketCooldownService } from "@/core/services/tickets/ticket-cooldown.service";
+import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { isStaff } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import { ButtonId, ButtonIdPattern, ModalIdPattern } from "@/types/custom-ids";
@@ -22,6 +24,49 @@ import {
   ModalSubmitInteraction,
 } from "discord.js";
 import { ButtonComponent, Discord, ModalComponent } from "discordx";
+
+function formatRetry(ms: number): string {
+  const secs = Math.ceil(ms / 1000);
+  if (secs < 60) return `${secs}s`;
+  return `${Math.ceil(secs / 60)}m`;
+}
+
+/**
+ * Churn-limit a ticket open/close. Returns true when the action must be
+ * aborted: either soft-blocked (retry hint) or the user got jailed. The jail
+ * notification embed (posted to the jail channel) carries the reason, so staff
+ * see exactly what tripped it.
+ */
+async function enforceTicketCooldown(
+  interaction: ButtonInteraction,
+  member: GuildMember,
+  notify: (content: string) => Promise<unknown>,
+): Promise<boolean> {
+  const cooldown = TicketCooldownService.check(interaction.user.id);
+  if (cooldown.action === "ok") return false;
+
+  if (cooldown.action === "jail") {
+    TicketCooldownService.reset(interaction.user.id);
+    if (interaction.guild) {
+      await DeleteUserMessagesService.jailAndDeleteMessages({
+        jail: true,
+        memberId: interaction.user.id,
+        user: interaction.user,
+        guild: interaction.guild,
+        reason: `Ticket spam: ${cooldown.count} open/close actions in under 5 minutes`,
+      });
+    }
+    await notify(
+      "You've been muted for spamming tickets. Ask a mod to unmute you.",
+    );
+    return true;
+  }
+
+  await notify(
+    `You're opening and closing tickets too fast. Try again in ${formatRetry(cooldown.retryAfterMs)}.`,
+  );
+  return true;
+}
 
 @Discord()
 export class TicketInteractions {
@@ -42,6 +87,11 @@ export class TicketInteractions {
       await interaction.editReply("Guild only.");
       return;
     }
+
+    const stopped = await enforceTicketCooldown(interaction, member, (c) =>
+      interaction.editReply(c),
+    );
+    if (stopped) return;
     try {
       const result = await TicketService.open(
         interaction.guild,
@@ -100,6 +150,14 @@ export class TicketInteractions {
         flags: [MessageFlags.Ephemeral],
       });
       return;
+    }
+
+    // Staff close legitimately during triage; only churn-limit opener self-closes.
+    if (!staff && member) {
+      const stopped = await enforceTicketCooldown(interaction, member, (c) =>
+        interaction.reply({ content: c, flags: [MessageFlags.Ephemeral] }),
+      );
+      if (stopped) return;
     }
 
     await interaction.reply({ content: "Closing ticket..." });
