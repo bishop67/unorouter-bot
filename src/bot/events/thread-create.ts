@@ -5,7 +5,10 @@ import { handleThreadCreate } from "@/core/handlers/event-handlers/thread-create
 @Discord()
 export class ThreadCreate {
   @On({ event: "threadCreate" })
-  async threadCreate([thread, newlyCreated]: ArgsOf<"threadCreate">): Promise<void> {
+  async threadCreate([
+    thread,
+    newlyCreated,
+  ]: ArgsOf<"threadCreate">): Promise<void> {
     if (!newlyCreated) return;
     await handleThreadCreate(thread);
   }

@@ -1,9 +1,10 @@
+import { MemberDataService } from "@/core/services/members/member-data.service";
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { db } from "@/lib/db";
-import { memberMessages, memberGuild } from "@/lib/db-schema";
-import { and, count, eq } from "drizzle-orm";
-import { LEVEL_LIST, levelUpMessage } from "@/shared/config/levels";
+import { memberGuild, memberMessages } from "@/lib/db-schema";
+import { logger } from "@/lib/logger";
 import { SHOULD_USER_LEVEL_UP } from "@/shared/config/features";
+import { LEVEL_LIST, levelUpMessage } from "@/shared/config/levels";
 import { JAIL } from "@/shared/config/roles";
 import {
   Collection,
@@ -13,10 +14,9 @@ import {
   PartialMessage,
   TextChannel,
 } from "discord.js";
+import { and, count, eq } from "drizzle-orm";
 
 export class MessagesService {
-  private static _levelSystemWarningLogged = false;
-
   static async addMessageDb(message: Message<boolean>) {
     // get info
     const content = message.content;
@@ -29,15 +29,26 @@ export class MessagesService {
     if (!content || !guildId || !memberId || message.interaction?.user.bot)
       return;
 
+    // FK parent for the memberMessages insert below.
+    if (message.member)
+      await MemberDataService.upsertMemberOnly(message.member);
+
     // catch message edits
     try {
-      await db.insert(memberMessages)
+      await db
+        .insert(memberMessages)
         .values({ id: messageId, channelId, guildId, memberId, messageId })
         .onConflictDoUpdate({
           target: memberMessages.messageId,
           set: { channelId, guildId, memberId },
         });
-    } catch (_) {}
+    } catch (e) {
+      logger.error("addMessageDb insert failed", {
+        memberId,
+        guildId,
+        error: String(e),
+      });
+    }
   }
 
   static async deleteMessageDb(message: Message<boolean> | PartialMessage) {
@@ -46,7 +57,8 @@ export class MessagesService {
     if (!messageId) return;
 
     try {
-      await db.delete(memberMessages)
+      await db
+        .delete(memberMessages)
         .where(eq(memberMessages.messageId, messageId));
     } catch (_) {}
   }
@@ -69,7 +81,7 @@ export class MessagesService {
         and(
           eq(memberMessages.memberId, message.member?.id ?? ""),
           eq(memberMessages.guildId, message.guild?.id ?? ""),
-        )
+        ),
       );
 
     const memberMessagesCount = result?.count ?? 0;
@@ -178,7 +190,8 @@ export class MessagesService {
 
       const currentWarnings = memberGuildData.warnings + 1;
 
-      await db.update(memberGuild)
+      await db
+        .update(memberGuild)
         .set({ warnings: currentWarnings })
         .where(eq(memberGuild.id, memberGuildData.id));
 

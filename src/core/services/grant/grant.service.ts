@@ -1,10 +1,15 @@
 import { db } from "@/lib/db";
 import { grantLog } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { grantDiscordQuota } from "@/lib/new-api/openapi";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import { bot } from "@/main";
-import { GRANT_SOURCE_LABEL, type GrantResult, type GrantSourceType } from "@/types";
+import {
+  GRANT_SOURCE_LABEL,
+  type GrantResult,
+  type GrantSourceType,
+} from "@/types";
 import { and, eq } from "drizzle-orm";
 import {
   type Guild,
@@ -12,11 +17,10 @@ import {
   type PartialGuildMember,
 } from "discord.js";
 
+// Auth headers (Authorization + New-Api-User) are injected by the orval mutator
+// in src/lib/new-api/custom-fetch.ts; these two only gate isConfigured().
 const NEW_API_URL = process.env.NEW_API_URL?.replace(/\/$/, "") || "";
 const NEW_API_ADMIN_TOKEN = process.env.NEW_API_ADMIN_TOKEN || "";
-// new-api admin auth requires BOTH the access token (Authorization) and the matching
-// user id (New-Api-User header). The system access token belongs to user id 1.
-const NEW_API_USER_ID = process.env.NEW_API_USER_ID?.trim() || "1";
 // Channels resolved by NAME (substring) so emoji renames don't break config.
 const GRANT_LOG_CHANNEL_NAME =
   process.env.GRANT_LOG_CHANNEL?.trim() || "grants-log";
@@ -24,10 +28,7 @@ const BOOST_CHANNEL_NAME = process.env.BOOST_CHANNEL?.trim() || "boosters";
 
 // Bonuses are configured in DOLLARS; bot converts to new-api quota units.
 // new-api default QuotaPerUnit = 500000 quota = $1.
-const QUOTA_PER_DOLLAR = parseInt(
-  process.env.QUOTA_PER_DOLLAR || "500000",
-  10,
-);
+const QUOTA_PER_DOLLAR = parseInt(process.env.QUOTA_PER_DOLLAR || "500000", 10);
 export function dollarsToQuota(dollars: number): number {
   return Math.round(dollars * QUOTA_PER_DOLLAR);
 }
@@ -83,44 +84,24 @@ export class GrantService {
       throw new Error("Grant quota must be positive");
     }
 
-    const res = await fetch(`${NEW_API_URL}/api/user/discord_grant`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: NEW_API_ADMIN_TOKEN,
-        "New-Api-User": NEW_API_USER_ID,
-      },
-      body: JSON.stringify({
-        discord_id: params.targetDiscordId,
-        quota: params.quota,
-      }),
+    const res = await grantDiscordQuota({
+      discord_id: params.targetDiscordId,
+      quota: params.quota,
+    }).catch((e: { status?: number; data?: unknown }) => {
+      logger.error("Grant request failed", { status: e.status, body: e.data });
+      throw new Error(`new-api grant failed (${e.status ?? "?"})`);
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      logger.error("Grant request failed", {
-        status: res.status,
-        body: text.slice(0, 300),
-      });
-      throw new Error(`new-api grant failed (${res.status})`);
-    }
-
-    const json = (await res.json()) as {
-      success?: boolean;
-      message?: string;
-      data?: { user_id?: number; linked?: boolean };
-    };
-
+    const json = res.data;
     if (json.success === false) {
       throw new Error(json.message || "new-api grant rejected");
     }
 
-    const linked = json.data?.linked ?? false;
-    if (!linked) {
+    if (!json.data.linked) {
       return { linked: false, quota: params.quota };
     }
 
-    const userId = json.data?.user_id;
+    const userId = json.data.user_id;
     await db
       .insert(grantLog)
       .values({
@@ -132,7 +113,9 @@ export class GrantService {
         sourceId: params.sourceId ?? null,
         grantedByDiscordId: params.grantedByDiscordId,
       })
-      .catch((e) => logger.error("grantLog insert failed", { error: String(e) }));
+      .catch((e) =>
+        logger.error("grantLog insert failed", { error: String(e) }),
+      );
 
     await this.announce(
       params.targetDiscordId,
@@ -169,7 +152,11 @@ export class GrantService {
     if (prior) {
       // Already claimed once: they were linked before. Just ensure the role.
       await this.ensureConnectedRole(member);
-      return { status: ConnectStatus.Connected, bonusGranted: false, dollars: 0 };
+      return {
+        status: ConnectStatus.Connected,
+        bonusGranted: false,
+        dollars: 0,
+      };
     }
 
     const quota = CONNECT_GRANT_QUOTA;
@@ -193,17 +180,17 @@ export class GrantService {
   }
 
   private static async ensureConnectedRole(member: GuildMember): Promise<void> {
-    const role = member.guild.roles.cache.find((r) => r.name === CONNECTED_ROLE);
+    const role = member.guild.roles.cache.find(
+      (r) => r.name === CONNECTED_ROLE,
+    );
     if (!role || !role.editable) return;
     if (member.roles.cache.has(role.id)) return;
-    await member.roles
-      .add(role, `Discord linked to ${BOT_NAME}`)
-      .catch((e) =>
-        logger.error("Connected role add failed", {
-          member: member.id,
-          error: String(e),
-        }),
-      );
+    await member.roles.add(role, `Discord linked to ${BOT_NAME}`).catch((e) =>
+      logger.error("Connected role add failed", {
+        member: member.id,
+        error: String(e),
+      }),
+    );
   }
 
   private static async announce(
@@ -226,7 +213,8 @@ export class GrantService {
         content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to <@${targetDiscordId}> - ${reason}`,
         allowedMentions: { users: [], roles: [] },
       })
-      .catch((e) => logger.error("Grant announce failed", { error: String(e) }));
+      .catch((e) =>
+        logger.error("Grant announce failed", { error: String(e) }),
+      );
   }
-
 }

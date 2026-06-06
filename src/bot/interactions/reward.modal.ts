@@ -21,10 +21,26 @@ export const REWARD_MODAL_PREFIX = `${ModalIdPrefix.Reward}:`;
 // / $50 Critical. Ascending order so the cheapest tier is the default-ish first
 // option and staff escalate consciously. No custom amount.
 export const REWARD_TIERS = [
-  { label: "Low - $0.25", value: "0.25", description: "UI/cosmetic, typo, minor glitch" },
-  { label: "Medium - $0.50", value: "0.5", description: "Functional bug with a workaround" },
-  { label: "High - $1", value: "1", description: "Broken core feature, security flaw, money loss" },
-  { label: "Critical - $50", value: "50", description: "Auth bypass, data leak, RCE, billing/quota exploit" },
+  {
+    label: "Low - $0.25",
+    value: "0.25",
+    description: "UI/cosmetic, typo, minor glitch",
+  },
+  {
+    label: "Medium - $0.50",
+    value: "0.5",
+    description: "Functional bug with a workaround",
+  },
+  {
+    label: "High - $1",
+    value: "1",
+    description: "Broken core feature, security flaw, money loss",
+  },
+  {
+    label: "Critical - $50",
+    value: "50",
+    description: "Auth bypass, data leak, RCE, billing/quota exploit",
+  },
 ] as const;
 
 // discord.js 14 ModalBuilder doesn't expose LabelBuilder (Components V2) yet,
@@ -165,7 +181,11 @@ function readSelectValue(
     components?: Node[];
   };
   const walk = (n: Node): string | null => {
-    if (n.customId === customId && Array.isArray(n.values) && n.values.length > 0) {
+    if (
+      n.customId === customId &&
+      Array.isArray(n.values) &&
+      n.values.length > 0
+    ) {
       return n.values[0]!;
     }
     if (n.component) {
@@ -193,4 +213,3 @@ function readTextValue(
     return null;
   }
 }
-

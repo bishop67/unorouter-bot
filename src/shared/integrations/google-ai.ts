@@ -1,7 +1,7 @@
 import { logger } from "@/lib/logger";
 import {
   createGoogleGenerativeAI,
-  type GoogleGenerativeAIProvider
+  type GoogleGenerativeAIProvider,
 } from "@ai-sdk/google";
 import { APICallError, RetryError } from "ai";
 
@@ -20,7 +20,7 @@ const FALLBACK_MODELS: ModelId[] = [
   "gemini-3-flash-preview",
   "gemini-2.5-flash",
   "gemini-2.5-flash-lite",
-  "gemini-2.0-flash"
+  "gemini-2.0-flash",
 ];
 
 function getApiKeys() {
@@ -46,7 +46,7 @@ function maskApiKey(key: string): string {
 }
 
 function getAPICallError(
-  error: unknown
+  error: unknown,
 ): InstanceType<typeof APICallError> | null {
   if (APICallError.isInstance(error)) return error;
   if (
@@ -136,7 +136,7 @@ class GoogleClientRotator {
       this.currentKeyIndex = (this.currentKeyIndex + 1) % this.providers.length;
       logger.info("Rotated API key", {
         keyIndex: this.currentKeyIndex + 1,
-        totalKeys: this.providers.length
+        totalKeys: this.providers.length,
       });
     }
   }
@@ -148,7 +148,7 @@ class GoogleClientRotator {
       logger.info("Rotated model", {
         model: FALLBACK_MODELS[this.currentModelIndex],
         modelIndex: this.currentModelIndex + 1,
-        totalModels: FALLBACK_MODELS.length
+        totalModels: FALLBACK_MODELS.length,
       });
       return true;
     }
@@ -157,8 +157,8 @@ class GoogleClientRotator {
 
   async executeWithRotation<T>(
     operation: (
-      model: ReturnType<GoogleClientRotator["getModel"]>
-    ) => Promise<T>
+      model: ReturnType<GoogleClientRotator["getModel"]>,
+    ) => Promise<T>,
   ): Promise<T | null> {
     if (this.providers.length === 0) {
       logger.error("No API keys configured");
@@ -173,7 +173,7 @@ class GoogleClientRotator {
     logger.info("Starting AI request", {
       model: FALLBACK_MODELS[this.currentModelIndex],
       keyIndex: this.currentKeyIndex + 1,
-      totalKeys: this.providers.length
+      totalKeys: this.providers.length,
     });
 
     do {
@@ -190,13 +190,13 @@ class GoogleClientRotator {
               : !!result;
           if (!hasContent) {
             logger.warn("Empty response, rotating", {
-              model: FALLBACK_MODELS[this.currentModelIndex]
+              model: FALLBACK_MODELS[this.currentModelIndex],
             });
             this.rotateKey();
             continue;
           }
           logger.info("AI request succeeded", {
-            model: FALLBACK_MODELS[this.currentModelIndex]
+            model: FALLBACK_MODELS[this.currentModelIndex],
           });
           return result;
         } catch (error) {
@@ -209,12 +209,12 @@ class GoogleClientRotator {
             model: FALLBACK_MODELS[this.currentModelIndex],
             keyIndex: this.currentKeyIndex + 1,
             category: lastCategory,
-            message
+            message,
           });
 
           if (lastCategory === "image_download") {
             logger.warn(
-              "Image download failed, caller should retry without images"
+              "Image download failed, caller should retry without images",
             );
             throw new ImageDownloadError(message);
           }
@@ -228,7 +228,7 @@ class GoogleClientRotator {
             const expiredKey = getApiKeys()[this.currentKeyIndex];
             if (expiredKey) {
               logger.warn("API key invalid", {
-                key: maskApiKey(expiredKey)
+                key: maskApiKey(expiredKey),
               });
             }
           }
@@ -257,7 +257,7 @@ class GoogleClientRotator {
 
     logger.warn("All models and keys exhausted", {
       totalModels: FALLBACK_MODELS.length,
-      totalKeys: this.providers.length
+      totalKeys: this.providers.length,
     });
     const finalMessage =
       lastError instanceof Error ? lastError.message : String(lastError);

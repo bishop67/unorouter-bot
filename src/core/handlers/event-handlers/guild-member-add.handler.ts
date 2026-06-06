@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { MemberDataService } from "@/core/services/members/member-data.service";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import type { GuildMember } from "discord.js";
@@ -15,13 +16,13 @@ async function postWelcome(member: GuildMember): Promise<void> {
   await channel
     .send({
       content: `${member} (${member.user.username}) ${member.displayName} joined the server.`,
-      allowedMentions: { parse: [], users: [], roles: [] }
+      allowedMentions: { parse: [], users: [], roles: [] },
     })
     .catch((e) =>
       logger.error("Join-events welcome post failed", {
         member: member.id,
-        error: String(e)
-      })
+        error: String(e),
+      }),
     );
 }
 
@@ -32,16 +33,20 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   // channel are suppressed so this is the only welcome line.
   await postWelcome(member);
 
-  // Restore previously-saved roles (set on guildMemberUpdate). Re-jail if they
-  // left while jailed; otherwise reapply saved roles + ensure Verified.
+  // Read saved roles before any upsert - upsert would overwrite them from the
+  // empty live cache on rejoin.
   const savedRoles = await db.query.memberRole
     .findMany({
       where: and(
         eq(memberRole.memberId, member.id),
-        eq(memberRole.guildId, member.guild.id)
-      )
+        eq(memberRole.guildId, member.guild.id),
+      ),
     })
     .catch(() => []);
+
+  // FK parents for member_roles writes.
+  await MemberDataService.upsertGuild(member.guild);
+  await MemberDataService.upsertMemberOnly(member);
 
   const wasJailed = savedRoles.some((r) => r.name === JAIL);
 
@@ -51,8 +56,8 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
       await member.roles.set([jailRole.id], "Re-jailed on rejoin").catch((e) =>
         logger.error("Re-jail on join failed", {
           member: member.id,
-          error: String(e)
-        })
+          error: String(e),
+        }),
       );
     }
     return;
@@ -67,7 +72,7 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   }
 
   const verifiedRole = member.guild.roles.cache.find(
-    (r) => r.name === VERIFIED
+    (r) => r.name === VERIFIED,
   );
   if (verifiedRole?.editable) restoreIds.add(verifiedRole.id);
 
@@ -78,7 +83,7 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
     .catch((e) =>
       logger.error("Role restore on join failed", {
         member: member.id,
-        error: String(e)
-      })
+        error: String(e),
+      }),
     );
 }

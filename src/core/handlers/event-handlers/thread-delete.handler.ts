@@ -7,9 +7,7 @@ import type { ThreadChannel } from "discord.js";
 // Bug-bounty forum thread deleted by an admin. Mark the matching bug report
 // as rejected (with the bot itself as resolver since we have no actor here)
 // so the one-open-per-reporter guard releases.
-export async function handleThreadDelete(
-  thread: ThreadChannel,
-): Promise<void> {
+export async function handleThreadDelete(thread: ThreadChannel): Promise<void> {
   try {
     const result = await db
       .update(bugReport)
@@ -19,7 +17,10 @@ export async function handleThreadDelete(
         resolvedBy: "system:thread_delete",
       })
       .where(
-        and(eq(bugReport.forumThreadId, thread.id), eq(bugReport.status, "open")),
+        and(
+          eq(bugReport.forumThreadId, thread.id),
+          eq(bugReport.status, "open"),
+        ),
       )
       .returning({ id: bugReport.id });
     if (result.length > 0) {

@@ -20,12 +20,16 @@ export const ErrorBoundary: GuardFunction = async (arg, _client, next) => {
   } catch (err) {
     const source = pickSource(arg);
     logger.error("Unhandled handler error", {
-      error: err instanceof Error ? err.stack ?? err.message : String(err),
+      error: err instanceof Error ? (err.stack ?? err.message) : String(err),
       kind: source.kind,
       id: source.id,
     });
 
-    if (source.interaction && !source.interaction.replied && !source.interaction.deferred) {
+    if (
+      source.interaction &&
+      !source.interaction.replied &&
+      !source.interaction.deferred
+    ) {
       // best-effort: silently swallow if Discord already 3s'd the interaction
       const message = "Something went wrong. Try again in a moment.";
       await source.interaction

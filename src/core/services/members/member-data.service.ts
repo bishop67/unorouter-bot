@@ -11,13 +11,50 @@ import type { Guild, GuildMember, User } from "discord.js";
 // the rest.
 export class MemberDataService {
   static async upsertGuild(g: Guild): Promise<void> {
-    await db
-      .insert(guild)
-      .values({ guildId: g.id, guildName: g.name })
-      .onConflictDoUpdate({
-        target: guild.guildId,
-        set: { guildName: g.name },
+    try {
+      await db
+        .insert(guild)
+        .values({ guildId: g.id, guildName: g.name })
+        .onConflictDoUpdate({
+          target: guild.guildId,
+          set: { guildName: g.name },
+        });
+    } catch (err) {
+      logger.error("Failed to upsert guild", {
+        guild: g.id,
+        error: String(err),
       });
+    }
+  }
+
+  // No member_roles touch, unlike updateCompleteMemberData - safe before role
+  // restore on rejoin when the role cache is still empty.
+  static async upsertMemberOnly(gm: GuildMember): Promise<void> {
+    try {
+      const memberRow = prepareMember(gm.user);
+      const memberGuildRow = prepareMemberGuild(gm);
+      await db
+        .insert(member)
+        .values(memberRow)
+        .onConflictDoUpdate({ target: member.memberId, set: memberRow });
+      await db
+        .insert(memberGuild)
+        .values(memberGuildRow)
+        .onConflictDoUpdate({
+          target: [memberGuild.memberId, memberGuild.guildId],
+          set: memberGuildRow,
+        });
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message.includes("Connect Timeout Error")) return;
+        if ("code" in err && (err as { code?: number }).code === 10007) return;
+      }
+      logger.error("Failed to upsert member", {
+        memberId: gm.id,
+        username: gm.user.username,
+        error: String(err),
+      });
+    }
   }
 
   static async updateCompleteMemberData(gm: GuildMember): Promise<void> {

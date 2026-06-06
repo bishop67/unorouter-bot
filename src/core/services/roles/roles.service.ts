@@ -119,13 +119,15 @@ export class RolesService {
           args.newMember.roles.remove(role).catch(() => {}),
       );
 
-      return await db.delete(memberRole).where(
-        and(
-          eq(memberRole.memberId, args.newMember.id),
-          eq(memberRole.guildId, args.newMember.guild.id),
-          ne(memberRole.roleId, jailRole?.id ?? ""),
-        ),
-      );
+      return await db
+        .delete(memberRole)
+        .where(
+          and(
+            eq(memberRole.memberId, args.newMember.id),
+            eq(memberRole.guildId, args.newMember.guild.id),
+            ne(memberRole.roleId, jailRole?.id ?? ""),
+          ),
+        );
     }
 
     // Check if role is a status role; if yes, remove unused status roles

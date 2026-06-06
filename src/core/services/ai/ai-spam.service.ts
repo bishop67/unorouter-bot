@@ -1,5 +1,8 @@
 import { buildSpamContextText, SPAM_SYSTEM_PROMPT } from "@/shared/ai/prompts";
-import { googleClient, ImageDownloadError } from "@/shared/integrations/google-ai";
+import {
+  googleClient,
+  ImageDownloadError,
+} from "@/shared/integrations/google-ai";
 import { logger } from "@/lib/logger";
 import type { SpamDetectionContext, SpamDetectionResult } from "@/types";
 import { generateText, Output } from "ai";

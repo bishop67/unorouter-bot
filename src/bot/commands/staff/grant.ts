@@ -1,5 +1,12 @@
-import { dollarsToQuota, GrantService } from "@/core/services/grant/grant.service";
-import { isStaff, safeDeferReply, safeEditReply } from "@/core/utils/command.utils";
+import {
+  dollarsToQuota,
+  GrantService,
+} from "@/core/services/grant/grant.service";
+import {
+  isStaff,
+  safeDeferReply,
+  safeEditReply,
+} from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import {
   ApplicationCommandOptionType,
@@ -15,7 +22,8 @@ import { Discord, Slash, SlashOption } from "discordx";
 export class GrantCommand {
   @Slash({
     name: "grant",
-    description: "Grant free balance to a member who linked their Discord account",
+    description:
+      "Grant free balance to a member who linked their Discord account",
     dmPermission: false,
     defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
   })
@@ -44,16 +52,24 @@ export class GrantCommand {
     reason: string,
     interaction: CommandInteraction,
   ) {
-    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
+    if (
+      !(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] }))
+    )
       return;
 
     if (!isStaff(interaction.member as GuildMember)) {
-      await safeEditReply(interaction, "You are not allowed to use this command.");
+      await safeEditReply(
+        interaction,
+        "You are not allowed to use this command.",
+      );
       return;
     }
 
     if (!GrantService.isConfigured()) {
-      await safeEditReply(interaction, "Grants are not configured on this bot.");
+      await safeEditReply(
+        interaction,
+        "Grants are not configured on this bot.",
+      );
       return;
     }
 

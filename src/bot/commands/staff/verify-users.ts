@@ -6,10 +6,14 @@ import { Discord, SimpleCommand } from "discordx";
 
 @Discord()
 export class VerifyUsers {
-  @SimpleCommand({ aliases: ["verify-user", "verify-users", "verify-all"], prefix: "!" })
+  @SimpleCommand({
+    aliases: ["verify-user", "verify-users", "verify-all"],
+    prefix: "!",
+  })
   async verifyUsers(command: SimpleCommandMessage) {
     const message = command.message;
-    if (!message.guild || !isStaff(message.member as GuildMember | null)) return;
+    if (!message.guild || !isStaff(message.member as GuildMember | null))
+      return;
     if (message.channel.type !== ChannelType.GuildText) return;
 
     await VerifyAllUsersService.verifyAll(

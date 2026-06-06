@@ -28,7 +28,8 @@ export const ButtonIdPrefix = {
 } as const;
 
 export const ButtonIdBuilder = {
-  ticketRedeem: (ticketId: number) => `${ButtonIdPrefix.TicketRedeem}:${ticketId}`,
+  ticketRedeem: (ticketId: number) =>
+    `${ButtonIdPrefix.TicketRedeem}:${ticketId}`,
   bugRedeem: (bugId: number) => `${ButtonIdPrefix.BugRedeem}:${bugId}`,
 } as const;
 
@@ -45,8 +46,11 @@ export const ModalIdPrefix = {
 } as const;
 
 export const ModalIdBuilder = {
-  reward: (source: "ticket" | "bug", sourceId: string, targetDiscordId: string) =>
-    `${ModalIdPrefix.Reward}:${source}:${sourceId}:${targetDiscordId}`,
+  reward: (
+    source: "ticket" | "bug",
+    sourceId: string,
+    targetDiscordId: string,
+  ) => `${ModalIdPrefix.Reward}:${source}:${sourceId}:${targetDiscordId}`,
 } as const;
 
 export const ModalIdPattern = {

@@ -1,17 +1,22 @@
-import { dollarsToQuota, GrantService } from "@/core/services/grant/grant.service";
+import {
+  dollarsToQuota,
+  GrantService,
+} from "@/core/services/grant/grant.service";
 import { db } from "@/lib/db";
 import { boostSlot } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { WEBSITE_URL } from "@/shared/config/branding";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
-import { type Guild, type GuildMember, type Message, MessageType } from "discord.js";
+import {
+  type Guild,
+  type GuildMember,
+  type Message,
+  MessageType,
+} from "discord.js";
 
-const BOOST_CHANNEL_NAME =
-  process.env.BOOST_CHANNEL?.trim() || "boosters";
-const BOOST_GRANT_DOLLARS = parseFloat(
-  process.env.BOOST_GRANT_DOLLARS || "0",
-);
+const BOOST_CHANNEL_NAME = process.env.BOOST_CHANNEL?.trim() || "boosters";
+const BOOST_GRANT_DOLLARS = parseFloat(process.env.BOOST_GRANT_DOLLARS || "0");
 const PAYOUT_INTERVAL_DAYS = parseInt(
   process.env.BOOST_PAYOUT_INTERVAL_DAYS || "30",
   10,
@@ -80,7 +85,9 @@ export class BoostService {
           `${tag} boosted the server and earned **$${BOOST_GRANT_DOLLARS}** balance. Thank you! 💜`,
         );
       } else {
-        const member = await message.guild.members.fetch(memberId).catch(() => null);
+        const member = await message.guild.members
+          .fetch(memberId)
+          .catch(() => null);
         await member?.user
           .send(
             `Thanks for boosting! ${GrantService.linkPrompt()} Once linked, your boost reward (and every $${BOOST_GRANT_DOLLARS}/month while you keep boosting) lands automatically.`,
@@ -194,7 +201,10 @@ export class BoostService {
     }
   }
 
-  private static async postChannel(guild: Guild, content: string): Promise<void> {
+  private static async postChannel(
+    guild: Guild,
+    content: string,
+  ): Promise<void> {
     const ch = findTextChannel(guild, BOOST_CHANNEL_NAME);
     if (!ch) return;
     await ch
@@ -203,7 +213,10 @@ export class BoostService {
   }
 
   // Internal: expose count helper for diagnostics / future commands.
-  static async countActiveSlots(guildId: string, memberId: string): Promise<number> {
+  static async countActiveSlots(
+    guildId: string,
+    memberId: string,
+  ): Promise<number> {
     const rows = await db
       .select({ c: sql<number>`count(*)::int` })
       .from(boostSlot)

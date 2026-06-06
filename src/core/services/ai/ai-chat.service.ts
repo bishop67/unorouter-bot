@@ -3,7 +3,10 @@ import {
   extractImageUrls,
 } from "@/shared/ai/attachment-processor";
 import { CHAT_SYSTEM_PROMPT } from "@/shared/ai/prompts";
-import { googleClient, ImageDownloadError } from "@/shared/integrations/google-ai";
+import {
+  googleClient,
+  ImageDownloadError,
+} from "@/shared/integrations/google-ai";
 import { logger } from "@/lib/logger";
 import { generateText, ModelMessage, stepCountIs } from "ai";
 import { Message } from "discord.js";

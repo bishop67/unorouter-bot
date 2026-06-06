@@ -2,6 +2,7 @@ import "@dotenvx/dotenvx/config";
 
 import { logger } from "@/lib/logger";
 import { BoostService } from "@/core/services/boost/boost.service";
+import { MemberDataService } from "@/core/services/members/member-data.service";
 import { WEBSITE_URL } from "@/shared/config/branding";
 import { ConfigValidator } from "@/shared/config/validator";
 import { ErrorBoundary } from "@/bot/guards/error-boundary.guard";
@@ -44,8 +45,14 @@ bot.guards = [ErrorBoundary];
 bot.once("clientReady", async () => {
   await bot.initApplicationCommands();
   BoostService.startCron();
+  // Seed guilds first: child writes (member_roles, member_messages) FK to it.
+  await Promise.all(
+    bot.guilds.cache.map((g) => MemberDataService.upsertGuild(g)),
+  );
   logger.info("Bot started", { clientId: bot.user?.id });
 });
+
+bot.on("guildCreate", (guild) => void MemberDataService.upsertGuild(guild));
 
 bot.on("interactionCreate", (interaction) => {
   if (!interaction.guild) return;
@@ -68,7 +75,9 @@ process.on("uncaughtException", (err) =>
   logger.error("Uncaught exception", { error: String(err) }),
 );
 bot.on("error", (err) => logger.error("Client error", { error: String(err) }));
-bot.on("shardError", (err) => logger.error("Shard error", { error: String(err) }));
+bot.on("shardError", (err) =>
+  logger.error("Shard error", { error: String(err) }),
+);
 
 const main = async () => {
   if (!token) {

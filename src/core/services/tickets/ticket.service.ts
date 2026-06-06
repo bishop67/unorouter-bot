@@ -29,7 +29,8 @@ export const TicketCategory = {
   Support: "support",
   Bug: "bug",
 } as const;
-export type TicketCategory = (typeof TicketCategory)[keyof typeof TicketCategory];
+export type TicketCategory =
+  (typeof TicketCategory)[keyof typeof TicketCategory];
 
 export const TicketStatus = {
   Open: "open",

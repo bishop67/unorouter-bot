@@ -64,13 +64,17 @@ export class BugReportService {
       ),
     });
     if (existing) {
-      const opener = await thread.guild.members.fetch(thread.ownerId).catch(() => null);
+      const opener = await thread.guild.members
+        .fetch(thread.ownerId)
+        .catch(() => null);
       await opener?.user
         .send({
           content: `You already have an open bug report: <#${existing.forumThreadId}>. Close or wait for staff to resolve it before opening another. The new thread you just created has been removed.`,
         })
         .catch(() => {});
-      await thread.delete(`Duplicate bug report from <@${thread.ownerId}>`).catch(() => {});
+      await thread
+        .delete(`Duplicate bug report from <@${thread.ownerId}>`)
+        .catch(() => {});
       return;
     }
 

@@ -1,6 +1,7 @@
 import type { GuildMember, PartialGuildMember } from "discord.js";
 import { EVERYONE } from "@/shared/config/roles";
 import { RolesService } from "@/core/services/roles/roles.service";
+import { MemberDataService } from "@/core/services/members/member-data.service";
 import { BoostService } from "@/core/services/boost/boost.service";
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
@@ -25,6 +26,10 @@ async function syncRoles(
   oldMember: GuildMember | PartialGuildMember,
   newMember: GuildMember,
 ): Promise<void> {
+  // FK parents for the member_roles writes below.
+  await MemberDataService.upsertGuild(newMember.guild);
+  await MemberDataService.upsertMemberOnly(newMember);
+
   const guildRoles = newMember.guild.roles.cache;
   const memberDbRoles = await db.query.memberRole.findMany({
     where: and(

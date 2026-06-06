@@ -529,12 +529,8 @@
           "name": "member_guilds_member_id_members_member_id_fk",
           "tableFrom": "member_guilds",
           "tableTo": "members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "member_id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["member_id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -542,12 +538,8 @@
           "name": "member_guilds_guild_id_guilds_guild_id_fk",
           "tableFrom": "member_guilds",
           "tableTo": "guilds",
-          "columnsFrom": [
-            "guild_id"
-          ],
-          "columnsTo": [
-            "guild_id"
-          ],
+          "columnsFrom": ["guild_id"],
+          "columnsTo": ["guild_id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -643,12 +635,8 @@
           "name": "member_messages_member_id_members_member_id_fk",
           "tableFrom": "member_messages",
           "tableTo": "members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "member_id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["member_id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         },
@@ -656,12 +644,8 @@
           "name": "member_messages_guild_id_guilds_guild_id_fk",
           "tableFrom": "member_messages",
           "tableTo": "guilds",
-          "columnsFrom": [
-            "guild_id"
-          ],
-          "columnsTo": [
-            "guild_id"
-          ],
+          "columnsFrom": ["guild_id"],
+          "columnsTo": ["guild_id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         }
@@ -788,12 +772,8 @@
           "name": "member_roles_guild_id_guilds_guild_id_fk",
           "tableFrom": "member_roles",
           "tableTo": "guilds",
-          "columnsFrom": [
-            "guild_id"
-          ],
-          "columnsTo": [
-            "guild_id"
-          ],
+          "columnsFrom": ["guild_id"],
+          "columnsTo": ["guild_id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
         },
@@ -801,12 +781,8 @@
           "name": "member_roles_member_id_members_member_id_fk",
           "tableFrom": "member_roles",
           "tableTo": "members",
-          "columnsFrom": [
-            "member_id"
-          ],
-          "columnsTo": [
-            "member_id"
-          ],
+          "columnsFrom": ["member_id"],
+          "columnsTo": ["member_id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }
@@ -1006,12 +982,8 @@
           "name": "ticket_messages_ticket_id_tickets_id_fk",
           "tableFrom": "ticket_messages",
           "tableTo": "tickets",
-          "columnsFrom": [
-            "ticket_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ticket_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "cascade"
         }

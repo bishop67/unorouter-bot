@@ -29,7 +29,7 @@ async function searchGifs(query: string, limit: number = 5): Promise<string[]> {
       throw new Error(`Klipy API error: ${response.status}`);
     }
 
-    const data = await response.json() as {
+    const data = (await response.json()) as {
       result?: boolean;
       data?: { data?: Array<{ file?: { md?: { gif?: { url?: string } } } }> };
     };

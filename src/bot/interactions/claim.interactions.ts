@@ -1,4 +1,7 @@
-import { ConnectStatus, GrantService } from "@/core/services/grant/grant.service";
+import {
+  ConnectStatus,
+  GrantService,
+} from "@/core/services/grant/grant.service";
 import { logger } from "@/lib/logger";
 import { ButtonId } from "@/types/custom-ids";
 import { ButtonInteraction, GuildMember, MessageFlags } from "discord.js";

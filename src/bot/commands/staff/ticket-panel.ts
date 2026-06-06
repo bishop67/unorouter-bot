@@ -29,11 +29,16 @@ export class TicketPanelCommand {
     defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
   })
   async ticketPanel(interaction: CommandInteraction) {
-    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
+    if (
+      !(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] }))
+    )
       return;
 
     if (!isStaff(interaction.member as GuildMember)) {
-      await safeEditReply(interaction, "You are not allowed to use this command.");
+      await safeEditReply(
+        interaction,
+        "You are not allowed to use this command.",
+      );
       return;
     }
 
@@ -65,7 +70,10 @@ export class TicketPanelCommand {
 
     try {
       await purgeOwnPanels(channel as TextChannel, ButtonId.TicketOpenSupport);
-      await (channel as TextChannel).send({ embeds: [embed], components: [row] });
+      await (channel as TextChannel).send({
+        embeds: [embed],
+        components: [row],
+      });
       await safeEditReply(interaction, "Ticket panel posted.");
     } catch (err) {
       await safeEditReply(

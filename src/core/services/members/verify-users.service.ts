@@ -29,8 +29,6 @@ export class VerifyAllUsersService {
 
     this.running.add(guild.id);
     try {
-      await MemberDataService.upsertGuild(guild);
-
       const members = await guild.members.fetch();
       const nonBots = members.filter((m) => !m.user.bot);
       const total = nonBots.size;
@@ -54,8 +52,7 @@ export class VerifyAllUsersService {
 
           // Skip role add for jailed users; everyone else gets Verified if
           // they don't already have it.
-          const isJailed =
-            JAIL && m.roles.cache.some((r) => r.name === JAIL);
+          const isJailed = JAIL && m.roles.cache.some((r) => r.name === JAIL);
           if (!isJailed && !m.roles.cache.has(verifiedRole.id)) {
             await m.roles.add(verifiedRole, "Bulk verify");
             verified++;

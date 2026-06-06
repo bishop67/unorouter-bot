@@ -61,8 +61,7 @@ export class DeleteUserMessagesService {
    * Apply jail role, update DB, send notification. Fast operation (~2s).
    */
   static async jailUser(params: DeleteUserMessagesParams) {
-    const jailRoleId = RolesService.getGuildStatusRoles(params.guild)[JAIL]
-      ?.id;
+    const jailRoleId = RolesService.getGuildStatusRoles(params.guild)[JAIL]?.id;
     if (!jailRoleId) return;
 
     const memberId = params.user?.id || params.memberId;
@@ -80,12 +79,14 @@ export class DeleteUserMessagesService {
         })
         .onConflictDoNothing();
 
-      await tx.delete(memberRole).where(
-        and(
-          eq(memberRole.memberId, params.memberId),
-          eq(memberRole.guildId, params.guild.id),
-        ),
-      );
+      await tx
+        .delete(memberRole)
+        .where(
+          and(
+            eq(memberRole.memberId, params.memberId),
+            eq(memberRole.guildId, params.guild.id),
+          ),
+        );
 
       await tx.insert(memberRole).values({
         roleId: jailRoleId,
@@ -140,8 +141,7 @@ export class DeleteUserMessagesService {
 
           const userMessages = messages.filter(
             (m) =>
-              m.author.id === params.memberId &&
-              m.createdTimestamp >= cutoff,
+              m.author.id === params.memberId && m.createdTimestamp >= cutoff,
           );
 
           if (userMessages.size > 0) {
@@ -174,7 +174,9 @@ export class DeleteUserMessagesService {
         await deleteMessages(thread as GuildTextBasedChannel);
       } catch (err) {
         if (err instanceof DiscordAPIError && err.code === 10003) {
-          log(`[DeleteUserMessages] Thread ${thread.id} no longer exists, skipping`);
+          log(
+            `[DeleteUserMessages] Thread ${thread.id} no longer exists, skipping`,
+          );
           return;
         }
         error(err);

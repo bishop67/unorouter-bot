@@ -1,4 +1,7 @@
-import { dollarsToQuota, GrantService } from "@/core/services/grant/grant.service";
+import {
+  dollarsToQuota,
+  GrantService,
+} from "@/core/services/grant/grant.service";
 import {
   TicketCategory,
   TicketOpenStatus,
@@ -6,11 +9,7 @@ import {
 } from "@/core/services/tickets/ticket.service";
 import { isStaff } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
-import {
-  ButtonId,
-  ButtonIdPattern,
-  ModalIdPattern,
-} from "@/types/custom-ids";
+import { ButtonId, ButtonIdPattern, ModalIdPattern } from "@/types/custom-ids";
 import {
   buildRewardModal,
   parseRewardModal,
@@ -36,10 +35,7 @@ export class TicketInteractions {
     await this.open(interaction, TicketCategory.Bug);
   }
 
-  private async open(
-    interaction: ButtonInteraction,
-    category: TicketCategory,
-  ) {
+  private async open(interaction: ButtonInteraction, category: TicketCategory) {
     await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
     const member = interaction.member as GuildMember | null;
     if (!interaction.guild || !member) {
@@ -92,8 +88,7 @@ export class TicketInteractions {
     const isOpener = member?.id === row.openerId;
     const staff = isStaff(member);
     const allowed =
-      staff ||
-      (isOpener && row.category === TicketCategory.Support);
+      staff || (isOpener && row.category === TicketCategory.Support);
 
     if (!allowed) {
       const msg =

@@ -1,16 +1,15 @@
 import { BugReportService } from "@/core/services/bugs/bug-report.service";
-import { dollarsToQuota, GrantService } from "@/core/services/grant/grant.service";
+import {
+  dollarsToQuota,
+  GrantService,
+} from "@/core/services/grant/grant.service";
 import { isStaff } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import {
   buildRewardModal,
   parseRewardModal,
 } from "@/bot/interactions/reward.modal";
-import {
-  ButtonId,
-  ButtonIdPattern,
-  ModalIdPattern,
-} from "@/types/custom-ids";
+import { ButtonId, ButtonIdPattern, ModalIdPattern } from "@/types/custom-ids";
 import {
   ButtonInteraction,
   GuildMember,
@@ -58,7 +57,9 @@ export class BugInteractions {
 
     const pushMember = async (userId: string) => {
       if (seen.has(userId)) return;
-      const gm = await interaction.guild?.members.fetch(userId).catch(() => null);
+      const gm = await interaction.guild?.members
+        .fetch(userId)
+        .catch(() => null);
       const user = gm?.user;
       if (!user || user.bot) return;
       seen.add(userId);
@@ -102,7 +103,10 @@ export class BugInteractions {
       });
       return;
     }
-    await BugReportService.markRejected(interaction.channelId, interaction.user.id);
+    await BugReportService.markRejected(
+      interaction.channelId,
+      interaction.user.id,
+    );
     await interaction.reply({ content: "Bug report rejected." });
     const thread = interaction.channel as ThreadChannel;
     await thread.setArchived(true).catch(() => {});
@@ -125,8 +129,12 @@ export class BugInteractions {
       });
       return;
     }
-    await thread.setLocked(true, `Locked by ${interaction.user.tag}`).catch(() => {});
-    await interaction.reply({ content: `Thread locked by ${interaction.user}.` });
+    await thread
+      .setLocked(true, `Locked by ${interaction.user.tag}`)
+      .catch(() => {});
+    await interaction.reply({
+      content: `Thread locked by ${interaction.user}.`,
+    });
   }
 
   @ButtonComponent({ id: ButtonId.BugClose })
@@ -147,8 +155,12 @@ export class BugInteractions {
       return;
     }
     await interaction.reply({ content: `Closing thread.` });
-    await thread.setLocked(true, `Closed by ${interaction.user.tag}`).catch(() => {});
-    await thread.setArchived(true, `Closed by ${interaction.user.tag}`).catch(() => {});
+    await thread
+      .setLocked(true, `Closed by ${interaction.user.tag}`)
+      .catch(() => {});
+    await thread
+      .setArchived(true, `Closed by ${interaction.user.tag}`)
+      .catch(() => {});
   }
 
   @ModalComponent({ id: ModalIdPattern.RewardBug })

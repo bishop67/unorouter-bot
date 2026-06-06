@@ -95,7 +95,9 @@ export class AiContextService {
                 content += `\n\n[Code from attachment]:\n${codeContent}`;
               }
             } catch (err) {
-              logger.error("Error processing attachments", { error: String(err) });
+              logger.error("Error processing attachments", {
+                error: String(err),
+              });
             }
           }
 

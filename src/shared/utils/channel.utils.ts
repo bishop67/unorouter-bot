@@ -43,12 +43,21 @@ export function findTextChannel(
   guild: Guild,
   name: string,
 ): TextChannel | null {
-  return (findChannelByName(guild, name, ChannelType.GuildText) as TextChannel) ?? null;
+  return (
+    (findChannelByName(guild, name, ChannelType.GuildText) as TextChannel) ??
+    null
+  );
 }
 
 export function findCategory(
   guild: Guild,
   name: string,
 ): CategoryChannel | null {
-  return (findChannelByName(guild, name, ChannelType.GuildCategory) as CategoryChannel) ?? null;
+  return (
+    (findChannelByName(
+      guild,
+      name,
+      ChannelType.GuildCategory,
+    ) as CategoryChannel) ?? null
+  );
 }

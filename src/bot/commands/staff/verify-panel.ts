@@ -29,11 +29,16 @@ export class VerifyPanelCommand {
     defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
   })
   async verifyPanel(interaction: CommandInteraction) {
-    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
+    if (
+      !(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] }))
+    )
       return;
 
     if (!isStaff(interaction.member as GuildMember)) {
-      await safeEditReply(interaction, "You are not allowed to use this command.");
+      await safeEditReply(
+        interaction,
+        "You are not allowed to use this command.",
+      );
       return;
     }
 
@@ -46,8 +51,10 @@ export class VerifyPanelCommand {
     const settingsLink = `${WEBSITE_URL}/settings?redirect=/settings`;
     const bonus = parseFloat(process.env.CONNECT_GRANT_DOLLARS || "0");
     const plainBonus = bonus > 0 ? `$${formatDollars(bonus)}` : "free balance";
-    const boldBonus = bonus > 0 ? `**$${formatDollars(bonus)}**` : "**free balance**";
-    const buttonLabel = bonus > 0 ? `Verify & Claim ${plainBonus}` : "Verify & Claim";
+    const boldBonus =
+      bonus > 0 ? `**$${formatDollars(bonus)}**` : "**free balance**";
+    const buttonLabel =
+      bonus > 0 ? `Verify & Claim ${plainBonus}` : "Verify & Claim";
 
     const embed = new EmbedBuilder()
       .setTitle(`🎁 Link your ${BOT_NAME} account - get ${plainBonus}`)
@@ -73,7 +80,10 @@ export class VerifyPanelCommand {
 
     try {
       await purgeOwnPanels(channel as TextChannel, ButtonId.ClaimConnect);
-      await (channel as TextChannel).send({ embeds: [embed], components: [row] });
+      await (channel as TextChannel).send({
+        embeds: [embed],
+        components: [row],
+      });
       await safeEditReply(interaction, "Verify panel posted.");
     } catch (err) {
       await safeEditReply(

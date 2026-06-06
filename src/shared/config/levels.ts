@@ -9,6 +9,9 @@ export const LEVEL_LIST = LEVEL_ROLES.map((role, i) => ({
   role,
 }));
 
-export function levelUpMessage(userMention: string, roleMention: string): string {
+export function levelUpMessage(
+  userMention: string,
+  roleMention: string,
+): string {
   return `${userMention} leveled up to ${roleMention}!`;
 }

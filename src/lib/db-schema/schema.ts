@@ -54,10 +54,16 @@ export const memberGuild = pgTable(
     id: serial("id").primaryKey(),
     memberId: text("member_id")
       .notNull()
-      .references(() => member.memberId, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     guildId: text("guild_id")
       .notNull()
-      .references(() => guild.guildId, { onDelete: "restrict", onUpdate: "cascade" }),
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
     status: boolean("status").default(true).notNull(),
     nickname: text("nickname"),
     displayName: text("display_name"),
@@ -67,7 +73,10 @@ export const memberGuild = pgTable(
     updatedAt: updatedAt(),
   },
   (table) => [
-    uniqueIndex("uq_member_guilds_member_guild").on(table.memberId, table.guildId),
+    uniqueIndex("uq_member_guilds_member_guild").on(
+      table.memberId,
+      table.guildId,
+    ),
   ],
 );
 
@@ -78,10 +87,16 @@ export const memberRole = pgTable(
     roleId: text("role_id").notNull(),
     guildId: text("guild_id")
       .notNull()
-      .references(() => guild.guildId, { onDelete: "restrict", onUpdate: "cascade" }),
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
     memberId: text("member_id")
       .notNull()
-      .references(() => member.memberId, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     name: text("name"),
     color: integer("color"),
     hexColor: text("hex_color"),
@@ -101,10 +116,16 @@ export const memberMessages = pgTable(
     id: text("id").primaryKey(),
     memberId: text("member_id")
       .notNull()
-      .references(() => member.memberId, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     guildId: text("guild_id")
       .notNull()
-      .references(() => guild.guildId, { onDelete: "restrict", onUpdate: "cascade" }),
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
     messageId: text("message_id").notNull(),
     channelId: text("channel_id").notNull(),
     createdAt: createdAt(),
@@ -146,7 +167,10 @@ export const ticketMessage = pgTable(
     id: serial("id").primaryKey(),
     ticketId: integer("ticket_id")
       .notNull()
-      .references(() => ticket.id, { onDelete: "cascade", onUpdate: "cascade" }),
+      .references(() => ticket.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     authorId: text("author_id").notNull(),
     authorTag: text("author_tag").notNull(),
     content: text("content").notNull(),
@@ -196,7 +220,10 @@ export const boostSlot = pgTable(
     memberId: text("member_id").notNull(),
     sourceMessageId: text("source_message_id"),
     startedAt: createdAt(),
-    nextPayoutAt: timestamp("next_payout_at", { precision: 3, mode: "string" }).notNull(),
+    nextPayoutAt: timestamp("next_payout_at", {
+      precision: 3,
+      mode: "string",
+    }).notNull(),
     active: boolean("active").default(true).notNull(),
     cancelledAt: timestamp("cancelled_at", { precision: 3, mode: "string" }),
   },
