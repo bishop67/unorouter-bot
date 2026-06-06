@@ -12,15 +12,9 @@ const JOIN_EVENTS_CHANNEL_NAME =
 async function postWelcome(member: GuildMember): Promise<void> {
   const channel = findTextChannel(member.guild, JOIN_EVENTS_CHANNEL_NAME);
   if (!channel) return;
-  const globalName = member.user.globalName ?? member.user.username;
-  const serverName = member.displayName;
-  const names =
-    serverName && serverName !== globalName
-      ? `${globalName} (${serverName})`
-      : globalName;
   await channel
     .send({
-      content: `${names} ${member} joined the server.`,
+      content: `${member} (${member.user.username}) ${member.displayName} joined the server.`,
       allowedMentions: { parse: [], users: [], roles: [] }
     })
     .catch((e) =>
