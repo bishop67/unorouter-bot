@@ -2,20 +2,16 @@ import { db } from "@/lib/db";
 import { grantLog } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { grantDiscordQuota } from "@/lib/new-api/openapi";
+import { bot } from "@/main";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { findTextChannel } from "@/shared/utils/channel.utils";
-import { bot } from "@/main";
 import {
   GRANT_SOURCE_LABEL,
   type GrantResult,
-  type GrantSourceType,
+  type GrantSourceType
 } from "@/types";
+import { type GuildMember } from "discord.js";
 import { and, eq } from "drizzle-orm";
-import {
-  type Guild,
-  type GuildMember,
-  type PartialGuildMember,
-} from "discord.js";
 
 // Auth headers (Authorization + New-Api-User) are injected by the orval mutator
 // in src/lib/new-api/custom-fetch.ts; these two only gate isConfigured().
@@ -24,7 +20,6 @@ const NEW_API_ADMIN_TOKEN = process.env.NEW_API_ADMIN_TOKEN || "";
 // Channels resolved by NAME (substring) so emoji renames don't break config.
 const GRANT_LOG_CHANNEL_NAME =
   process.env.GRANT_LOG_CHANNEL?.trim() || "grants-log";
-const BOOST_CHANNEL_NAME = process.env.BOOST_CHANNEL?.trim() || "boosters";
 
 // Bonuses are configured in DOLLARS; bot converts to new-api quota units.
 // new-api default QuotaPerUnit = 500000 quota = $1.
@@ -32,21 +27,20 @@ const QUOTA_PER_DOLLAR = parseInt(process.env.QUOTA_PER_DOLLAR || "500000", 10);
 export function dollarsToQuota(dollars: number): number {
   return Math.round(dollars * QUOTA_PER_DOLLAR);
 }
-const BOOST_GRANT_DOLLARS = parseFloat(process.env.BOOST_GRANT_DOLLARS || "0");
-const BOOST_GRANT_QUOTA = dollarsToQuota(BOOST_GRANT_DOLLARS);
+
 const CONNECT_GRANT_QUOTA = dollarsToQuota(
-  parseFloat(process.env.CONNECT_GRANT_DOLLARS || "0"),
+  parseFloat(process.env.CONNECT_GRANT_DOLLARS || "0")
 );
 // Role given when a user proves their Discord is linked to the platform.
 const CONNECTED_ROLE = process.env.CONNECTED_ROLE?.trim() || BOT_NAME;
 
 const CONNECT_GRANT_DOLLARS = parseFloat(
-  process.env.CONNECT_GRANT_DOLLARS || "0",
+  process.env.CONNECT_GRANT_DOLLARS || "0"
 );
 
 export const ConnectStatus = {
   NotLinked: "not_linked",
-  Connected: "connected",
+  Connected: "connected"
 } as const;
 export type ConnectStatus = (typeof ConnectStatus)[keyof typeof ConnectStatus];
 
@@ -86,7 +80,7 @@ export class GrantService {
 
     const res = await grantDiscordQuota({
       discord_id: params.targetDiscordId,
-      quota: params.quota,
+      quota: params.quota
     }).catch((e: { status?: number; data?: unknown }) => {
       logger.error("Grant request failed", { status: e.status, body: e.data });
       throw new Error(`new-api grant failed (${e.status ?? "?"})`);
@@ -111,17 +105,17 @@ export class GrantService {
         reason: params.reason,
         sourceType: params.sourceType,
         sourceId: params.sourceId ?? null,
-        grantedByDiscordId: params.grantedByDiscordId,
+        grantedByDiscordId: params.grantedByDiscordId
       })
       .catch((e) =>
-        logger.error("grantLog insert failed", { error: String(e) }),
+        logger.error("grantLog insert failed", { error: String(e) })
       );
 
     await this.announce(
       params.targetDiscordId,
       params.quota,
       params.reason,
-      params.sourceType,
+      params.sourceType
     );
 
     return { linked: true, userId, quota: params.quota };
@@ -144,8 +138,8 @@ export class GrantService {
       .findFirst({
         where: and(
           eq(grantLog.targetDiscordId, member.id),
-          eq(grantLog.sourceType, "connect"),
-        ),
+          eq(grantLog.sourceType, "connect")
+        )
       })
       .catch(() => null);
 
@@ -155,7 +149,7 @@ export class GrantService {
       return {
         status: ConnectStatus.Connected,
         bonusGranted: false,
-        dollars: 0,
+        dollars: 0
       };
     }
 
@@ -166,7 +160,7 @@ export class GrantService {
       reason: "discord connect bonus",
       sourceType: "connect",
       sourceId: null,
-      grantedByDiscordId: "system",
+      grantedByDiscordId: "system"
     }).catch(() => ({ linked: false, quota }) as GrantResult);
 
     if (!result.linked) return { status: ConnectStatus.NotLinked };
@@ -175,21 +169,21 @@ export class GrantService {
     return {
       status: ConnectStatus.Connected,
       bonusGranted: quota > 0,
-      dollars: CONNECT_GRANT_DOLLARS,
+      dollars: CONNECT_GRANT_DOLLARS
     };
   }
 
   private static async ensureConnectedRole(member: GuildMember): Promise<void> {
     const role = member.guild.roles.cache.find(
-      (r) => r.name === CONNECTED_ROLE,
+      (r) => r.name === CONNECTED_ROLE
     );
     if (!role || !role.editable) return;
     if (member.roles.cache.has(role.id)) return;
     await member.roles.add(role, `Discord linked to ${BOT_NAME}`).catch((e) =>
       logger.error("Connected role add failed", {
         member: member.id,
-        error: String(e),
-      }),
+        error: String(e)
+      })
     );
   }
 
@@ -197,7 +191,7 @@ export class GrantService {
     targetDiscordId: string,
     quota: number,
     reason: string,
-    sourceType: GrantSourceType,
+    sourceType: GrantSourceType
   ): Promise<void> {
     const guild = bot.guilds.cache.first();
     if (!guild) return;
@@ -211,10 +205,10 @@ export class GrantService {
     await channel
       .send({
         content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to <@${targetDiscordId}> - ${reason}`,
-        allowedMentions: { users: [], roles: [] },
+        allowedMentions: { users: [], roles: [] }
       })
       .catch((e) =>
-        logger.error("Grant announce failed", { error: String(e) }),
+        logger.error("Grant announce failed", { error: String(e) })
       );
   }
 }

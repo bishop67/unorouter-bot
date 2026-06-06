@@ -28,7 +28,6 @@
     "node_modules",
     "drizzle",
     "drizzle.config.ts",
-    "tsup.config.ts",
-    "orval.config.ts"
+    "tsup.config.ts"
   ]
 }

@@ -1,22 +1,21 @@
 import { defineConfig } from "orval";
 
-const specUrl =
-  process.env.NEW_API_OPENAPI_URL || "https://api.unorouter.ai/openapi.json";
-
 export default defineConfig({
   newapi: {
-    input: specUrl,
+    input:
+      process.env.NEW_API_OPENAPI_URL ||
+      "https://api.unorouter.ai/openapi.json",
     output: {
       target: "./src/lib/new-api/openapi.ts",
       client: "fetch",
       override: {
         mutator: {
           path: "./src/lib/new-api/custom-fetch.ts",
-          name: "customFetch",
+          name: "customFetch"
         },
-        aliasCombinedTypes: true,
-      },
+        aliasCombinedTypes: true
+      }
     },
-    hooks: { afterAllFilesWrite: "prettier --write" },
-  },
+    hooks: { afterAllFilesWrite: "prettier --write" }
+  }
 });
