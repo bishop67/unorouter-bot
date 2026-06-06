@@ -1,11 +1,10 @@
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import { findTextChannel } from "@/shared/utils/channel.utils";
-import { and, eq } from "drizzle-orm";
 import type { GuildMember } from "discord.js";
+import { and, eq } from "drizzle-orm";
 
 const JOIN_EVENTS_CHANNEL_NAME =
   process.env.JOIN_EVENTS_CHANNEL?.trim() || "join-events";
@@ -13,22 +12,26 @@ const JOIN_EVENTS_CHANNEL_NAME =
 async function postWelcome(member: GuildMember): Promise<void> {
   const channel = findTextChannel(member.guild, JOIN_EVENTS_CHANNEL_NAME);
   if (!channel) return;
+  const globalName = member.user.globalName ?? member.user.username;
+  const serverName = member.displayName;
+  const names =
+    serverName && serverName !== globalName
+      ? `${globalName} (${serverName})`
+      : globalName;
   await channel
     .send({
-      content: `👋 Welcome ${member} to **${BOT_NAME}**! Head to the verify channel to link your account and grab your **\$1** welcome bonus. Pricing + docs at ${WEBSITE_URL}.`,
-      allowedMentions: { users: [member.id] },
+      content: `${names} ${member} joined the server.`,
+      allowedMentions: { parse: [], users: [], roles: [] }
     })
     .catch((e) =>
       logger.error("Join-events welcome post failed", {
         member: member.id,
-        error: String(e),
-      }),
+        error: String(e)
+      })
     );
 }
 
-export async function handleGuildMemberAdd(
-  member: GuildMember,
-): Promise<void> {
+export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   if (member.user.bot) return;
 
   // Welcome post in join-events. Native Discord join messages in the system
@@ -41,8 +44,8 @@ export async function handleGuildMemberAdd(
     .findMany({
       where: and(
         eq(memberRole.memberId, member.id),
-        eq(memberRole.guildId, member.guild.id),
-      ),
+        eq(memberRole.guildId, member.guild.id)
+      )
     })
     .catch(() => []);
 
@@ -51,14 +54,12 @@ export async function handleGuildMemberAdd(
   if (wasJailed) {
     const jailRole = member.guild.roles.cache.find((r) => r.name === JAIL);
     if (jailRole?.editable) {
-      await member.roles
-        .set([jailRole.id], "Re-jailed on rejoin")
-        .catch((e) =>
-          logger.error("Re-jail on join failed", {
-            member: member.id,
-            error: String(e),
-          }),
-        );
+      await member.roles.set([jailRole.id], "Re-jailed on rejoin").catch((e) =>
+        logger.error("Re-jail on join failed", {
+          member: member.id,
+          error: String(e)
+        })
+      );
     }
     return;
   }
@@ -71,7 +72,9 @@ export async function handleGuildMemberAdd(
     if (role && role.editable && !role.managed) restoreIds.add(role.id);
   }
 
-  const verifiedRole = member.guild.roles.cache.find((r) => r.name === VERIFIED);
+  const verifiedRole = member.guild.roles.cache.find(
+    (r) => r.name === VERIFIED
+  );
   if (verifiedRole?.editable) restoreIds.add(verifiedRole.id);
 
   if (restoreIds.size === 0) return;
@@ -81,7 +84,7 @@ export async function handleGuildMemberAdd(
     .catch((e) =>
       logger.error("Role restore on join failed", {
         member: member.id,
-        error: String(e),
-      }),
+        error: String(e)
+      })
     );
 }
