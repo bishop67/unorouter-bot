@@ -16,11 +16,11 @@ Repos:
 The bigger and more user-facing the change, the more surfaces it earns. Match the
 text length and tone to the surface.
 
-| Change size | changelog | announcements | blog |
-| --- | --- | --- | --- |
-| Minor / internal (UI tweak, perf, small fix) | yes | no | no |
-| Notable feature (new panel, new reward) | yes | maybe | no |
-| Major feature / launch / large catalog change | yes | yes | yes |
+| Change size | changelog | announcements | blog | partner servers |
+| --- | --- | --- | --- | --- |
+| Minor / internal (UI tweak, perf, small fix) | yes | no | no | no |
+| Notable feature (new panel, new reward) | yes | maybe | no | maybe |
+| Major feature / launch / large catalog change | yes | yes | yes | yes |
 
 Rules of thumb:
 
@@ -30,11 +30,16 @@ Rules of thumb:
   user would want a notification about. Fuller copy, sectioned, links + CTA.
 - **blog** is for stories worth SEO + depth: launches, benchmarks, big catalog
   expansions, engineering write-ups. ~400-700 words, 5-6 sections, 18 locales.
+- **partner servers** are friend servers where we have a dedicated channel (e.g.
+  ♠️unorouter on The AI Bunker). Mirror the changelog there for big ships. Same
+  text as our own changelog. Plain text channels, no publish.
 
 If unsure: changelog only. You can always promote later by also posting to
 announcements and writing a blog.
 
-## Channel IDs (guild 1498300365001588746)
+## Channel IDs
+
+### Own server (UnoRouter, guild 1498300365001588746)
 
 | Channel | ID | Type |
 | --- | --- | --- |
@@ -43,6 +48,18 @@ announcements and writing a blog.
 
 Announcement channels support **crosspost** (publish) which fans the message out
 to every server that follows the channel. Always publish after posting.
+
+### Partner / friend servers (we have a dedicated channel, we do NOT own the server)
+
+| Server | Channel | Channel ID | Type |
+| --- | --- | --- | --- |
+| The AI Bunker (guild `1223037722998865940`) | ♠️unorouter | `1513243139064856697` | plain text |
+
+These carry the **promo** (pinned-style intro post) + **changelog** entries. They
+are plain text channels (no crosspost/publish). We author as user "Don" via the
+same Browser-MCP flow. Keep these in sync with our own changelog for big ships;
+skip the minor ones. The promo block + changelog block both live in
+`unorouter-promo.md` (in the ai-api project root) ready to paste/post.
 
 ## Part A: Discord post (Browser MCP)
 
@@ -231,10 +248,21 @@ build is never half-translated.
 ## Full sequence for a major release
 
 1. Ship the underlying change first (the actual feature/sync), verify live.
-2. Decide surfaces (Step 0). Major = all three.
+2. Decide surfaces (Step 0). Major = all surfaces.
 3. Write blog (Part B), validate, commit + push the unorouter repo, wait for CI.
 4. Once the blog is live, post Discord (Part A): changelog entry, then the
    announcement (link the blog post URL). Publish both.
-5. Trim Discord copy if it reads bloated; PATCH in place (A3).
+5. Mirror the changelog entry to partner-server channels (♠️unorouter on The AI
+   Bunker). Same text, plain POST, no publish.
+6. Trim Discord copy if it reads bloated; PATCH in place (A3).
 
 Order matters: blog first so the announcement can link a live post.
+
+## Reusable copy
+
+`unorouter-promo.md` (in the ai-api project root, NOT this repo) holds three
+ready-to-paste Discord blocks kept current with the latest ship: the **promo**
+(feature pitch + invite, the pinned intro for partner channels), the
+**changelog entry**, and the **announcement entry**. Update that file whenever
+the headline numbers change (model counts, free-tier count) so partner posts and
+our own posts stay consistent.
