@@ -4,7 +4,7 @@ export default defineConfig({
   newapi: {
     input:
       process.env.NEW_API_OPENAPI_URL ||
-      "https://api.unorouter.ai/openapi.json",
+      "https://api.unorouter.com/openapi.json",
     output: {
       target: "./src/lib/new-api/openapi.ts",
       client: "fetch",

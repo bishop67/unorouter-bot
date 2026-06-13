@@ -2,7 +2,7 @@
 
 export const BOT_NAME = process.env.BOT_NAME?.trim() || "unorouter";
 export const WEBSITE_URL =
-  process.env.WEBSITE_URL?.trim() || "https://unorouter.ai";
+  process.env.WEBSITE_URL?.trim() || "https://unorouter.com";
 
 export const RED_COLOR = 0xff0000;
 
