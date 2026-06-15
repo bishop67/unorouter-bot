@@ -1,7 +1,7 @@
 # Release posts runbook (Discord + blog)
 
 End-to-end process for announcing a shipped change across the UnoRouter Discord
-and the unorouter.ai blog. Two independent surfaces; pick what the change earns.
+and the unorouter.com blog. Two independent surfaces; pick what the change earns.
 
 Repos:
 
