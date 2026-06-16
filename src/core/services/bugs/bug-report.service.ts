@@ -85,12 +85,31 @@ export class BugReportService {
         reporterId: thread.ownerId,
       });
 
+      // threadCreate fires before the OP's starter message lands. Sending too
+      // early throws DiscordAPIError[40058] ("Cannot message this thread until
+      // after the post author has sent an initial message"). Poll for the
+      // starter message with backoff before posting the controls panel.
+      await this.waitForStarterMessage(thread);
+
       await thread.send({
         content: "Thanks for the report. Staff will review and may reward it.",
         components: [this.buildControls()],
       });
     } catch (err) {
       logger.error("Bug report register failed", { error: String(err) });
+    }
+  }
+
+  private static async waitForStarterMessage(
+    thread: ThreadChannel,
+  ): Promise<void> {
+    const delays = [250, 500, 1000, 2000, 3000];
+    for (let i = 0; i <= delays.length; i++) {
+      const msg = await thread.fetchStarterMessage().catch(() => null);
+      if (msg) return;
+      if (i < delays.length) {
+        await new Promise((r) => setTimeout(r, delays[i]));
+      }
     }
   }
 
