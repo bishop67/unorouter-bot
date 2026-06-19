@@ -4,8 +4,10 @@ import {
 } from "@/core/services/grant/grant.service";
 import { logger } from "@/lib/logger";
 import { ButtonId } from "@/types/custom-ids";
-import { ButtonInteraction, GuildMember, MessageFlags } from "discord.js";
+import { ButtonInteraction, GuildMember, MessageFlags, time } from "discord.js";
 import { ButtonComponent, Discord } from "discordx";
+
+const MIN_ACCOUNT_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
 @Discord()
 export class ClaimInteractions {
@@ -16,6 +18,18 @@ export class ClaimInteractions {
     const member = interaction.member as GuildMember | null;
     if (!member) {
       await interaction.editReply("Guild only.");
+      return;
+    }
+
+    // Reject accounts younger than 30 days to curb throwaway-account farming.
+    const accountAge = interaction.createdTimestamp - member.user.createdTimestamp;
+    if (accountAge < MIN_ACCOUNT_AGE_MS) {
+      const eligibleAt = new Date(
+        member.user.createdTimestamp + MIN_ACCOUNT_AGE_MS,
+      );
+      await interaction.editReply(
+        `Your Discord account is too new to verify. Accounts must be at least 30 days old. You can claim ${time(eligibleAt, "R")}.`,
+      );
       return;
     }
 
