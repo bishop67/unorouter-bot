@@ -1,4 +1,4 @@
-CREATE TABLE "boost_slots" (
+CREATE TABLE IF NOT EXISTS "boost_slots" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"guild_id" text NOT NULL,
 	"member_id" text NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE "boost_slots" (
 	"cancelled_at" timestamp(3)
 );
 --> statement-breakpoint
-CREATE TABLE "bug_reports" (
+CREATE TABLE IF NOT EXISTS "bug_reports" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"guild_id" text NOT NULL,
 	"forum_thread_id" text NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE "bug_reports" (
 	"resolved_at" timestamp(3)
 );
 --> statement-breakpoint
-CREATE TABLE "grant_logs" (
+CREATE TABLE IF NOT EXISTS "grant_logs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"target_discord_id" text NOT NULL,
 	"new_api_user_id" integer,
@@ -37,13 +37,13 @@ CREATE TABLE "grant_logs" (
 	"created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "guilds" (
+CREATE TABLE IF NOT EXISTS "guilds" (
 	"guild_id" text PRIMARY KEY NOT NULL,
 	"guild_name" text NOT NULL,
 	"lookback" integer DEFAULT 9999 NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "members" (
+CREATE TABLE IF NOT EXISTS "members" (
 	"member_id" text PRIMARY KEY NOT NULL,
 	"username" text NOT NULL,
 	"global_name" text,
@@ -56,7 +56,7 @@ CREATE TABLE "members" (
 	"system" boolean DEFAULT false NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "member_guilds" (
+CREATE TABLE IF NOT EXISTS "member_guilds" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"member_id" text NOT NULL,
 	"guild_id" text NOT NULL,
@@ -69,7 +69,7 @@ CREATE TABLE "member_guilds" (
 	"updated_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "member_messages" (
+CREATE TABLE IF NOT EXISTS "member_messages" (
 	"id" text PRIMARY KEY NOT NULL,
 	"member_id" text NOT NULL,
 	"guild_id" text NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE "member_messages" (
 	"created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "member_roles" (
+CREATE TABLE IF NOT EXISTS "member_roles" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"role_id" text NOT NULL,
 	"guild_id" text NOT NULL,
@@ -91,7 +91,7 @@ CREATE TABLE "member_roles" (
 	"updated_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "tickets" (
+CREATE TABLE IF NOT EXISTS "tickets" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"guild_id" text NOT NULL,
 	"channel_id" text NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE "tickets" (
 	"closed_at" timestamp(3)
 );
 --> statement-breakpoint
-CREATE TABLE "ticket_messages" (
+CREATE TABLE IF NOT EXISTS "ticket_messages" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"ticket_id" integer NOT NULL,
 	"author_id" text NOT NULL,
@@ -115,23 +115,23 @@ CREATE TABLE "ticket_messages" (
 	"created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "member_guilds" ADD CONSTRAINT "member_guilds_member_id_members_member_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("member_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "member_guilds" ADD CONSTRAINT "member_guilds_guild_id_guilds_guild_id_fk" FOREIGN KEY ("guild_id") REFERENCES "public"."guilds"("guild_id") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "member_messages" ADD CONSTRAINT "member_messages_member_id_members_member_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("member_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "member_messages" ADD CONSTRAINT "member_messages_guild_id_guilds_guild_id_fk" FOREIGN KEY ("guild_id") REFERENCES "public"."guilds"("guild_id") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_guild_id_guilds_guild_id_fk" FOREIGN KEY ("guild_id") REFERENCES "public"."guilds"("guild_id") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_member_id_members_member_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("member_id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-ALTER TABLE "ticket_messages" ADD CONSTRAINT "ticket_messages_ticket_id_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "public"."tickets"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
-CREATE INDEX "idx_boost_slots_member_guild" ON "boost_slots" USING btree ("member_id","guild_id");--> statement-breakpoint
-CREATE INDEX "idx_boost_slots_due" ON "boost_slots" USING btree ("active","next_payout_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_bug_reports_forum_thread" ON "bug_reports" USING btree ("forum_thread_id");--> statement-breakpoint
-CREATE INDEX "idx_grant_logs_target" ON "grant_logs" USING btree ("target_discord_id");--> statement-breakpoint
-CREATE INDEX "idx_grant_logs_source" ON "grant_logs" USING btree ("source_type","source_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_member_guilds_member_guild" ON "member_guilds" USING btree ("member_id","guild_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_member_messages_message" ON "member_messages" USING btree ("message_id");--> statement-breakpoint
-CREATE INDEX "idx_member_messages_member_guild" ON "member_messages" USING btree ("member_id","guild_id");--> statement-breakpoint
-CREATE INDEX "idx_member_roles_member_guild" ON "member_roles" USING btree ("member_id","guild_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_member_roles_member_role" ON "member_roles" USING btree ("member_id","role_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_tickets_channel" ON "tickets" USING btree ("channel_id");--> statement-breakpoint
-CREATE INDEX "idx_tickets_opener_status" ON "tickets" USING btree ("opener_id","status");--> statement-breakpoint
-CREATE INDEX "idx_ticket_messages_ticket" ON "ticket_messages" USING btree ("ticket_id");
+DO $$ BEGIN ALTER TABLE "member_guilds" ADD CONSTRAINT "member_guilds_member_id_members_member_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("member_id") ON DELETE cascade ON UPDATE cascade; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "member_guilds" ADD CONSTRAINT "member_guilds_guild_id_guilds_guild_id_fk" FOREIGN KEY ("guild_id") REFERENCES "public"."guilds"("guild_id") ON DELETE restrict ON UPDATE cascade; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "member_messages" ADD CONSTRAINT "member_messages_member_id_members_member_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("member_id") ON DELETE cascade ON UPDATE cascade; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "member_messages" ADD CONSTRAINT "member_messages_guild_id_guilds_guild_id_fk" FOREIGN KEY ("guild_id") REFERENCES "public"."guilds"("guild_id") ON DELETE restrict ON UPDATE cascade; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_guild_id_guilds_guild_id_fk" FOREIGN KEY ("guild_id") REFERENCES "public"."guilds"("guild_id") ON DELETE restrict ON UPDATE cascade; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "member_roles" ADD CONSTRAINT "member_roles_member_id_members_member_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("member_id") ON DELETE cascade ON UPDATE cascade; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "ticket_messages" ADD CONSTRAINT "ticket_messages_ticket_id_tickets_id_fk" FOREIGN KEY ("ticket_id") REFERENCES "public"."tickets"("id") ON DELETE cascade ON UPDATE cascade; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_boost_slots_member_guild" ON "boost_slots" USING btree ("member_id","guild_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_boost_slots_due" ON "boost_slots" USING btree ("active","next_payout_at");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_bug_reports_forum_thread" ON "bug_reports" USING btree ("forum_thread_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_grant_logs_target" ON "grant_logs" USING btree ("target_discord_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_grant_logs_source" ON "grant_logs" USING btree ("source_type","source_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_member_guilds_member_guild" ON "member_guilds" USING btree ("member_id","guild_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_member_messages_message" ON "member_messages" USING btree ("message_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_member_messages_member_guild" ON "member_messages" USING btree ("member_id","guild_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_member_roles_member_guild" ON "member_roles" USING btree ("member_id","guild_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_member_roles_member_role" ON "member_roles" USING btree ("member_id","role_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_tickets_channel" ON "tickets" USING btree ("channel_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_tickets_opener_status" ON "tickets" USING btree ("opener_id","status");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "idx_ticket_messages_ticket" ON "ticket_messages" USING btree ("ticket_id");
