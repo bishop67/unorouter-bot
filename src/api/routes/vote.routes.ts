@@ -1,27 +1,51 @@
 import { VoteService } from "@/core/services/vote/vote.service";
 import { logger } from "@/lib/logger";
 import { VoteSite } from "@/types";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Elysia, status, t } from "elysia";
 
-// Each site sends the secret you set in its dashboard as a raw Authorization
-// header (no "Bearer" prefix). Compare against the per-site env secret. A site
-// with no secret configured rejects all its webhooks (fail closed). 4xx tells
-// the sender not to retry, which is what we want on a bad secret.
+// Discords.com sends the secret you set in its dashboard as a raw Authorization
+// header. Plain constant-time compare; no secret configured rejects all (fail closed).
 function authorize(secret: string | undefined, header: string | undefined): boolean {
-  if (!secret) return false;
-  return header === secret;
+  if (!secret || !header) return false;
+  const a = Buffer.from(secret);
+  const b = Buffer.from(header);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// Top.gg has two payload generations:
-//   v1 (current): { type: "vote.create" | "webhook.test", data: { user: { platform_id }, project: { platform_id } } }
-//   v0 (legacy):  { type: "upvote" | "test", user, guild }
-// Pull the voter's Discord id from whichever shape arrived.
-function topggVoter(body: TopggBody): { test: boolean; userId: string | null } {
-  if (body.type === "test" || body.type === "webhook.test") {
-    return { test: true, userId: null };
+// Top.gg v1 signs webhooks Stripe-style. Header:
+//   x-topgg-signature: t=<unix>,v1=<hmac-sha256 hex of `${t}.${rawBody}`>
+// Key is the whs_ secret created on the dashboard. Verify against the RAW body
+// (a re-stringified object would differ and fail), reject on >5min skew (replay).
+function verifyTopggSignature(rawBody: string, header: string | undefined, secret: string | undefined): boolean {
+  if (!secret || !header) return false;
+  const parts = Object.fromEntries(
+    header.split(",").map((kv) => {
+      const i = kv.indexOf("=");
+      return [kv.slice(0, i).trim(), kv.slice(i + 1).trim()];
+    }),
+  );
+  const ts = parts.t;
+  const sig = parts.v1;
+  if (!ts || !sig) return false;
+
+  const skew = Math.abs(Date.now() / 1000 - Number(ts));
+  if (!Number.isFinite(skew) || skew > 300) return false;
+
+  const expected = createHmac("sha256", secret).update(`${ts}.${rawBody}`).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(sig);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// TEMP: candidate where the key is the base64 portion of the secret (Svix style).
+function tryB64Key(secret: string, content: string): string {
+  try {
+    const key = Buffer.from(secret.replace(/^whs_/, ""), "base64");
+    return createHmac("sha256", key).update(content).digest("hex");
+  } catch {
+    return "n/a";
   }
-  const userId = body.data?.user?.platform_id ?? body.user ?? null;
-  return { test: false, userId };
 }
 
 type TopggBody = {
@@ -30,6 +54,14 @@ type TopggBody = {
   guild?: string;
   data?: { user?: { platform_id?: string } };
 };
+
+// Pull the voter's Discord id from v1 (data.user.platform_id) or v0 flat (user).
+function topggVoter(body: TopggBody): { test: boolean; userId: string | null } {
+  if (body.type === "test" || body.type === "webhook.test") {
+    return { test: true, userId: null };
+  }
+  return { test: false, userId: body.data?.user?.platform_id ?? body.user ?? null };
+}
 
 // Grant runs detached so the HTTP response returns inside Top.gg's 5s window;
 // a slow grant would otherwise time out and trigger a retry (double-fire).
@@ -43,50 +75,46 @@ export const voteRoutes = new Elysia({ prefix: "/webhook" })
   .post(
     "/topgg",
     ({ headers, body }) => {
-      // TEMP diagnostic: dump every header Top.gg sends so we can see the
-      // signature header name + scheme (Standard Webhooks / Svix vs plain auth).
-      logger.info("Top.gg webhook hit", {
-        headerKeys: Object.keys(headers as object),
-        headers: headers as Record<string, string>,
-        type: (body as { type?: string }).type,
-        bodyKeys: Object.keys(body as object),
-      });
-      if (!authorize(process.env.TOPGG_WEBHOOK_SECRET, headers.authorization)) {
-        throw status("Unauthorized", "Invalid webhook secret");
+      const raw = typeof body === "string" ? body : "";
+      if (!verifyTopggSignature(raw, headers["x-topgg-signature"], process.env.TOPGG_WEBHOOK_SECRET)) {
+        // TEMP: surface candidate digests so we can confirm the exact signed-string
+        // construction against Top.gg's real signature on the first test.
+        const sec = process.env.TOPGG_WEBHOOK_SECRET || "";
+        const sig = headers["x-topgg-signature"] || "";
+        const ts = (sig.match(/t=(\d+)/) || [])[1] || "";
+        logger.warn("Top.gg signature mismatch", {
+          sig,
+          rawLen: raw.length,
+          d_ts_body: createHmac("sha256", sec).update(`${ts}.${raw}`).digest("hex"),
+          d_body: createHmac("sha256", sec).update(raw).digest("hex"),
+          d_ts_body_b64key: tryB64Key(sec, `${ts}.${raw}`),
+        });
+        return status("Unauthorized", "Invalid signature");
       }
-      const voter = topggVoter(body);
+      let parsed: TopggBody;
+      try {
+        parsed = JSON.parse(raw) as TopggBody;
+      } catch {
+        return status("Bad Request", "Invalid JSON");
+      }
+      const voter = topggVoter(parsed);
       if (voter.test) return { ok: true, test: true };
       if (!voter.userId) {
-        logger.warn("Top.gg vote webhook missing voter id", { body });
+        logger.warn("Top.gg vote webhook missing voter id", { type: parsed.type });
         return { ok: true };
       }
       rewardAsync(voter.userId, VoteSite.TopGg);
       return { ok: true };
     },
-    {
-      // Loose: Top.gg v1 nests fields under data; only the shape we read is typed.
-      body: t.Object(
-        {
-          type: t.Optional(t.String()),
-          user: t.Optional(t.String()),
-          guild: t.Optional(t.String()),
-          data: t.Optional(
-            t.Object(
-              { user: t.Optional(t.Object({ platform_id: t.Optional(t.String()) }, { additionalProperties: true })) },
-              { additionalProperties: true },
-            ),
-          ),
-        },
-        { additionalProperties: true },
-      ),
-    },
+    // Take the body as raw text so the HMAC matches Top.gg's signature byte-for-byte.
+    { type: "text" },
   )
   // Discords.com server vote: { user, server, type, query }
   .post(
     "/discords",
     ({ headers, body }) => {
       if (!authorize(process.env.DISCORDS_WEBHOOK_SECRET, headers.authorization)) {
-        throw status("Unauthorized", "Invalid webhook secret");
+        return status("Unauthorized", "Invalid webhook secret");
       }
       rewardAsync(body.user, VoteSite.Discords);
       return { ok: true };
