@@ -43,14 +43,11 @@ export const voteRoutes = new Elysia({ prefix: "/webhook" })
   .post(
     "/topgg",
     ({ headers, body }) => {
-      // TEMP diagnostic: confirm what Top.gg actually sends on the test event.
-      const sec = process.env.TOPGG_WEBHOOK_SECRET || "";
-      const auth = headers.authorization || "";
+      // TEMP diagnostic: dump every header Top.gg sends so we can see the
+      // signature header name + scheme (Standard Webhooks / Svix vs plain auth).
       logger.info("Top.gg webhook hit", {
-        hasAuth: Boolean(auth),
-        authLen: auth.length,
-        authMatch: auth === sec,
-        authPrefix: auth.slice(0, 6),
+        headerKeys: Object.keys(headers as object),
+        headers: headers as Record<string, string>,
         type: (body as { type?: string }).type,
         bodyKeys: Object.keys(body as object),
       });
