@@ -48,6 +48,11 @@ jobs:
           echo CONNECT_GRANT_DOLLARS="${{ secrets.CONNECT_GRANT_DOLLARS }}" >> .env
           echo CONNECTED_ROLE="${{ secrets.CONNECTED_ROLE }}" >> .env
 
+          echo WEBHOOK_PORT="${{ secrets.WEBHOOK_PORT }}" >> .env
+          echo VOTE_GRANT_DOLLARS="${{ secrets.VOTE_GRANT_DOLLARS }}" >> .env
+          echo TOPGG_WEBHOOK_SECRET="${{ secrets.TOPGG_WEBHOOK_SECRET }}" >> .env
+          echo DISCORDS_WEBHOOK_SECRET="${{ secrets.DISCORDS_WEBHOOK_SECRET }}" >> .env
+
           echo BOT_NAME="${{ secrets.BOT_NAME }}" >> .env
           echo WEBSITE_URL="${{ secrets.WEBSITE_URL }}" >> .env
           echo BOT_ACTIVITY="${{ secrets.BOT_ACTIVITY }}" >> .env

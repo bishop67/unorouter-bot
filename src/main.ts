@@ -6,6 +6,7 @@ import { MemberDataService } from "@/core/services/members/member-data.service";
 import { WEBSITE_URL } from "@/shared/config/branding";
 import { ConfigValidator } from "@/shared/config/validator";
 import { ErrorBoundary } from "@/bot/guards/error-boundary.guard";
+import { startWebhookServer } from "@/elysia";
 import { ActivityType, GatewayIntentBits, Partials } from "discord.js";
 import { Client } from "discordx";
 import "./bot";
@@ -49,6 +50,7 @@ bot.once("clientReady", async () => {
   await Promise.all(
     bot.guilds.cache.map((g) => MemberDataService.upsertGuild(g)),
   );
+  startWebhookServer();
   logger.info("Bot started", { clientId: bot.user?.id });
 });
 

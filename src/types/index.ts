@@ -93,6 +93,7 @@ export const GrantSource = {
   Bug: "bug",
   Boost: "boost",
   Connect: "connect",
+  Vote: "vote",
 } as const;
 export type GrantSourceType = (typeof GrantSource)[keyof typeof GrantSource];
 
@@ -103,6 +104,20 @@ export const GRANT_SOURCE_LABEL: Record<GrantSourceType, string> = {
   bug: "bug bounty",
   boost: "server boost",
   connect: "connect bonus",
+  vote: "vote reward",
+};
+
+// Listing sites that send SERVER vote webhooks. Used as grantLog.sourceId so the
+// 12h dedupe is per-site (a user voting on both in one window pays twice).
+export const VoteSite = {
+  TopGg: "topgg",
+  Discords: "discords",
+} as const;
+export type VoteSite = (typeof VoteSite)[keyof typeof VoteSite];
+
+export const VOTE_SITE_LABEL: Record<VoteSite, string> = {
+  topgg: "Top.gg",
+  discords: "Discords.com",
 };
 
 export interface GrantResult {

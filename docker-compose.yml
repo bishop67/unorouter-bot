@@ -52,6 +52,13 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}/${POSTGRES_DB}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+      - "traefik.http.routers.unorouter-bot.rule=Host(`bot.unorouter.com`)"
+      - "traefik.http.routers.unorouter-bot.entrypoints=websecure"
+      - "traefik.http.routers.unorouter-bot.tls.certresolver=letsencrypt"
+      - "traefik.http.services.unorouter-bot.loadbalancer.server.port=4000"
 
 networks:
   proxy:
