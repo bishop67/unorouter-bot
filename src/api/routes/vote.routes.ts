@@ -106,8 +106,11 @@ export const voteRoutes = new Elysia({ prefix: "/webhook" })
       rewardAsync(voter.userId, VoteSite.TopGg);
       return { ok: true };
     },
-    // Take the body as raw text so the HMAC matches Top.gg's signature byte-for-byte.
-    { type: "text" },
+    {
+      // Capture the raw body as a string so the HMAC matches Top.gg byte-for-byte.
+      // A parsed-then-restringified object would differ and fail verification.
+      parse: async ({ request }) => await request.text(),
+    },
   )
   // Discords.com server vote: { user, server, type, query }
   .post(
