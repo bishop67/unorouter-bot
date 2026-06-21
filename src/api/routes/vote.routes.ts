@@ -43,6 +43,17 @@ export const voteRoutes = new Elysia({ prefix: "/webhook" })
   .post(
     "/topgg",
     ({ headers, body }) => {
+      // TEMP diagnostic: confirm what Top.gg actually sends on the test event.
+      const sec = process.env.TOPGG_WEBHOOK_SECRET || "";
+      const auth = headers.authorization || "";
+      logger.info("Top.gg webhook hit", {
+        hasAuth: Boolean(auth),
+        authLen: auth.length,
+        authMatch: auth === sec,
+        authPrefix: auth.slice(0, 6),
+        type: (body as { type?: string }).type,
+        bodyKeys: Object.keys(body as object),
+      });
       if (!authorize(process.env.TOPGG_WEBHOOK_SECRET, headers.authorization)) {
         throw status("Unauthorized", "Invalid webhook secret");
       }
