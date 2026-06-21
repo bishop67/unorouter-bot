@@ -38,16 +38,6 @@ function verifyTopggSignature(rawBody: string, header: string | undefined, secre
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// TEMP: candidate where the key is the base64 portion of the secret (Svix style).
-function tryB64Key(secret: string, content: string): string {
-  try {
-    const key = Buffer.from(secret.replace(/^whs_/, ""), "base64");
-    return createHmac("sha256", key).update(content).digest("hex");
-  } catch {
-    return "n/a";
-  }
-}
-
 type TopggBody = {
   type?: string;
   user?: string;
@@ -77,18 +67,6 @@ export const voteRoutes = new Elysia({ prefix: "/webhook" })
     ({ headers, body }) => {
       const raw = typeof body === "string" ? body : "";
       if (!verifyTopggSignature(raw, headers["x-topgg-signature"], process.env.TOPGG_WEBHOOK_SECRET)) {
-        // TEMP: surface candidate digests so we can confirm the exact signed-string
-        // construction against Top.gg's real signature on the first test.
-        const sec = process.env.TOPGG_WEBHOOK_SECRET || "";
-        const sig = headers["x-topgg-signature"] || "";
-        const ts = (sig.match(/t=(\d+)/) || [])[1] || "";
-        logger.warn("Top.gg signature mismatch", {
-          sig,
-          rawLen: raw.length,
-          d_ts_body: createHmac("sha256", sec).update(`${ts}.${raw}`).digest("hex"),
-          d_body: createHmac("sha256", sec).update(raw).digest("hex"),
-          d_ts_body_b64key: tryB64Key(sec, `${ts}.${raw}`),
-        });
         return status("Unauthorized", "Invalid signature");
       }
       let parsed: TopggBody;

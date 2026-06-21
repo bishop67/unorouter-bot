@@ -9,17 +9,15 @@ const WEBHOOK_PORT = parseInt(process.env.WEBHOOK_PORT || "4000", 10);
 // after the Discord client logs in so grant announces have a ready guild.
 export function startWebhookServer(): void {
   new Elysia({ adapter: node() })
-    .onError(({ error, path, code, set }) => {
-      if (code === "NOT_FOUND") return;
-      // status() throws are control flow, not failures - let Elysia render them.
-      if (code === "INVALID_COOKIE_SIGNATURE") return;
+    .onError(({ error, path, code }) => {
+      if (code === "NOT_FOUND" || code === "VALIDATION") return;
       const msg =
         error instanceof Error
           ? error.message
           : typeof error === "object" && error !== null
             ? JSON.stringify(error)
             : String(error);
-      logger.error("Webhook server error", { path, code, status: set.status, error: msg });
+      logger.error("Webhook server error", { path, code, error: msg });
     })
     .get("/health", () => ({ ok: true }))
     .use(voteRoutes)
