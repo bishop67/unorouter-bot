@@ -1,9 +1,10 @@
 import { db } from "@/lib/db";
 import { grantLog } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import { grantDiscordQuota } from "@/lib/new-api/openapi";
+import { getUser, grantDiscordQuota } from "@/lib/new-api/openapi";
 import { bot } from "@/main";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
+import { grantRewardEmbed } from "@/core/embeds/grant-reward.embed";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import {
   GRANT_SOURCE_LABEL,
@@ -118,7 +119,48 @@ export class GrantService {
       params.sourceType
     );
 
+    await this.dmReward(params.targetDiscordId, userId, params.quota, params.sourceType);
+
     return { linked: true, userId, quota: params.quota };
+  }
+
+  // Current balance in dollars for the DM "Total" line. Best-effort: returns null
+  // if the lookup fails so the DM still sends with just the +amount.
+  private static async quotaToBalanceDollars(
+    userId: number | null | undefined
+  ): Promise<number | null> {
+    if (userId == null) return null;
+    const res = await getUser(String(userId)).catch(() => null);
+    const quota = res?.data?.data?.quota;
+    if (typeof quota !== "number" || QUOTA_PER_DOLLAR <= 0) return null;
+    return quota / QUOTA_PER_DOLLAR;
+  }
+
+  // DM the recipient a reward embed (Top.gg-style). Best-effort: a closed DM or a
+  // user the bot can't reach is logged, never throws into the grant flow.
+  private static async dmReward(
+    targetDiscordId: string,
+    userId: number | null | undefined,
+    quota: number,
+    sourceType: GrantSourceType
+  ): Promise<void> {
+    const addedDollars = QUOTA_PER_DOLLAR > 0 ? quota / QUOTA_PER_DOLLAR : 0;
+    if (addedDollars <= 0) return;
+    const totalDollars = await this.quotaToBalanceDollars(userId);
+    const embed = grantRewardEmbed({
+      sourceType,
+      addedDollars,
+      totalDollars,
+      voteAgainHours: sourceType === "vote" ? 12 : undefined
+    });
+    const user = await bot.users.fetch(targetDiscordId).catch(() => null);
+    if (!user) return;
+    await user.send({ embeds: [embed] }).catch((e) =>
+      logger.info("Reward DM not delivered (DMs closed?)", {
+        target: targetDiscordId,
+        error: String(e)
+      })
+    );
   }
 
   static linkPrompt(): string {

@@ -2,16 +2,7 @@ import { VoteService } from "@/core/services/vote/vote.service";
 import { logger } from "@/lib/logger";
 import { VoteSite } from "@/types";
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Elysia, status, t } from "elysia";
-
-// Discords.com sends the secret you set in its dashboard as a raw Authorization
-// header. Plain constant-time compare; no secret configured rejects all (fail closed).
-function authorize(secret: string | undefined, header: string | undefined): boolean {
-  if (!secret || !header) return false;
-  const a = Buffer.from(secret);
-  const b = Buffer.from(header);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
+import { Elysia, status } from "elysia";
 
 // Top.gg v1 signs webhooks Stripe-style. Header:
 //   x-topgg-signature: t=<unix>,v1=<hmac-sha256 hex of `${t}.${rawBody}`>
@@ -89,27 +80,6 @@ export const voteRoutes = new Elysia({ prefix: "/webhook" })
       // A parsed-then-restringified object would differ and fail verification.
       parse: async ({ request }) => await request.text(),
     },
-  )
-  // Discords.com server vote: { user, server, type, query }
-  .post(
-    "/discords",
-    ({ headers, body }) => {
-      if (!authorize(process.env.DISCORDS_WEBHOOK_SECRET, headers.authorization)) {
-        return status("Unauthorized", "Invalid webhook secret");
-      }
-      rewardAsync(body.user, VoteSite.Discords);
-      return { ok: true };
-    },
-    {
-      body: t.Object(
-        {
-          user: t.String(),
-          type: t.Optional(t.String()),
-          server: t.Optional(t.String()),
-          query: t.Optional(t.Unknown()),
-          engine: t.Optional(t.String()),
-        },
-        { additionalProperties: true },
-      ),
-    },
   );
+// Discords.com gives a temp Discord role on upvote (configured on their
+// dashboard), not a webhook, so there is no /webhook/discords route.

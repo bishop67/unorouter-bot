@@ -107,17 +107,16 @@ export const GRANT_SOURCE_LABEL: Record<GrantSourceType, string> = {
   vote: "vote reward",
 };
 
-// Listing sites that send SERVER vote webhooks. Used as grantLog.sourceId so the
-// 12h dedupe is per-site (a user voting on both in one window pays twice).
+// Listing sites that send a SERVER vote webhook we can grant balance from. Used
+// as grantLog.sourceId. Only Top.gg exposes one; Discords.com/DBL server votes
+// give a Discord role via their own dashboard, no webhook.
 export const VoteSite = {
   TopGg: "topgg",
-  Discords: "discords",
 } as const;
 export type VoteSite = (typeof VoteSite)[keyof typeof VoteSite];
 
 export const VOTE_SITE_LABEL: Record<VoteSite, string> = {
   topgg: "Top.gg",
-  discords: "Discords.com",
 };
 
 export interface GrantResult {
