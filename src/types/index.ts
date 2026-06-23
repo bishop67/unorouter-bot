@@ -107,16 +107,18 @@ export const GRANT_SOURCE_LABEL: Record<GrantSourceType, string> = {
   vote: "vote reward",
 };
 
-// Listing sites that send a SERVER vote webhook we can grant balance from. Used
-// as grantLog.sourceId. Only Top.gg exposes one; Discords.com/DBL server votes
-// give a Discord role via their own dashboard, no webhook.
+// Vote sources, used as grantLog.sourceId. Top.gg sends a real webhook; Discords.com
+// has none, so its dashboard assigns a role on upvote which the bot treats as the
+// signal (role-add -> grant -> strip role).
 export const VoteSite = {
   TopGg: "topgg",
+  Discords: "discords",
 } as const;
 export type VoteSite = (typeof VoteSite)[keyof typeof VoteSite];
 
 export const VOTE_SITE_LABEL: Record<VoteSite, string> = {
   topgg: "Top.gg",
+  discords: "Discords.com",
 };
 
 export interface GrantResult {

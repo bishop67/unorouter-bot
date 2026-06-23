@@ -2,8 +2,11 @@ import { db } from "@/lib/db";
 import { grantLog } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { GrantService, dollarsToQuota } from "@/core/services/grant/grant.service";
-import { VOTE_SITE_LABEL, type VoteSite } from "@/types";
+import { VoteSite, VOTE_SITE_LABEL } from "@/types";
+import type { GuildMember, PartialGuildMember } from "discord.js";
 import { and, eq, gte } from "drizzle-orm";
+
+const DISCORDS_VOTE_ROLE = process.env.DISCORDS_VOTE_ROLE?.trim() || "";
 
 // Dedupe guard against duplicate webhook DELIVERY (the site retries on timeout
 // or 5xx, up to ~17min for Top.gg), NOT a vote-frequency cap - the listing site
@@ -70,5 +73,44 @@ export class VoteService {
 
     logger.info("Vote rewarded", { voterDiscordId, site, quota });
     return { ok: true, rewarded: true, linked: true };
+  }
+
+  /**
+   * Discords.com has no vote webhook; its dashboard adds DISCORDS_VOTE_ROLE on
+   * each upvote. We treat the role-add as the vote signal: reward, then strip the
+   * role so the next vote re-adds it (and an unlinked voter keeps no stale role).
+   */
+  static async handleDiscordsVoteRole(
+    oldMember: GuildMember | PartialGuildMember,
+    newMember: GuildMember,
+  ): Promise<void> {
+    if (!DISCORDS_VOTE_ROLE) return;
+    const role = newMember.guild.roles.cache.find(
+      (r) => r.name === DISCORDS_VOTE_ROLE,
+    );
+    if (!role) return;
+
+    const justAdded =
+      newMember.roles.cache.has(role.id) && !oldMember.roles.cache.has(role.id);
+    if (!justAdded) return;
+
+    await this.reward(newMember.id, VoteSite.Discords).catch((e) =>
+      logger.error("Discords vote reward failed", {
+        member: newMember.id,
+        error: String(e),
+      }),
+    );
+
+    // Strip the role regardless of grant outcome so the next vote re-triggers.
+    if (role.editable) {
+      await newMember.roles
+        .remove(role, "Discords.com vote reward processed")
+        .catch((e) =>
+          logger.info("Could not remove Discords vote role", {
+            member: newMember.id,
+            error: String(e),
+          }),
+        );
+    }
   }
 }

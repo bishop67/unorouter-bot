@@ -53,6 +53,7 @@ jobs:
           echo TOPGG_WEBHOOK_SECRET="${{ secrets.TOPGG_WEBHOOK_SECRET }}" >> .env
           echo TOPGG_VOTE_URL="${{ secrets.TOPGG_VOTE_URL }}" >> .env
           echo DISCORDS_VOTE_URL="${{ secrets.DISCORDS_VOTE_URL }}" >> .env
+          echo DISCORDS_VOTE_ROLE="${{ secrets.DISCORDS_VOTE_ROLE }}" >> .env
 
           echo BOT_NAME="${{ secrets.BOT_NAME }}" >> .env
           echo WEBSITE_URL="${{ secrets.WEBSITE_URL }}" >> .env

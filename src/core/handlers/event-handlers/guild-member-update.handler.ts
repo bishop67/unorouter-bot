@@ -3,6 +3,7 @@ import { EVERYONE } from "@/shared/config/roles";
 import { RolesService } from "@/core/services/roles/roles.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { BoostService } from "@/core/services/boost/boost.service";
+import { VoteService } from "@/core/services/vote/vote.service";
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
 import { and, eq } from "drizzle-orm";
@@ -12,6 +13,10 @@ export async function handleGuildMemberUpdate(
   newMember: GuildMember,
 ): Promise<void> {
   await syncRoles(oldMember, newMember);
+
+  // Discords.com has no vote webhook; its dashboard adds DISCORDS_VOTE_ROLE on
+  // each upvote. Treat that role-add as the vote signal.
+  await VoteService.handleDiscordsVoteRole(oldMember, newMember);
 
   // Boost cancellation: premiumSince transitions set -> null when the user drops
   // all their boosts. Deactivate every active slot so the monthly cron stops
