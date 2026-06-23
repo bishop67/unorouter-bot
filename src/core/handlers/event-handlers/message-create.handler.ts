@@ -6,6 +6,9 @@ import { TicketService } from "@/core/services/tickets/ticket.service";
 import { Message } from "discord.js";
 
 export async function handleMessageCreate(message: Message): Promise<void> {
+  // Guild-only: this @On handler bypasses main.ts's guard, so skip DMs entirely.
+  if (!message.guild) return;
+
   // Discord posts a system PREMIUM_GUILD_SUBSCRIPTION message in the configured
   // system channel for each boost transaction (including multi-boost from the
   // same user). Route those to the boost service before anything else.

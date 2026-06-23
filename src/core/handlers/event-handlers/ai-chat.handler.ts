@@ -73,6 +73,9 @@ export async function handleAiChatMessage(
 
 function shouldRespond(message: Message, client: Client): boolean {
   if (message.author.bot) return false;
+  // Guild-only: this @On handler fires independently of main.ts's guard, so DMs
+  // would otherwise reach the AI. Never respond outside a server.
+  if (!message.guild) return false;
   if (!ConfigValidator.isFeatureEnabled("GOOGLE_GENERATIVE_AI_API_KEY"))
     return false;
 
