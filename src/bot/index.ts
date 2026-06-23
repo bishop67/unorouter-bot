@@ -9,6 +9,7 @@ import "./events/thread-delete";
 
 // Commands - Staff
 import "./commands/staff/verify-panel";
+import "./commands/staff/vote-panel";
 import "./commands/staff/grant";
 import "./commands/staff/ticket-panel";
 import "./commands/staff/verify-users";

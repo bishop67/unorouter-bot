@@ -35,6 +35,28 @@ export async function purgeOwnPanels(
   }
 }
 
+/**
+ * Like purgeOwnPanels but matches the bot's previous panel by embed title prefix.
+ * Used for panels whose buttons are link-style (no custom id to key on).
+ */
+export async function purgeOwnPanelsByTitle(
+  channel: TextChannel,
+  titlePrefix: string,
+): Promise<void> {
+  const me = channel.client.user?.id;
+  if (!me) return;
+  const recent = await channel.messages.fetch({ limit: 50 }).catch(() => null);
+  if (!recent) return;
+  const mine = recent.filter(
+    (m) =>
+      m.author.id === me &&
+      m.embeds.some((e) => e.title?.startsWith(titlePrefix)),
+  );
+  for (const m of mine.values()) {
+    await m.delete().catch(() => {});
+  }
+}
+
 const UNKNOWN_MESSAGE = 10008;
 const UNKNOWN_CHANNEL = 10003;
 const UNKNOWN_INTERACTION = 10062;
