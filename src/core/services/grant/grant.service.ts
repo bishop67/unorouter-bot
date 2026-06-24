@@ -11,7 +11,7 @@ import {
   type GrantResult,
   type GrantSourceType
 } from "@/types";
-import { type GuildMember } from "discord.js";
+import { type Guild, type GuildMember } from "discord.js";
 import { and, eq } from "drizzle-orm";
 
 // Auth headers (Authorization + New-Api-User) are injected by the orval mutator
@@ -244,13 +244,32 @@ export class GrantService {
       ? `$${dollars}`
       : `$${dollars.toFixed(2)}`;
     const tag = GRANT_SOURCE_LABEL[sourceType] ?? sourceType;
+    const who = await this.formatUser(guild, targetDiscordId);
     await channel
       .send({
-        content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to <@${targetDiscordId}> - ${reason}`,
+        content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to ${who} - ${reason}`,
         allowedMentions: { users: [], roles: [] }
       })
       .catch((e) =>
         logger.error("Grant announce failed", { error: String(e) })
       );
+  }
+
+  // Join-log style identifier: mention (username) displayName. Resolves the
+  // member, falls back to the user, then to a bare mention if the account is
+  // gone - so the log never reads "unknown-user".
+  private static async formatUser(
+    guild: Guild,
+    discordId: string
+  ): Promise<string> {
+    const member = await guild.members.fetch(discordId).catch(() => null);
+    if (member) {
+      return `<@${discordId}> (${member.user.username}) ${member.displayName}`;
+    }
+    const user = await bot.users.fetch(discordId).catch(() => null);
+    if (user) {
+      return `<@${discordId}> (${user.username})`;
+    }
+    return `<@${discordId}>`;
   }
 }
