@@ -59,7 +59,7 @@ These carry the **promo** (pinned-style intro post) + **changelog** entries. The
 are plain text channels (no crosspost/publish). We author as user "Don" via the
 same Browser-MCP flow. Keep these in sync with our own changelog for big ships;
 skip the minor ones. The promo block + changelog block both live in
-`unorouter-promo.md` (in the ai-api project root) ready to paste/post.
+`unorouter-promo.md` (in the unorouter repo root) ready to paste/post.
 
 ## Part A: Discord post (Browser MCP)
 
@@ -260,7 +260,7 @@ Order matters: blog first so the announcement can link a live post.
 
 ## Reusable copy
 
-`unorouter-promo.md` (in the ai-api project root, NOT this repo) holds three
+`unorouter-promo.md` (in the unorouter repo root, NOT this repo) holds three
 ready-to-paste Discord blocks kept current with the latest ship: the **promo**
 (feature pitch + invite, the pinned intro for partner channels), the
 **changelog entry**, and the **announcement entry**. Update that file whenever
