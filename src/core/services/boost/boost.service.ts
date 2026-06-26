@@ -5,17 +5,13 @@ import {
 import { db } from "@/lib/db";
 import { boostSlot } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import { WEBSITE_URL } from "@/shared/config/branding";
-import { findTextChannel } from "@/shared/utils/channel.utils";
 import { and, eq, gte, lt, sql } from "drizzle-orm";
 import {
-  type Guild,
   type GuildMember,
   type Message,
   MessageType,
 } from "discord.js";
 
-const BOOST_CHANNEL_NAME = process.env.BOOST_CHANNEL?.trim() || "boosters";
 const BOOST_GRANT_DOLLARS = parseFloat(process.env.BOOST_GRANT_DOLLARS || "0");
 const PAYOUT_INTERVAL_DAYS = parseInt(
   process.env.BOOST_PAYOUT_INTERVAL_DAYS || "30",
@@ -78,25 +74,21 @@ export class BoostService {
         sourceId: message.id,
         grantedByDiscordId: "system",
       });
-      const tag = `<@${memberId}>`;
+      const member = await message.guild.members
+        .fetch(memberId)
+        .catch(() => null);
       if (result.linked) {
-        await this.postChannel(
-          message.guild,
-          `${tag} boosted the server and earned **$${BOOST_GRANT_DOLLARS}** balance. Thank you! 💜`,
-        );
+        await member?.user
+          .send(
+            `Thanks for boosting! You earned **$${BOOST_GRANT_DOLLARS}** balance, and every $${BOOST_GRANT_DOLLARS}/month while you keep boosting lands automatically. 💜`,
+          )
+          .catch(() => {});
       } else {
-        const member = await message.guild.members
-          .fetch(memberId)
-          .catch(() => null);
         await member?.user
           .send(
             `Thanks for boosting! ${GrantService.linkPrompt()} Once linked, your boost reward (and every $${BOOST_GRANT_DOLLARS}/month while you keep boosting) lands automatically.`,
           )
           .catch(() => {});
-        await this.postChannel(
-          message.guild,
-          `${tag} boosted! Link your Discord on ${WEBSITE_URL} to claim your **$${BOOST_GRANT_DOLLARS}** monthly boost reward.`,
-        );
       }
     } catch (err) {
       logger.error("Boost grant failed", { error: String(err) });
@@ -199,17 +191,6 @@ export class BoostService {
         });
       }
     }
-  }
-
-  private static async postChannel(
-    guild: Guild,
-    content: string,
-  ): Promise<void> {
-    const ch = findTextChannel(guild, BOOST_CHANNEL_NAME);
-    if (!ch) return;
-    await ch
-      .send({ content, allowedMentions: { users: [] } })
-      .catch((e) => logger.error("Boost post failed", { error: String(e) }));
   }
 
   // Internal: expose count helper for diagnostics / future commands.
