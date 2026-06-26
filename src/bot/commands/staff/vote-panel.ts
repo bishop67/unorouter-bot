@@ -48,10 +48,11 @@ export class VotePanelCommand {
 
     const topggUrl = process.env.TOPGG_VOTE_URL?.trim();
     const discordsUrl = process.env.DISCORDS_VOTE_URL?.trim();
-    if (!topggUrl && !discordsUrl) {
+    const discadiaUrl = process.env.DISCADIA_VOTE_URL?.trim();
+    if (!topggUrl && !discordsUrl && !discadiaUrl) {
       await safeEditReply(
         interaction,
-        "No vote URLs configured (set TOPGG_VOTE_URL / DISCORDS_VOTE_URL).",
+        "No vote URLs configured (set TOPGG_VOTE_URL / DISCORDS_VOTE_URL / DISCADIA_VOTE_URL).",
       );
       return;
     }
@@ -71,6 +72,7 @@ export class VotePanelCommand {
           `**How it works:**`,
           `- Every **Top.gg** vote drops ${reward} straight to your account`,
           `- Every **Discords.com** vote drops ${reward} too`,
+          `- Every **Discadia** vote drops ${reward} as well`,
           `- You can vote on each site again every **12 hours**`,
           "",
           `Tap a button to vote.`,
@@ -95,6 +97,15 @@ export class VotePanelCommand {
           .setEmoji("⭐")
           .setStyle(ButtonStyle.Link)
           .setURL(discordsUrl),
+      );
+    }
+    if (discadiaUrl) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setLabel("Vote on Discadia")
+          .setEmoji("🚀")
+          .setStyle(ButtonStyle.Link)
+          .setURL(discadiaUrl),
       );
     }
 
