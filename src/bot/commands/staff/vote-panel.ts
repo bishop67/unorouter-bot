@@ -63,21 +63,34 @@ export class VotePanelCommand {
         ? `**$${formatDollars(dollars)}** balance`
         : "**free balance**";
 
+    const extraLinks = [
+      ["DiscordBotList", process.env.DISCORDBOTLIST_VOTE_URL?.trim()],
+      ["Discord.me", process.env.DISCORDME_VOTE_URL?.trim()],
+    ].filter(([, url]) => url) as [string, string][];
+
+    const description = [
+      `Upvote ${BOT_NAME} on the listing sites below and the reward lands automatically.`,
+      "",
+      `**How it works:**`,
+      `- Every **Top.gg** vote drops ${reward} straight to your account`,
+      `- Every **Discords.com** vote drops ${reward} too`,
+      `- Every **Discadia** vote drops ${reward} as well`,
+      `- You can vote on each site again every **12 hours**`,
+      "",
+      `Tap a button to vote.`,
+    ];
+
+    if (extraLinks.length) {
+      description.push(
+        "",
+        `These ones do not pay balance, but voting still helps us climb the rankings:`,
+        ...extraLinks.map(([name, url]) => `- [${name}](${url})`),
+      );
+    }
+
     const embed = new EmbedBuilder()
       .setTitle(PANEL_TITLE)
-      .setDescription(
-        [
-          `Upvote ${BOT_NAME} on the listing sites below and the reward lands automatically.`,
-          "",
-          `**How it works:**`,
-          `- Every **Top.gg** vote drops ${reward} straight to your account`,
-          `- Every **Discords.com** vote drops ${reward} too`,
-          `- Every **Discadia** vote drops ${reward} as well`,
-          `- You can vote on each site again every **12 hours**`,
-          "",
-          `Tap a button to vote.`,
-        ].join("\n"),
-      )
+      .setDescription(description.join("\n"))
       .setColor(0x9b59ff);
 
     const row = new ActionRowBuilder<ButtonBuilder>();
