@@ -56,6 +56,8 @@ jobs:
           echo DISCORDS_VOTE_ROLE="${{ secrets.DISCORDS_VOTE_ROLE }}" >> .env
           echo DISCADIA_VOTE_URL="${{ secrets.DISCADIA_VOTE_URL }}" >> .env
           echo DISCADIA_VOTE_ROLE="${{ secrets.DISCADIA_VOTE_ROLE }}" >> .env
+          echo DISCORDSERVERS_VOTE_URL="${{ secrets.DISCORDSERVERS_VOTE_URL }}" >> .env
+          echo DISCORDSERVERS_VOTE_ROLE="${{ secrets.DISCORDSERVERS_VOTE_ROLE }}" >> .env
           echo DISCORDBOTLIST_VOTE_URL="${{ secrets.DISCORDBOTLIST_VOTE_URL }}" >> .env
           echo DISCORDME_VOTE_URL="${{ secrets.DISCORDME_VOTE_URL }}" >> .env
 

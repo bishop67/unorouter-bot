@@ -109,11 +109,14 @@ export const GRANT_SOURCE_LABEL: Record<GrantSourceType, string> = {
 
 // Vote sources, used as grantLog.sourceId. Top.gg sends a real webhook; Discords.com
 // and Discadia have none, so their dashboards assign a role on upvote which the bot
-// treats as the signal (role-add -> grant -> strip role).
+// treats as the signal (role-add -> grant -> strip role). DiscordServers.com routes
+// votes through the VoteManager.xyz partner bot, which adds a role on each vote and
+// removes it itself after a duration, so the bot must NOT strip that role.
 export const VoteSite = {
   TopGg: "topgg",
   Discords: "discords",
   Discadia: "discadia",
+  DiscordServers: "discordservers",
 } as const;
 export type VoteSite = (typeof VoteSite)[keyof typeof VoteSite];
 
@@ -121,6 +124,7 @@ export const VOTE_SITE_LABEL: Record<VoteSite, string> = {
   topgg: "Top.gg",
   discords: "Discords.com",
   discadia: "Discadia",
+  discordservers: "DiscordServers.com",
 };
 
 export interface GrantResult {

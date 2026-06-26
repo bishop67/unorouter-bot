@@ -49,10 +49,11 @@ export class VotePanelCommand {
     const topggUrl = process.env.TOPGG_VOTE_URL?.trim();
     const discordsUrl = process.env.DISCORDS_VOTE_URL?.trim();
     const discadiaUrl = process.env.DISCADIA_VOTE_URL?.trim();
-    if (!topggUrl && !discordsUrl && !discadiaUrl) {
+    const discordserversUrl = process.env.DISCORDSERVERS_VOTE_URL?.trim();
+    if (!topggUrl && !discordsUrl && !discadiaUrl && !discordserversUrl) {
       await safeEditReply(
         interaction,
-        "No vote URLs configured (set TOPGG_VOTE_URL / DISCORDS_VOTE_URL / DISCADIA_VOTE_URL).",
+        "No vote URLs configured (set TOPGG_VOTE_URL / DISCORDS_VOTE_URL / DISCADIA_VOTE_URL / DISCORDSERVERS_VOTE_URL).",
       );
       return;
     }
@@ -75,6 +76,7 @@ export class VotePanelCommand {
       `- Every **Top.gg** vote drops ${reward} straight to your account`,
       `- Every **Discords.com** vote drops ${reward} too`,
       `- Every **Discadia** vote drops ${reward} as well`,
+      `- Every **DiscordServers.com** vote drops ${reward} too`,
       `- You can vote on each site again every **12 hours**`,
       "",
       `Tap a button to vote.`,
@@ -119,6 +121,15 @@ export class VotePanelCommand {
           .setEmoji("🚀")
           .setStyle(ButtonStyle.Link)
           .setURL(discadiaUrl),
+      );
+    }
+    if (discordserversUrl) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setLabel("Vote on DiscordServers")
+          .setEmoji("🌐")
+          .setStyle(ButtonStyle.Link)
+          .setURL(discordserversUrl),
       );
     }
 
