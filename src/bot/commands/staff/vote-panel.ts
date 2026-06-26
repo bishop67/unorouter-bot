@@ -67,6 +67,9 @@ export class VotePanelCommand {
     const extraLinks = [
       ["DiscordBotList", process.env.DISCORDBOTLIST_VOTE_URL?.trim()],
       ["Discord.me", process.env.DISCORDME_VOTE_URL?.trim()],
+      ["Disboard", process.env.DISBOARD_VOTE_URL?.trim()],
+      ["CommunityOne", process.env.COMMUNITYONE_VOTE_URL?.trim()],
+      ["DiscordHome", process.env.DISCORDHOME_VOTE_URL?.trim()],
     ].filter(([, url]) => url) as [string, string][];
 
     const description = [
@@ -85,7 +88,7 @@ export class VotePanelCommand {
     if (extraLinks.length) {
       description.push(
         "",
-        `These ones do not pay balance, but voting still helps us climb the rankings:`,
+        `We are also listed here. These do not pay balance, but an upvote or bump helps us climb the rankings so more people find us:`,
         ...extraLinks.map(([name, url]) => `- [${name}](${url})`),
       );
     }

@@ -60,6 +60,9 @@ jobs:
           echo DISCORDSERVERS_VOTE_ROLE="${{ secrets.DISCORDSERVERS_VOTE_ROLE }}" >> .env
           echo DISCORDBOTLIST_VOTE_URL="${{ secrets.DISCORDBOTLIST_VOTE_URL }}" >> .env
           echo DISCORDME_VOTE_URL="${{ secrets.DISCORDME_VOTE_URL }}" >> .env
+          echo DISBOARD_VOTE_URL="${{ secrets.DISBOARD_VOTE_URL }}" >> .env
+          echo COMMUNITYONE_VOTE_URL="${{ secrets.COMMUNITYONE_VOTE_URL }}" >> .env
+          echo DISCORDHOME_VOTE_URL="${{ secrets.DISCORDHOME_VOTE_URL }}" >> .env
 
           echo BOT_NAME="${{ secrets.BOT_NAME }}" >> .env
           echo WEBSITE_URL="${{ secrets.WEBSITE_URL }}" >> .env
