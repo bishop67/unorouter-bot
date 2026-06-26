@@ -6,7 +6,13 @@ import { VoteSite, VOTE_SITE_LABEL } from "@/types";
 import type { GuildMember, PartialGuildMember } from "discord.js";
 import { and, eq, gte } from "drizzle-orm";
 
-const DISCORDS_VOTE_ROLE = process.env.DISCORDS_VOTE_ROLE?.trim() || "";
+// Role-based vote sites: dashboard adds a role on upvote, no webhook. Maps the
+// configured role NAME to its VoteSite for attribution. Each site needs its own
+// role so grants log the correct source.
+const ROLE_VOTE_SITES: ReadonlyArray<readonly [string, VoteSite]> = [
+  [process.env.DISCORDS_VOTE_ROLE?.trim() || "", VoteSite.Discords],
+  [process.env.DISCADIA_VOTE_ROLE?.trim() || "", VoteSite.Discadia],
+].filter(([name]) => name) as ReadonlyArray<readonly [string, VoteSite]>;
 
 // Dedupe guard against duplicate webhook DELIVERY (the site retries on timeout
 // or 5xx, up to ~17min for Top.gg), NOT a vote-frequency cap - the listing site
@@ -76,41 +82,43 @@ export class VoteService {
   }
 
   /**
-   * Discords.com has no vote webhook; its dashboard adds DISCORDS_VOTE_ROLE on
-   * each upvote. We treat the role-add as the vote signal: reward, then strip the
-   * role so the next vote re-adds it (and an unlinked voter keeps no stale role).
+   * Discords.com and Discadia have no vote webhook; their dashboards add a
+   * configured role on each upvote. We treat the role-add as the vote signal:
+   * reward for the matching site, then strip the role so the next vote re-adds it
+   * (and an unlinked voter keeps no stale role).
    */
-  static async handleDiscordsVoteRole(
+  static async handleVoteRole(
     oldMember: GuildMember | PartialGuildMember,
     newMember: GuildMember,
   ): Promise<void> {
-    if (!DISCORDS_VOTE_ROLE) return;
-    const role = newMember.guild.roles.cache.find(
-      (r) => r.name === DISCORDS_VOTE_ROLE,
-    );
-    if (!role) return;
+    for (const [roleName, site] of ROLE_VOTE_SITES) {
+      const role = newMember.guild.roles.cache.find((r) => r.name === roleName);
+      if (!role) continue;
 
-    const justAdded =
-      newMember.roles.cache.has(role.id) && !oldMember.roles.cache.has(role.id);
-    if (!justAdded) return;
+      const justAdded =
+        newMember.roles.cache.has(role.id) && !oldMember.roles.cache.has(role.id);
+      if (!justAdded) continue;
 
-    await this.reward(newMember.id, VoteSite.Discords).catch((e) =>
-      logger.error("Discords vote reward failed", {
-        member: newMember.id,
-        error: String(e),
-      }),
-    );
+      await this.reward(newMember.id, site).catch((e) =>
+        logger.error("Vote reward failed", {
+          member: newMember.id,
+          site,
+          error: String(e),
+        }),
+      );
 
-    // Strip the role regardless of grant outcome so the next vote re-triggers.
-    if (role.editable) {
-      await newMember.roles
-        .remove(role, "Discords.com vote reward processed")
-        .catch((e) =>
-          logger.info("Could not remove Discords vote role", {
-            member: newMember.id,
-            error: String(e),
-          }),
-        );
+      // Strip the role regardless of grant outcome so the next vote re-triggers.
+      if (role.editable) {
+        await newMember.roles
+          .remove(role, `${VOTE_SITE_LABEL[site]} vote reward processed`)
+          .catch((e) =>
+            logger.info("Could not remove vote role", {
+              member: newMember.id,
+              site,
+              error: String(e),
+            }),
+          );
+      }
     }
   }
 }

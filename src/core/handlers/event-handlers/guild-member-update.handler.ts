@@ -14,9 +14,9 @@ export async function handleGuildMemberUpdate(
 ): Promise<void> {
   await syncRoles(oldMember, newMember);
 
-  // Discords.com has no vote webhook; its dashboard adds DISCORDS_VOTE_ROLE on
-  // each upvote. Treat that role-add as the vote signal.
-  await VoteService.handleDiscordsVoteRole(oldMember, newMember);
+  // Discords.com and Discadia have no vote webhook; their dashboards add a
+  // configured role on each upvote. Treat that role-add as the vote signal.
+  await VoteService.handleVoteRole(oldMember, newMember);
 
   // Boost cancellation: premiumSince transitions set -> null when the user drops
   // all their boosts. Deactivate every active slot so the monthly cron stops
