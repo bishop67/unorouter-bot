@@ -116,7 +116,8 @@ export class GrantService {
       params.targetDiscordId,
       params.quota,
       params.reason,
-      params.sourceType
+      params.sourceType,
+      userId
     );
 
     await this.dmReward(params.targetDiscordId, userId, params.quota, params.sourceType);
@@ -233,7 +234,8 @@ export class GrantService {
     targetDiscordId: string,
     quota: number,
     reason: string,
-    sourceType: GrantSourceType
+    sourceType: GrantSourceType,
+    userId?: number | null
   ): Promise<void> {
     const guild = bot.guilds.cache.first();
     if (!guild) return;
@@ -245,9 +247,14 @@ export class GrantService {
       : `$${dollars.toFixed(2)}`;
     const tag = GRANT_SOURCE_LABEL[sourceType] ?? sourceType;
     const who = await this.formatUser(guild, targetDiscordId);
+    const balance = await this.quotaToBalanceDollars(userId);
+    const balanceLabel =
+      balance == null
+        ? ""
+        : ` (new balance **$${balance.toFixed(2)}**)`;
     await channel
       .send({
-        content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to ${who} - ${reason}`,
+        content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to ${who} - ${reason}${balanceLabel}`,
         allowedMentions: { users: [], roles: [] }
       })
       .catch((e) =>
