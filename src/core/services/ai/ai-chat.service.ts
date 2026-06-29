@@ -2,18 +2,29 @@ import {
   extractCodeFromAttachments,
   extractImageUrls,
 } from "@/shared/ai/attachment-processor";
-import { CHAT_SYSTEM_PROMPT } from "@/shared/ai/prompts";
+import { buildChatSystemPrompt } from "@/shared/ai/prompts";
 import {
   googleClient,
   ImageDownloadError,
 } from "@/shared/integrations/google-ai";
 import { logger } from "@/lib/logger";
 import { generateText, ModelMessage, stepCountIs } from "ai";
-import { Message } from "discord.js";
+import { GuildMember, Message } from "discord.js";
 import { LRUCache } from "lru-cache";
 import { AiContextService } from "./ai-context.service";
 import { NAME_TRIGGER_PATTERN } from "@/shared/config/branding";
+import { isStaff } from "@/core/utils/command.utils";
+import { LEVEL_ROLES } from "@/shared/config/roles";
+import type { ChatPromptContext } from "@/shared/ai/prompts";
 import type { AiChatResponse } from "@/types";
+
+const CONNECTED_ROLE = process.env.CONNECTED_ROLE?.trim() || "";
+
+// Roles the bot manages internally; surfacing them to the user as "their roles"
+// adds noise, so they're filtered out of the public role list.
+const INTERNAL_ROLES = new Set(
+  [CONNECTED_ROLE, ...LEVEL_ROLES].filter(Boolean).map((r) => r.toLowerCase()),
+);
 
 const channelMessages = new LRUCache<string, ModelMessage[]>({ max: 1000 });
 
@@ -39,15 +50,18 @@ export class AiChatService {
     const messageImages = await extractImageUrls(message);
     const allImages = [...messageImages, ...repliedImages];
 
-    let userMessage = this.buildUserMessage(fullMessage, allImages);
+    const speaker = this.speakerLabel(message);
+    let userMessage = this.buildUserMessage(fullMessage, allImages, speaker);
     const messages = channelMessages.get(message.channel.id) || [];
     messages.push(userMessage);
+
+    const system = buildChatSystemPrompt(this.buildPromptContext(message));
 
     const runAI = async () => {
       return googleClient.executeWithRotation(async (model) => {
         return generateText({
           model,
-          system: CHAT_SYSTEM_PROMPT,
+          system,
           messages: [...messages],
           tools,
           stopWhen: stepCountIs(3),
@@ -63,7 +77,7 @@ export class AiChatService {
     } catch (error) {
       if (error instanceof ImageDownloadError) {
         logger.warn("Retrying AI request without images");
-        userMessage = this.buildUserMessage(fullMessage, []);
+        userMessage = this.buildUserMessage(fullMessage, [], speaker);
         for (let i = 0; i < messages.length; i++) {
           messages[i] = this.stripImagesFromMessage(messages[i]);
         }
@@ -97,6 +111,52 @@ export class AiChatService {
     };
   }
 
+  private static buildPromptContext(message: Message): ChatPromptContext {
+    const member = message.member;
+    const channelName =
+      "name" in message.channel && message.channel.name
+        ? message.channel.name
+        : "a channel";
+
+    const heldRoleNames = member
+      ? new Set(member.roles.cache.map((role) => role.name))
+      : new Set<string>();
+
+    // LEVEL_ROLES is low -> high; the member's rank is the highest tier they hold.
+    let currentLevelIndex = -1;
+    for (let i = 0; i < LEVEL_ROLES.length; i++) {
+      if (heldRoleNames.has(LEVEL_ROLES[i])) currentLevelIndex = i;
+    }
+    const currentLevelRole =
+      currentLevelIndex >= 0 ? LEVEL_ROLES[currentLevelIndex] : null;
+    const nextLevelRole = LEVEL_ROLES[currentLevelIndex + 1] ?? null;
+
+    const roles = [...heldRoleNames].filter(
+      (name) => name !== "@everyone" && !INTERNAL_ROLES.has(name.toLowerCase()),
+    );
+
+    return {
+      username: message.author.username,
+      displayName: member?.displayName || message.author.globalName || "",
+      channelName,
+      isStaff: isStaff(member),
+      isLinked: this.hasRole(member, CONNECTED_ROLE),
+      isBooster: !!member?.premiumSince,
+      currentLevelRole,
+      nextLevelRole,
+      levelLadder: LEVEL_ROLES,
+      roles,
+    };
+  }
+
+  private static hasRole(
+    member: GuildMember | null,
+    roleName: string,
+  ): boolean {
+    if (!member || !roleName) return false;
+    return member.roles.cache.some((role) => role.name === roleName);
+  }
+
   private static extractUserMessage(message: Message): string {
     const mentionPattern = new RegExp(`^<@[!&]?\\d+>\\s*`);
 
@@ -107,15 +167,19 @@ export class AiChatService {
     return content.trim();
   }
 
+  // Shared channel history mixes many speakers into one user role, so prefix
+  // each turn with the author's name to keep "who said what" legible.
   private static buildUserMessage(
     text: string,
     images: string[],
+    speaker?: string,
   ): ModelMessage {
+    const labeled = speaker ? `${speaker}: ${text}` : text;
     if (images.length > 0) {
       return {
         role: "user",
         content: [
-          { type: "text", text },
+          { type: "text", text: labeled },
           ...images.map((url) => ({
             type: "image" as const,
             image: url,
@@ -123,7 +187,15 @@ export class AiChatService {
         ],
       };
     }
-    return { role: "user", content: text };
+    return { role: "user", content: labeled };
+  }
+
+  private static speakerLabel(message: Message): string {
+    return (
+      message.member?.displayName ||
+      message.author.globalName ||
+      message.author.username
+    );
   }
 
   private static stripImagesFromMessage(msg: ModelMessage): ModelMessage {
