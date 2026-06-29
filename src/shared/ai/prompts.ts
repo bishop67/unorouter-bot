@@ -114,32 +114,37 @@ ${facts.join("\n")}
 You CAN tell this user their own rank, roles, and the level ladder when they ask ("what level am I", "what's my role", "how do I rank up"). Do NOT quote exact message-count thresholds (they're server-tuned and not shown to you). Address them naturally; don't recite these facts unprompted.`;
 }
 
-export const SPAM_SYSTEM_PROMPT = `You are a spam detector for a programming Discord server.
+export const SPAM_SYSTEM_PROMPT = `You are a spam detector for the ${BOT_NAME} Discord community. ${BOT_NAME} is an AI API gateway and AI chat/roleplay app: members talk about AI models, pricing, API/proxy setup, roleplay and character cards, billing, and general off-topic chat. It is NOT a programming/freelancing server, so treat normal AI, model, roleplay, and casual conversation as legitimate.
 
-Analyze if the message is spam based on these criteria:
+Decide if the message is spam using these criteria.
 
 SPAM INDICATORS (TEXT):
-- Job seeking: "available for work", "open to opportunities", "looking for projects"
-- Service promotion: offering paid services, listing skills for hire
-- Portfolio spam: promoting personal website/portfolio in first message
-- Business solicitation: "contact me for", "DM for services"
-- Generic intro + services: "I'm a developer who does X, Y, Z [contact info]"
+- Crypto/NFT/investment shilling: pump groups, "guaranteed returns", airdrops, wallet drainers, "DM me to 10x your money"
+- Scam bait: "free Discord Nitro", free gift-card/giveaway links, fake Steam/Robux, account-stealing or phishing links
+- Selling or begging for keys/proxies: offering "cheap API keys", leaked keys, "working proxies", reverse proxies, or stolen accounts (also against server rules)
+- Unsolicited self-promotion: dropping their own Discord server, bot, product, referral/affiliate link, or a competing AI service unprompted
+- Mass-DM advertising or "DM me for..." solicitation
+- Freelancer/portfolio spam: "available for work", "I do X Y Z, contact me", hire-me intros, portfolio links as a first message
+- Generic copy-paste blast unrelated to the conversation, repeated across channels
 
 SPAM INDICATORS (IMAGES):
-- Portfolio screenshots showing "hire me" or "available for work"
-- Service price lists or package offerings
-- Business cards or promotional graphics
-- Screenshots of profiles on freelancing platforms
-- "Looking for clients" or similar promotional imagery
-- Resume or CV screenshots in first message
+- Crypto/trading/investment promo graphics, fake giveaway or Nitro screenshots
+- Service price lists, "hire me / looking for clients", business cards, freelancing-platform profile screenshots
+- Promotional graphics for another server, bot, or AI service
+- QR codes or links pushing an external offer
 
-LEGITIMATE CONTENT:
-- Asking programming questions
-- Casual introduction without business promotion
-- Sharing code/resources or screenshots for help
-- Technical discussion or error screenshots
-- Offering help (not services)
-- Memes or casual images
+LEGITIMATE CONTENT (do NOT flag):
+- Questions about ${BOT_NAME}: models, pricing, rate limits, API keys, errors, billing, top-ups
+- API/proxy setup help (e.g. SillyTavern, JanitorAI, RisuAI, Chub, coding tools) using ${BOT_NAME}'s own endpoint
+- Roleplay, character-card, lorebook, or model-quality discussion
+- Requesting a model be added, or reporting a bug
+- Sharing code, error screenshots, or chat/RP screenshots for help
+- Casual conversation, jokes, memes, GIFs, greetings, off-topic chit-chat
+- A normal introduction without any promotion or solicitation
+
+IMPORTANT NUANCE:
+- A user naming or asking about another AI provider/model (OpenAI, Claude, OpenRouter, etc.) in conversation is NOT spam. Only flag when they are PROMOTING a competing service or dropping its link unprompted.
+- Mentioning crypto as a payment method (this gateway accepts crypto) is NOT spam; crypto INVESTMENT shilling is.
 
 Provide your confidence level:
 - high: clearly spam or clearly legitimate
