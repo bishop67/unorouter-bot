@@ -8,6 +8,8 @@ import { grantRewardEmbed } from "@/core/embeds/grant-reward.embed";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import {
   GRANT_SOURCE_LABEL,
+  VOTE_SITE_LABEL,
+  VoteSite,
   type GrantResult,
   type GrantSourceType
 } from "@/types";
@@ -120,7 +122,13 @@ export class GrantService {
       userId
     );
 
-    await this.dmReward(params.targetDiscordId, userId, params.quota, params.sourceType);
+    await this.dmReward(
+      params.targetDiscordId,
+      userId,
+      params.quota,
+      params.sourceType,
+      params.sourceId
+    );
 
     return { linked: true, userId, quota: params.quota };
   }
@@ -143,16 +151,24 @@ export class GrantService {
     targetDiscordId: string,
     userId: number | null | undefined,
     quota: number,
-    sourceType: GrantSourceType
+    sourceType: GrantSourceType,
+    sourceId?: string | null
   ): Promise<void> {
     const addedDollars = QUOTA_PER_DOLLAR > 0 ? quota / QUOTA_PER_DOLLAR : 0;
     if (addedDollars <= 0) return;
     const totalDollars = await this.quotaToBalanceDollars(userId);
+    // For votes, sourceId is the VoteSite; resolve its human label so the DM names
+    // the real site instead of a hardcoded one.
+    const voteSiteLabel =
+      sourceType === "vote" && sourceId && sourceId in VOTE_SITE_LABEL
+        ? VOTE_SITE_LABEL[sourceId as VoteSite]
+        : undefined;
     const embed = grantRewardEmbed({
       sourceType,
       addedDollars,
       totalDollars,
-      voteAgainHours: sourceType === "vote" ? 12 : undefined
+      voteAgainHours: sourceType === "vote" ? 12 : undefined,
+      voteSiteLabel
     });
     const user = await bot.users.fetch(targetDiscordId).catch(() => null);
     if (!user) return;

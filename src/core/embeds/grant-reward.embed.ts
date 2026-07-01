@@ -5,8 +5,10 @@ import { type GrantSourceType } from "@/types";
 type RewardCopy = { title: string; intro: string };
 
 // Per-source DM copy. Keep the voting line only where a re-vote cadence applies.
+// The vote intro is templated with the real site (grantRewardEmbed fills it in);
+// the fallback below is only used if no site label was passed.
 const COPY: Record<GrantSourceType, RewardCopy> = {
-  vote: { title: "Vote Reward!", intro: "Thanks for voting for us on Top.gg!" },
+  vote: { title: "Vote Reward!", intro: "Thanks for voting for us!" },
   connect: { title: "Account Linked!", intro: "Thanks for linking your Discord account." },
   boost: { title: "Boost Reward!", intro: "Thanks for boosting the server!" },
   bug: { title: "Bug Bounty Reward!", intro: "Thanks for the bug report." },
@@ -19,13 +21,19 @@ export function grantRewardEmbed(params: {
   addedDollars: number;
   totalDollars: number | null;
   voteAgainHours?: number;
+  voteSiteLabel?: string;
 }): APIEmbed {
   const copy = COPY[params.sourceType] ?? COPY.command;
   const fmt = (n: number) =>
     Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
 
+  const intro =
+    params.sourceType === "vote" && params.voteSiteLabel
+      ? `Thanks for voting for us on ${params.voteSiteLabel}!`
+      : copy.intro;
+
   const lines = [
-    copy.intro,
+    intro,
     "",
     `**+${fmt(params.addedDollars)}** added to your balance.`,
   ];
