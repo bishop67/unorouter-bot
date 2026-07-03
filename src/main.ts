@@ -50,6 +50,22 @@ bot.once("clientReady", async () => {
   await Promise.all(
     bot.guilds.cache.map((g) => MemberDataService.upsertGuild(g)),
   );
+  // Warm member cache: guildMemberUpdate for an uncached member emits a
+  // partial oldMember with an empty role cache, breaking role-diff logic
+  // (vote roles read as just-added). Lazy caching leaves members cold after
+  // every deploy restart.
+  await Promise.all(
+    bot.guilds.cache.map((g) =>
+      g.members
+        .fetch()
+        .catch((e) =>
+          logger.error("Member cache warmup failed", {
+            guild: g.id,
+            error: String(e),
+          }),
+        ),
+    ),
+  );
   startWebhookServer();
   logger.info("Bot started", { clientId: bot.user?.id });
 });

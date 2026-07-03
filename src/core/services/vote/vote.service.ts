@@ -19,11 +19,19 @@ const ROLE_VOTE_SITES: ReadonlyArray<RoleVoteSite> = [
   { roleName: process.env.DISCORDSERVERS_VOTE_ROLE?.trim() || "", site: VoteSite.DiscordServers, ownsRole: true },
 ].filter((s) => s.roleName);
 
-// Dedupe guard against duplicate webhook DELIVERY (the site retries on timeout
-// or 5xx, up to ~17min for Top.gg), NOT a vote-frequency cap - the listing site
-// enforces real cadence (12h default, 6h on some premium tiers). Kept short so a
-// legitimate re-vote at any site's cadence is never blocked.
-const DEDUPE_MS = 60 * 60 * 1000;
+// Per-site dedupe window. Webhook/stripped-role sites keep 1h: only guards
+// duplicate DELIVERY (Top.gg retries up to ~17min); real cadence enforced by
+// the site. DiscordServers is 11h: VoteManager leaves its role on the member
+// for a full 12h cycle, so any spurious guildMemberUpdate re-fire inside that
+// window reads as a fresh vote - dedupe must span the cadence, not just
+// delivery retries. 11h keeps a margin so a legit 12h re-vote never blocks.
+const HOUR_MS = 60 * 60 * 1000;
+const DEDUPE_MS: Record<VoteSite, number> = {
+  [VoteSite.TopGg]: HOUR_MS,
+  [VoteSite.Discords]: HOUR_MS,
+  [VoteSite.Discadia]: HOUR_MS,
+  [VoteSite.DiscordServers]: 11 * HOUR_MS,
+};
 
 const VOTE_GRANT_DOLLARS = parseFloat(process.env.VOTE_GRANT_DOLLARS || "0.10");
 
@@ -33,9 +41,10 @@ export type VoteRewardResult =
 
 export class VoteService {
   /**
-   * Reward a voter. Idempotent within the 12h cooldown via grantLog: a prior
-   * vote/<site> row for this user inside the window short-circuits, so site
-   * retries never double-pay. Unlinked voters are skipped silently (logged).
+   * Reward a voter. Idempotent within the per-site DEDUPE_MS window via
+   * grantLog: a prior vote/<site> row for this user inside the window
+   * short-circuits, so retries and spurious role re-fires never double-pay.
+   * Unlinked voters are skipped silently (logged).
    */
   static async reward(
     voterDiscordId: string,
@@ -46,7 +55,7 @@ export class VoteService {
     const quota = dollarsToQuota(VOTE_GRANT_DOLLARS);
     if (quota <= 0) return { ok: false, reason: "no_reward" };
 
-    const since = new Date(Date.now() - DEDUPE_MS);
+    const since = new Date(Date.now() - DEDUPE_MS[site]);
     const recent = await db.query.grantLog
       .findFirst({
         where: and(
@@ -99,6 +108,17 @@ export class VoteService {
     oldMember: GuildMember | PartialGuildMember,
     newMember: GuildMember,
   ): Promise<void> {
+    // Partial oldMember has an EMPTY role cache, so every held role reads as
+    // just-added (confirmed double-pay 2026-07-03: lingering DiscordServers
+    // role re-rewarded 3h48m after the real vote, post-restart). The old
+    // snapshot is unrecoverable (fetch returns current state) - skip.
+    if (oldMember.partial) {
+      logger.warn("Vote role check skipped: partial oldMember", {
+        member: newMember.id,
+      });
+      return;
+    }
+
     for (const roleSite of ROLE_VOTE_SITES) {
       const role = newMember.guild.roles.cache.find(
         (r) => r.name === roleSite.roleName,
