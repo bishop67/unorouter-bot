@@ -3,6 +3,7 @@ import "@dotenvx/dotenvx/config";
 import { logger } from "@/lib/logger";
 import { BoostService } from "@/core/services/boost/boost.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
+import { VoteService } from "@/core/services/vote/vote.service";
 import { WEBSITE_URL } from "@/shared/config/branding";
 import { ConfigValidator } from "@/shared/config/validator";
 import { ErrorBoundary } from "@/bot/guards/error-boundary.guard";
@@ -51,9 +52,8 @@ bot.once("clientReady", async () => {
     bot.guilds.cache.map((g) => MemberDataService.upsertGuild(g)),
   );
   // Warm member cache: guildMemberUpdate for an uncached member emits a
-  // partial oldMember with an empty role cache, breaking role-diff logic
-  // (vote roles read as just-added). Lazy caching leaves members cold after
-  // every deploy restart.
+  // partial oldMember with an empty role cache, breaking syncRoles diffs.
+  // Lazy caching leaves members cold after every deploy restart.
   await Promise.all(
     bot.guilds.cache.map((g) =>
       g.members
@@ -64,6 +64,17 @@ bot.once("clientReady", async () => {
             error: String(e),
           }),
         ),
+    ),
+  );
+  // Replay vote-role transitions missed while down (needs the warm cache).
+  await Promise.all(
+    bot.guilds.cache.map((g) =>
+      VoteService.reconcileRoleHolds(g).catch((e) =>
+        logger.error("Vote hold reconcile failed", {
+          guild: g.id,
+          error: String(e),
+        }),
+      ),
     ),
   );
   startWebhookServer();

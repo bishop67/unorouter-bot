@@ -1,9 +1,9 @@
 import { db } from "@/lib/db";
-import { grantLog } from "@/lib/db-schema";
+import { grantLog, voteRoleHold } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { GrantService, dollarsToQuota } from "@/core/services/grant/grant.service";
 import { VoteSite, VOTE_SITE_LABEL } from "@/types";
-import type { GuildMember, PartialGuildMember } from "discord.js";
+import type { Guild, GuildMember } from "discord.js";
 import { and, eq, gte } from "drizzle-orm";
 
 // Role-based vote sites: a role is added on upvote, no webhook. Maps the configured
@@ -96,46 +96,71 @@ export class VoteService {
   }
 
   /**
-   * Role-based vote sites add a configured role on each upvote. We treat the
-   * role-add as the vote signal and reward the matching site. For sites we own the
-   * role on (Discords.com, Discadia: the listing dashboard only adds it), we strip
-   * it so the next vote re-adds and re-triggers. For externally-managed roles
-   * (DiscordServers via VoteManager, which removes the role itself after a set
-   * duration), we leave it; the grantLog dedupe window prevents double-pay if the
-   * lingering role fires another guildMemberUpdate.
+   * Role-based vote sites add a configured role on each upvote. Rewards fire
+   * on the not-held to held transition against vote_role_holds, never on
+   * Discord cache diffs: a partial oldMember (uncached after restart) has an
+   * empty role cache and reads every held role as just-added (confirmed
+   * double-pay 2026-07-03). For sites we own the role on (Discords.com,
+   * Discadia: the listing dashboard only adds it), we strip it so the next
+   * vote re-adds it. Externally-managed roles (DiscordServers via VoteManager,
+   * 12h cycle) stay; their hold clears when the owner bot removes the role.
    */
-  static async handleVoteRole(
-    oldMember: GuildMember | PartialGuildMember,
-    newMember: GuildMember,
-  ): Promise<void> {
-    // Partial oldMember has an EMPTY role cache, so every held role reads as
-    // just-added (confirmed double-pay 2026-07-03: lingering DiscordServers
-    // role re-rewarded 3h48m after the real vote, post-restart). The old
-    // snapshot is unrecoverable (fetch returns current state) - skip.
-    if (oldMember.partial) {
-      logger.warn("Vote role check skipped: partial oldMember", {
-        member: newMember.id,
-      });
-      return;
-    }
-
+  static async handleVoteRole(newMember: GuildMember): Promise<void> {
     for (const roleSite of ROLE_VOTE_SITES) {
       const role = newMember.guild.roles.cache.find(
         (r) => r.name === roleSite.roleName,
       );
       if (!role) continue;
 
-      const justAdded =
-        newMember.roles.cache.has(role.id) && !oldMember.roles.cache.has(role.id);
-      if (!justAdded) continue;
+      const hasRole = newMember.roles.cache.has(role.id);
+      // No catch: on DB failure let the error boundary drop the event. Paying
+      // without readable hold state risks double-pay.
+      const held = await db.query.voteRoleHold.findFirst({
+        where: and(
+          eq(voteRoleHold.memberId, newMember.id),
+          eq(voteRoleHold.site, roleSite.site),
+        ),
+      });
 
-      await this.reward(newMember.id, roleSite.site).catch((e) =>
+      if (!hasRole) {
+        // Role removed (owner bot expiry or our strip): clear hold to re-arm.
+        if (held) await db.delete(voteRoleHold).where(eq(voteRoleHold.id, held.id));
+        continue;
+      }
+
+      if (held) continue;
+
+      // Atomic claim: concurrent events race on the unique (member, site) key,
+      // only the insert winner pays.
+      const claimed = await db
+        .insert(voteRoleHold)
+        .values({ memberId: newMember.id, site: roleSite.site })
+        .onConflictDoNothing()
+        .returning();
+      if (!claimed.length) continue;
+
+      const result = await this.reward(newMember.id, roleSite.site).catch((e) => {
         logger.error("Vote reward failed", {
           member: newMember.id,
           site: roleSite.site,
           error: String(e),
-        }),
-      );
+        });
+        return null;
+      });
+
+      // Transient failure: release the hold so the next member event retries
+      // instead of burning the vote. Duplicates keep the hold.
+      if (!result || (!result.ok && result.reason !== "duplicate")) {
+        await db
+          .delete(voteRoleHold)
+          .where(
+            and(
+              eq(voteRoleHold.memberId, newMember.id),
+              eq(voteRoleHold.site, roleSite.site),
+            ),
+          )
+          .catch(() => {});
+      }
 
       // Strip only roles WE own, so the next vote re-triggers. Externally-managed
       // roles are left for their owner bot to remove on its own schedule.
@@ -150,6 +175,45 @@ export class VoteService {
             }),
           );
       }
+    }
+  }
+
+  /**
+   * Boot reconciliation, after the member cache warmup: replay transitions
+   * missed while the bot was down. Members who gained a vote role get the
+   * normal claim + reward (grantLog dedupe blocks re-pays of already-rewarded
+   * votes); members who lost one get their hold cleared so the next vote pays.
+   * Holds for members who left the guild clear so a rejoin + vote still pays.
+   */
+  static async reconcileRoleHolds(guild: Guild): Promise<void> {
+    const holds = await db.query.voteRoleHold.findMany();
+    const heldBy = new Set(holds.map((h) => `${h.memberId}:${h.site}`));
+    const siteRoles = ROLE_VOTE_SITES.map((s) => ({
+      site: s.site,
+      role: guild.roles.cache.find((r) => r.name === s.roleName),
+    }));
+
+    for (const member of guild.members.cache.values()) {
+      if (member.user.bot) continue;
+      const mismatch = siteRoles.some((s) => {
+        const has = s.role ? member.roles.cache.has(s.role.id) : false;
+        return has !== heldBy.has(`${member.id}:${s.site}`);
+      });
+      if (!mismatch) continue;
+      await this.handleVoteRole(member).catch((e) =>
+        logger.error("Vote hold reconcile failed", {
+          member: member.id,
+          error: String(e),
+        }),
+      );
+    }
+
+    for (const hold of holds) {
+      if (guild.members.cache.has(hold.memberId)) continue;
+      await db
+        .delete(voteRoleHold)
+        .where(eq(voteRoleHold.id, hold.id))
+        .catch(() => {});
     }
   }
 }

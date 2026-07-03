@@ -251,3 +251,20 @@ export const grantLog = pgTable(
     index("idx_grant_logs_source").on(table.sourceType, table.sourceId),
   ],
 );
+
+// Persisted "member currently holds this vote role" state. Vote rewards fire
+// on the not-held to held transition against THIS table, not on cache diffs:
+// Discord's oldMember snapshot is unreliable (partial after restart = empty
+// role cache) while this survives restarts and missed events.
+export const voteRoleHold = pgTable(
+  "vote_role_holds",
+  {
+    id: serial("id").primaryKey(),
+    memberId: text("member_id").notNull(),
+    site: text("site").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_vote_role_holds_member_site").on(table.memberId, table.site),
+  ],
+);
