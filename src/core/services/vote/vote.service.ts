@@ -55,17 +55,20 @@ export class VoteService {
     const quota = dollarsToQuota(VOTE_GRANT_DOLLARS);
     if (quota <= 0) return { ok: false, reason: "no_reward" };
 
-    const since = new Date(Date.now() - DEDUPE_MS[site]);
-    const recent = await db.query.grantLog
-      .findFirst({
-        where: and(
-          eq(grantLog.targetDiscordId, voterDiscordId),
-          eq(grantLog.sourceType, "vote"),
-          eq(grantLog.sourceId, site),
-          gte(grantLog.createdAt, since),
-        ),
-      })
-      .catch(() => null);
+    // createdAt is a mode "string" timestamp: a raw Date here makes postgres-js
+    // throw (Buffer.byteLength on a Date), which a swallowed catch turned into
+    // "no duplicate found" - dedupe was silently dead until 2026-07-03. Keep
+    // the param a string and let failures propagate: fail closed, never pay
+    // on an unreadable dedupe state.
+    const since = new Date(Date.now() - DEDUPE_MS[site]).toISOString();
+    const recent = await db.query.grantLog.findFirst({
+      where: and(
+        eq(grantLog.targetDiscordId, voterDiscordId),
+        eq(grantLog.sourceType, "vote"),
+        eq(grantLog.sourceId, site),
+        gte(grantLog.createdAt, since),
+      ),
+    });
 
     if (recent) {
       logger.info("Vote reward skipped: duplicate delivery", { voterDiscordId, site });
