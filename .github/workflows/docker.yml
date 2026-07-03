@@ -64,6 +64,8 @@ jobs:
           echo COMMUNITYONE_VOTE_URL="${{ secrets.COMMUNITYONE_VOTE_URL }}" >> .env
           echo DISCORDHOME_VOTE_URL="${{ secrets.DISCORDHOME_VOTE_URL }}" >> .env
 
+          echo PURGE_BOT_USER_IDS="${{ secrets.PURGE_BOT_USER_IDS }}" >> .env
+
           echo BOT_NAME="${{ secrets.BOT_NAME }}" >> .env
           echo WEBSITE_URL="${{ secrets.WEBSITE_URL }}" >> .env
           echo BOT_ACTIVITY="${{ secrets.BOT_ACTIVITY }}" >> .env

@@ -3,11 +3,17 @@ import { MessagesService } from "@/core/services/messages/messages.service";
 import { DuplicateSpamService } from "@/core/services/spam/duplicate-spam.service";
 import { SpamDetectionService } from "@/core/services/spam/spam-detection.service";
 import { TicketService } from "@/core/services/tickets/ticket.service";
+import { PURGE_BOT_USER_IDS } from "@/shared/config/features";
 import { Message } from "discord.js";
 
 export async function handleMessageCreate(message: Message): Promise<void> {
   // Guild-only: this @On handler bypasses main.ts's guard, so skip DMs entirely.
   if (!message.guild) return;
+
+  if (PURGE_BOT_USER_IDS.has(message.author.id)) {
+    await message.delete().catch(() => {});
+    return;
+  }
 
   // Discord posts a system PREMIUM_GUILD_SUBSCRIPTION message in the configured
   // system channel for each boost transaction (including multi-boost from the

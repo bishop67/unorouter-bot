@@ -37,6 +37,9 @@ interface FeatureBotEnvironment {
   CONNECT_GRANT_DOLLARS: string;
   CONNECTED_ROLE: string;
 
+  // Moderation: comma-separated bot user IDs whose messages get deleted on sight
+  PURGE_BOT_USER_IDS: string;
+
   // Branding
   BOT_NAME: string;
   WEBSITE_URL: string;
