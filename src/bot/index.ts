@@ -4,6 +4,7 @@ import "./events/channel-delete";
 import "./events/guild-member-add";
 import "./events/guild-member-update";
 import "./events/message-create";
+import "./events/message-update";
 import "./events/thread-create";
 import "./events/thread-delete";
 
