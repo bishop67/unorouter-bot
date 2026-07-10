@@ -8,6 +8,9 @@ import "./events/message-update";
 import "./events/thread-create";
 import "./events/thread-delete";
 
+// Commands - User
+import "./commands/user/me";
+
 // Commands - Staff
 import "./commands/staff/delete-user-messages";
 import "./commands/staff/verify-panel";
