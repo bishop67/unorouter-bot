@@ -156,18 +156,18 @@ class GoogleClientRotator {
     }
   }
 
-  private rotateModel(): boolean {
-    const nextModelIndex = this.currentModelIndex + 1;
-    if (nextModelIndex < FALLBACK_MODELS.length) {
-      this.currentModelIndex = nextModelIndex;
-      logger.info("Rotated model", {
-        model: FALLBACK_MODELS[this.currentModelIndex],
-        modelIndex: this.currentModelIndex + 1,
-        totalModels: FALLBACK_MODELS.length,
-      });
-      return true;
-    }
-    return false;
+  // Wraps around the model list. Returns false once it lands back on the
+  // starting model, signalling a full cycle was tried.
+  private rotateModel(startModelIndex: number): boolean {
+    this.currentModelIndex =
+      (this.currentModelIndex + 1) % FALLBACK_MODELS.length;
+    if (this.currentModelIndex === startModelIndex) return false;
+    logger.info("Rotated model", {
+      model: FALLBACK_MODELS[this.currentModelIndex],
+      modelIndex: this.currentModelIndex + 1,
+      totalModels: FALLBACK_MODELS.length,
+    });
+    return true;
   }
 
   async executeWithRotation<T>(
@@ -179,6 +179,11 @@ class GoogleClientRotator {
       logger.error("No API keys configured");
       return null;
     }
+
+    // Randomize the starting model + key each request so load spreads across
+    // every model's independent daily quota instead of always draining model[0].
+    this.currentModelIndex = Math.floor(Math.random() * FALLBACK_MODELS.length);
+    this.currentKeyIndex = Math.floor(Math.random() * this.providers.length);
 
     const startModelIndex = this.currentModelIndex;
     const startKeyIndex = this.currentKeyIndex;
@@ -262,13 +267,13 @@ class GoogleClientRotator {
       }
 
       // Try next model for rate_limit or unknown errors
-      if (!this.rotateModel()) {
+      if (!this.rotateModel(startModelIndex)) {
         this.currentModelIndex = startModelIndex;
         this.currentKeyIndex = startKeyIndex;
         break;
       }
-      this.currentKeyIndex = 0;
-    } while (this.currentModelIndex !== startModelIndex);
+      this.currentKeyIndex = Math.floor(Math.random() * this.providers.length);
+    } while (true);
 
     logger.warn("All models and keys exhausted", {
       totalModels: FALLBACK_MODELS.length,
