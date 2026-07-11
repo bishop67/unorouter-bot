@@ -242,22 +242,46 @@ export class AiChatService {
       cleaned = jsonWrapper[1];
     }
 
+    // Normalize AI-tell punctuation to plain ASCII so replies read like a
+    // person typed them: em/en dashes to " - ", ellipsis glyph to "...".
+    cleaned = cleaned
+      .replace(/\s*[—–]\s*/g, " - ")
+      .replace(/…/g, "...");
+
     return cleaned.replace(/\n{3,}/g, "\n\n").trim();
   }
 
-  // Models often emit an animated custom emoji with the static `<:name:id>`
-  // syntax, which Discord renders as nothing. Rewrite each tag to match the
-  // real emoji's animated flag using the guild's own emoji cache.
+  // Models mangle custom emojis two ways: they emit an animated emoji with the
+  // static `<:name:id>` syntax (renders as nothing), or they drop the `<...:id>`
+  // wrapper entirely and write a bare `:name:` shortcode (Discord doesn't
+  // resolve shortcodes for bot messages, so it shows as literal text). Repair
+  // both against the guild's own emoji cache, then tidy leftover whitespace.
   private static repairEmojiTags(text: string, message: Message): string {
     if (!text.includes(":")) return text;
     const emojis = message.guild?.emojis.cache;
     if (!emojis?.size) return text;
 
-    return text.replace(/<(a?):([a-zA-Z0-9_]+):(\d+)>/g, (full, _a, name, id) => {
-      const emoji = emojis.get(id);
+    const byName = new Map(
+      emojis.map((emoji) => [emoji.name?.toLowerCase() ?? "", emoji]),
+    );
+
+    let out = text.replace(
+      /<(a?):([a-zA-Z0-9_]+):(\d+)>/g,
+      (full, _a, name, id) => {
+        const emoji = emojis.get(id);
+        if (!emoji) return full;
+        return `<${emoji.animated ? "a" : ""}:${emoji.name ?? name}:${id}>`;
+      },
+    );
+
+    // Bare `:name:` shortcodes not already part of a full `<...:id>` tag.
+    out = out.replace(/(^|[^<\w]):([a-zA-Z0-9_]+):(?!\d)/g, (full, pre, name) => {
+      const emoji = byName.get(name.toLowerCase());
       if (!emoji) return full;
-      return `<${emoji.animated ? "a" : ""}:${emoji.name ?? name}:${id}>`;
+      return `${pre}<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`;
     });
+
+    return out.replace(/[ \t]{2,}/g, " ");
   }
 
   private static extractGifFromSteps(steps: any[]): string | null {
