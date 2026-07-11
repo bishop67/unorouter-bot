@@ -94,7 +94,7 @@ export class AiChatService {
     }
 
     const { text, steps } = result;
-    const responseText = this.repairEmojiTags(
+    const responseText = await this.repairEmojiTags(
       this.stripFakeGifUrls(text?.trim() || ""),
       message,
     );
@@ -256,10 +256,17 @@ export class AiChatService {
   // wrapper entirely and write a bare `:name:` shortcode (Discord doesn't
   // resolve shortcodes for bot messages, so it shows as literal text). Repair
   // both against the guild's own emoji cache, then tidy leftover whitespace.
-  private static repairEmojiTags(text: string, message: Message): string {
-    if (!text.includes(":")) return text;
-    const emojis = message.guild?.emojis.cache;
-    if (!emojis?.size) return text;
+  private static async repairEmojiTags(
+    text: string,
+    message: Message,
+  ): Promise<string> {
+    if (!text.includes(":") || !message.guild) return text;
+    // Cache can be empty right after a restart; fetch so shortcodes still resolve.
+    let emojis = message.guild.emojis.cache;
+    if (!emojis.size) {
+      emojis = await message.guild.emojis.fetch().catch(() => emojis);
+    }
+    if (!emojis.size) return text;
 
     const byName = new Map(
       emojis.map((emoji) => [emoji.name?.toLowerCase() ?? "", emoji]),

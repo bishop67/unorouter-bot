@@ -43,23 +43,15 @@ export async function handleAiChatMessage(
     let lastMessage = message;
     for (let i = 0; i < chunks.length; i++) {
       const isLast = i === chunks.length - 1;
-      const sent = await lastMessage.reply({
+      lastMessage = await replyResilient(lastMessage, {
         content: chunks[i] || undefined,
         files: isLast ? files : undefined,
         stickers: isLast ? stickers : undefined,
-        allowedMentions: { users: [], roles: [] },
-        flags: [MessageFlags.SuppressEmbeds],
       });
-      lastMessage = sent;
     }
 
     if (!chunks.length && (files || stickers)) {
-      await message.reply({
-        files,
-        stickers,
-        allowedMentions: { users: [], roles: [] },
-        flags: [MessageFlags.SuppressEmbeds],
-      });
+      await replyResilient(message, { files, stickers });
     }
   } catch (err) {
     const errorMessage = (err as Error).message;
@@ -72,6 +64,33 @@ export async function handleAiChatMessage(
     }
 
     error("AI chat error:", err);
+  }
+}
+
+// Some server stickers are unavailable to the bot (Discord code 50081). Rather
+// than let the whole reply throw, retry once without the sticker so the text
+// still gets sent.
+async function replyResilient(
+  target: Message,
+  payload: {
+    content?: string;
+    files?: { attachment: string; name: string }[];
+    stickers?: string[];
+  },
+): Promise<Message> {
+  const base = {
+    allowedMentions: { users: [], roles: [] },
+    flags: [MessageFlags.SuppressEmbeds] as const,
+  };
+  try {
+    return await target.reply({ ...payload, ...base });
+  } catch (err) {
+    if (payload.stickers && (err as { code?: number }).code === 50081) {
+      // Nothing left to send once the bad sticker is dropped.
+      if (!payload.content && !payload.files?.length) return target;
+      return await target.reply({ ...payload, stickers: undefined, ...base });
+    }
+    throw err;
   }
 }
 
