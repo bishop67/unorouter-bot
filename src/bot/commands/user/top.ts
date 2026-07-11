@@ -7,6 +7,7 @@ import {
   CommandInteraction,
 } from "discord.js";
 import { Discord, Slash, SlashOption } from "discordx";
+import dayjs from "dayjs";
 import { and, count, desc, eq, gte } from "drizzle-orm";
 
 const TOP_LIMIT = 10;
@@ -38,9 +39,7 @@ export class TopCommand {
       return;
     }
 
-    const since = new Date(
-      Date.now() - lookback * 24 * 60 * 60 * 1000,
-    ).toISOString();
+    const since = dayjs().subtract(lookback, "day").toISOString();
     const filters = and(
       eq(memberMessages.guildId, guild.id),
       gte(memberMessages.createdAt, since),
