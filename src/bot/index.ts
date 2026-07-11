@@ -10,6 +10,7 @@ import "./events/thread-delete";
 
 // Commands - User
 import "./commands/user/me";
+import "./commands/user/top";
 
 // Commands - Staff
 import "./commands/staff/delete-user-messages";

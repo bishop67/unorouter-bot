@@ -15,6 +15,7 @@ type MemberRole = InferSelectModel<typeof memberRole>;
 export interface AiChatResponse {
   text: string;
   gifUrl: string | null;
+  stickerId: string | null;
 }
 
 export interface MessageContext {

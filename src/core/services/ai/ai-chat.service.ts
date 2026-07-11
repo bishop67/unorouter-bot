@@ -108,6 +108,7 @@ export class AiChatService {
     return {
       text: responseText,
       gifUrl: this.extractGifFromSteps(steps),
+      stickerId: this.extractStickerFromSteps(steps),
     };
   }
 
@@ -139,6 +140,8 @@ export class AiChatService {
       username: message.author.username,
       displayName: member?.displayName || message.author.globalName || "",
       channelName,
+      channelId: message.channel.id,
+      guildId: message.guild?.id || "",
       isStaff: isStaff(member),
       isLinked: this.hasRole(member, CONNECTED_ROLE),
       isBooster: !!member?.premiumSince,
@@ -248,6 +251,20 @@ export class AiChatService {
       );
       if (gifResult?.output?.success && gifResult.output.gifUrl) {
         return gifResult.output.gifUrl;
+      }
+    }
+    return null;
+  }
+
+  private static extractStickerFromSteps(steps: any[]): string | null {
+    if (!steps?.length) return null;
+
+    for (const step of steps) {
+      const stickerResult = step.toolResults?.find(
+        (result: any) => result.toolName === "sendServerSticker",
+      );
+      if (stickerResult?.output?.success && stickerResult.output.stickerId) {
+        return stickerResult.output.stickerId;
       }
     }
     return null;

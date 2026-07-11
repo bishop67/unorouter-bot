@@ -30,13 +30,15 @@ export async function handleAiChatMessage(
   try {
     const response = await AiChatService.generateResponse(message, AI_TOOLS);
 
-    if (!response || (!response.text && !response.gifUrl)) return;
+    if (!response || (!response.text && !response.gifUrl && !response.stickerId))
+      return;
 
     const text = response.text || "";
     const chunks = splitMessage(text, 2000);
     const files = response.gifUrl
       ? [{ attachment: response.gifUrl, name: "reaction.gif" }]
       : undefined;
+    const stickers = response.stickerId ? [response.stickerId] : undefined;
 
     let lastMessage = message;
     for (let i = 0; i < chunks.length; i++) {
@@ -44,15 +46,17 @@ export async function handleAiChatMessage(
       const sent = await lastMessage.reply({
         content: chunks[i] || undefined,
         files: isLast ? files : undefined,
+        stickers: isLast ? stickers : undefined,
         allowedMentions: { users: [], roles: [] },
         flags: [MessageFlags.SuppressEmbeds],
       });
       lastMessage = sent;
     }
 
-    if (!chunks.length && files) {
+    if (!chunks.length && (files || stickers)) {
       await message.reply({
         files,
+        stickers,
         allowedMentions: { users: [], roles: [] },
         flags: [MessageFlags.SuppressEmbeds],
       });

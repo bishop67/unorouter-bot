@@ -109,6 +109,80 @@ const gatherChannelContext = tool({
   },
 });
 
+const getServerExpressions = tool({
+  description:
+    "List the custom emojis and stickers available in this Discord server. Call this before using any emoji or sticker so you use real IDs. To use an emoji, paste its `tag` value verbatim inline in your reply text. To send a sticker, pass its `id` to sendServerSticker.",
+  inputSchema: z.object({
+    guildId: z.string().describe("The Discord guild/server ID"),
+  }),
+  execute: async ({ guildId }: { guildId: string }) => {
+    try {
+      const guild = await bot.guilds.fetch(guildId).catch(() => null);
+      if (!guild) {
+        return { success: false, error: "Guild not found" };
+      }
+
+      const emojis = await guild.emojis.fetch().catch(() => null);
+      const stickers = await guild.stickers.fetch().catch(() => null);
+
+      return {
+        success: true,
+        emojis: emojis
+          ? Array.from(emojis.values()).map((emoji) => ({
+              name: emoji.name,
+              tag: `<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`,
+            }))
+          : [],
+        stickers: stickers
+          ? Array.from(stickers.values()).map((sticker) => ({
+              name: sticker.name,
+              id: sticker.id,
+              description: sticker.description,
+            }))
+          : [],
+      };
+    } catch (error) {
+      logger.error("Error fetching server expressions", {
+        error: String(error),
+      });
+      return { success: false, error: "Failed to fetch server expressions" };
+    }
+  },
+});
+
+const sendServerSticker = tool({
+  description:
+    "Send one of this server's custom stickers with your reply. Get valid sticker IDs from getServerExpressions first. One sticker per reply.",
+  inputSchema: z.object({
+    guildId: z.string().describe("The Discord guild/server ID"),
+    stickerId: z
+      .string()
+      .describe("The sticker ID from getServerExpressions to send"),
+  }),
+  execute: async ({
+    guildId,
+    stickerId,
+  }: {
+    guildId: string;
+    stickerId: string;
+  }) => {
+    try {
+      const guild = await bot.guilds.fetch(guildId).catch(() => null);
+      if (!guild) {
+        return { success: false, error: "Guild not found" };
+      }
+      const stickers = await guild.stickers.fetch().catch(() => null);
+      if (!stickers?.has(stickerId)) {
+        return { success: false, error: "Sticker not found in this server" };
+      }
+      return { success: true, stickerId };
+    } catch (error) {
+      logger.error("Error sending server sticker", { error: String(error) });
+      return { success: false, error: "Failed to send sticker" };
+    }
+  },
+});
+
 const searchMemeGifs = tool({
   description:
     "Search for and send a meme GIF to enhance your response with visual humor.",
@@ -136,4 +210,9 @@ const searchMemeGifs = tool({
   },
 });
 
-export const AI_TOOLS = { searchMemeGifs, gatherChannelContext };
+export const AI_TOOLS = {
+  searchMemeGifs,
+  gatherChannelContext,
+  getServerExpressions,
+  sendServerSticker,
+};
