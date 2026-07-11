@@ -1,8 +1,19 @@
 import { tool } from "ai";
 import { z } from "zod/v4";
+import { and, count, desc, eq, gte } from "drizzle-orm";
+import dayjs from "dayjs";
 import { logger } from "@/lib/logger";
 import { ConfigValidator } from "@/shared/config/validator";
+import { db } from "@/lib/db";
+import { memberMessages } from "@/lib/db-schema";
+import { LEVEL_LIST } from "@/shared/config/levels";
+import { STAFF_ROLES } from "@/shared/config/roles";
 import { bot } from "@/main";
+
+function levelForCount(messageCount: number): string | null {
+  const tier = [...LEVEL_LIST].reverse().find((l) => messageCount >= l.count);
+  return tier?.role ?? null;
+}
 
 const KLIPY_API_KEY = process.env.KLIPY_API_KEY;
 const KLIPY_BASE_URL = `https://api.klipy.com/api/v1/${KLIPY_API_KEY}/gifs/search`;
@@ -47,7 +58,7 @@ async function searchGifs(query: string, limit: number = 5): Promise<string[]> {
 
 const gatherChannelContext = tool({
   description:
-    "Gather recent messages and user context from a specific channel when you need more conversation history to provide better responses.",
+    "Read recent human messages from a channel to get more conversation context before answering. Bot messages (including your own) are excluded automatically. Pass the current channel's ID to catch up on what's being discussed.",
   inputSchema: z.object({
     channelId: z
       .string()
@@ -56,9 +67,9 @@ const gatherChannelContext = tool({
     messageCount: z
       .number()
       .min(1)
-      .max(50)
-      .default(10)
-      .describe("Number of recent messages to fetch (1-50)"),
+      .max(100)
+      .default(25)
+      .describe("Number of recent human messages to return (1-100)"),
   }),
   execute: async ({ channelId, guildId, messageCount }) => {
     try {
@@ -73,10 +84,14 @@ const gatherChannelContext = tool({
         return { success: false, error: "Channel not found or not text-based" };
       }
 
-      const messages = await channel.messages.fetch({ limit: messageCount });
+      // Over-fetch so bot messages filtered out below don't shrink the result
+      // below the requested count.
+      const fetchLimit = Math.min(messageCount * 2, 100);
+      const messages = await channel.messages.fetch({ limit: fetchLimit });
       const sortedMessages = Array.from(messages.values())
+        .filter((msg) => !msg.author.bot)
         .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-        .filter((msg) => !msg.author.bot);
+        .slice(-messageCount);
 
       const messageContexts = sortedMessages.map((message) => ({
         timestamp: message.createdAt.toISOString(),
@@ -210,9 +225,201 @@ const searchMemeGifs = tool({
   },
 });
 
+const getServerStats = tool({
+  description:
+    "Get overall stats about this Discord server: member count, online count, boost level/count, how many messages are tracked, and the top channels and members by activity. Use for 'how big is the server', 'how active are we', 'top channels' type questions.",
+  inputSchema: z.object({
+    guildId: z.string().describe("The Discord guild/server ID"),
+    lookbackDays: z
+      .number()
+      .min(1)
+      .max(9999)
+      .default(9999)
+      .describe("Only count messages from the past N days (default: all time)"),
+  }),
+  execute: async ({
+    guildId,
+    lookbackDays,
+  }: {
+    guildId: string;
+    lookbackDays: number;
+  }) => {
+    try {
+      const guild = await bot.guilds
+        .fetch({ guild: guildId, withCounts: true })
+        .catch(() => null);
+      if (!guild) return { success: false, error: "Guild not found" };
+
+      const since = dayjs().subtract(lookbackDays, "day").toISOString();
+      const filters = and(
+        eq(memberMessages.guildId, guildId),
+        gte(memberMessages.createdAt, since),
+      );
+
+      const [[totals], topChannels, topMembers] = await Promise.all([
+        db.select({ total: count() }).from(memberMessages).where(filters),
+        db
+          .select({ channelId: memberMessages.channelId, count: count() })
+          .from(memberMessages)
+          .where(filters)
+          .groupBy(memberMessages.channelId)
+          .orderBy(desc(count()))
+          .limit(5),
+        db
+          .select({ memberId: memberMessages.memberId, count: count() })
+          .from(memberMessages)
+          .where(filters)
+          .groupBy(memberMessages.memberId)
+          .orderBy(desc(count()))
+          .limit(5),
+      ]);
+
+      const namedMembers = await Promise.all(
+        topMembers.map(async (row) => {
+          const m = await guild.members.fetch(row.memberId).catch(() => null);
+          return m && !m.user.bot
+            ? { name: m.displayName, messages: row.count }
+            : null;
+        }),
+      );
+
+      return {
+        success: true,
+        name: guild.name,
+        memberCount: guild.memberCount,
+        onlineCount: guild.approximatePresenceCount ?? null,
+        boostCount: guild.premiumSubscriptionCount ?? 0,
+        boostTier: guild.premiumTier,
+        messagesTracked: totals?.total ?? 0,
+        window: lookbackDays >= 9999 ? "all time" : `past ${lookbackDays} days`,
+        topChannels: topChannels
+          .filter((c) => guild.channels.cache.has(c.channelId))
+          .map((c) => ({
+            channel: guild.channels.cache.get(c.channelId)?.name ?? c.channelId,
+            messages: c.count,
+          })),
+        topMembers: namedMembers.filter(Boolean),
+      };
+    } catch (error) {
+      logger.error("Error getting server stats", { error: String(error) });
+      return { success: false, error: "Failed to get server stats" };
+    }
+  },
+});
+
+const getStaffAndHelpers = tool({
+  description:
+    "List the server's staff/admins and its most-active members (top helpers by message count). Use when someone asks who runs the server, who to contact, who the mods are, or who the most active people are.",
+  inputSchema: z.object({
+    guildId: z.string().describe("The Discord guild/server ID"),
+  }),
+  execute: async ({ guildId }: { guildId: string }) => {
+    try {
+      const guild = await bot.guilds.fetch(guildId).catch(() => null);
+      if (!guild) return { success: false, error: "Guild not found" };
+
+      await guild.members.fetch().catch(() => null);
+
+      const staff = guild.members.cache
+        .filter(
+          (m) =>
+            !m.user.bot &&
+            m.roles.cache.some((r) => STAFF_ROLES.includes(r.name)),
+        )
+        .map((m) => ({
+          name: m.displayName,
+          roles: m.roles.cache
+            .filter((r) => STAFF_ROLES.includes(r.name))
+            .map((r) => r.name),
+        }));
+
+      const topActive = await db
+        .select({ memberId: memberMessages.memberId, count: count() })
+        .from(memberMessages)
+        .where(eq(memberMessages.guildId, guildId))
+        .groupBy(memberMessages.memberId)
+        .orderBy(desc(count()))
+        .limit(8);
+
+      const helpers = (
+        await Promise.all(
+          topActive.map(async (row) => {
+            const m = await guild.members.fetch(row.memberId).catch(() => null);
+            return m && !m.user.bot
+              ? { name: m.displayName, messages: row.count }
+              : null;
+          }),
+        )
+      )
+        .filter(Boolean)
+        .slice(0, 5);
+
+      return { success: true, staff, topActiveMembers: helpers };
+    } catch (error) {
+      logger.error("Error getting staff/helpers", { error: String(error) });
+      return { success: false, error: "Failed to get staff and helpers" };
+    }
+  },
+});
+
+const lookupUserActivity = tool({
+  description:
+    "Look up a specific member's activity: their tracked message count, current level/rank, roles, join date, and booster status. Pass the numeric user ID (from a mention like <@123>, strip the <@ >). Use for 'how active is X', 'what level is X', 'when did X join'.",
+  inputSchema: z.object({
+    guildId: z.string().describe("The Discord guild/server ID"),
+    userId: z.string().describe("The numeric Discord user ID to look up"),
+  }),
+  execute: async ({
+    guildId,
+    userId,
+  }: {
+    guildId: string;
+    userId: string;
+  }) => {
+    try {
+      const guild = await bot.guilds.fetch(guildId).catch(() => null);
+      if (!guild) return { success: false, error: "Guild not found" };
+
+      const member = await guild.members.fetch(userId).catch(() => null);
+      if (!member) return { success: false, error: "Member not found" };
+
+      const [row] = await db
+        .select({ count: count() })
+        .from(memberMessages)
+        .where(
+          and(
+            eq(memberMessages.memberId, userId),
+            eq(memberMessages.guildId, guildId),
+          ),
+        );
+      const messageCount = row?.count ?? 0;
+
+      return {
+        success: true,
+        name: member.displayName,
+        isBot: member.user.bot,
+        messageCount,
+        level: levelForCount(messageCount),
+        isStaff: member.roles.cache.some((r) => STAFF_ROLES.includes(r.name)),
+        isBooster: !!member.premiumSince,
+        joinedAt: member.joinedAt?.toISOString() ?? null,
+        roles: member.roles.cache
+          .filter((r) => r.name !== "@everyone")
+          .map((r) => r.name),
+      };
+    } catch (error) {
+      logger.error("Error looking up user activity", { error: String(error) });
+      return { success: false, error: "Failed to look up user" };
+    }
+  },
+});
+
 export const AI_TOOLS = {
   searchMemeGifs,
   gatherChannelContext,
   getServerExpressions,
   sendServerSticker,
+  getServerStats,
+  getStaffAndHelpers,
+  lookupUserActivity,
 };
