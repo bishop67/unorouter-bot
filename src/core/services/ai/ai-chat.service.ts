@@ -64,7 +64,7 @@ export class AiChatService {
           system,
           messages: [...messages],
           tools,
-          stopWhen: stepCountIs(3),
+          stopWhen: stepCountIs(5),
           maxOutputTokens: 1024,
           maxRetries: 0,
         });
@@ -94,7 +94,10 @@ export class AiChatService {
     }
 
     const { text, steps } = result;
-    const responseText = this.stripFakeGifUrls(text?.trim() || "");
+    const responseText = this.repairEmojiTags(
+      this.stripFakeGifUrls(text?.trim() || ""),
+      message,
+    );
 
     logger.info("AI response", {
       hasText: !!responseText,
@@ -240,6 +243,21 @@ export class AiChatService {
     }
 
     return cleaned.replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // Models often emit an animated custom emoji with the static `<:name:id>`
+  // syntax, which Discord renders as nothing. Rewrite each tag to match the
+  // real emoji's animated flag using the guild's own emoji cache.
+  private static repairEmojiTags(text: string, message: Message): string {
+    if (!text.includes(":")) return text;
+    const emojis = message.guild?.emojis.cache;
+    if (!emojis?.size) return text;
+
+    return text.replace(/<(a?):([a-zA-Z0-9_]+):(\d+)>/g, (full, _a, name, id) => {
+      const emoji = emojis.get(id);
+      if (!emoji) return full;
+      return `<${emoji.animated ? "a" : ""}:${emoji.name ?? name}:${id}>`;
+    });
   }
 
   private static extractGifFromSteps(steps: any[]): string | null {
