@@ -38,7 +38,9 @@ export class TopCommand {
       return;
     }
 
-    const since = new Date(Date.now() - lookback * 24 * 60 * 60 * 1000);
+    const since = new Date(
+      Date.now() - lookback * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const filters = and(
       eq(memberMessages.guildId, guild.id),
       gte(memberMessages.createdAt, since),
