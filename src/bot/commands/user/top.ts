@@ -45,7 +45,7 @@ export class TopCommand {
       gte(memberMessages.createdAt, since),
     );
 
-    const [rankedUsers, topChannels] = await Promise.all([
+    const [rankedUsers, rankedChannels] = await Promise.all([
       db
         .select({ memberId: memberMessages.memberId, count: count() })
         .from(memberMessages)
@@ -59,7 +59,7 @@ export class TopCommand {
         .where(filters)
         .groupBy(memberMessages.channelId)
         .orderBy(desc(count()))
-        .limit(TOP_LIMIT),
+        .limit(TOP_LIMIT * 2),
     ]);
 
     const withBotFlag = await Promise.all(
@@ -74,6 +74,10 @@ export class TopCommand {
       .filter((entry) => !entry.isBot)
       .slice(0, TOP_LIMIT)
       .map((entry) => entry.row);
+
+    const topChannels = rankedChannels
+      .filter((row) => guild.channels.cache.has(row.channelId))
+      .slice(0, TOP_LIMIT);
 
     await safeEditReply(interaction, {
       embeds: [topStatsEmbed({ lookback, topUsers, topChannels })],
