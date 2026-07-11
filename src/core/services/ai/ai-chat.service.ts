@@ -282,13 +282,17 @@ export class AiChatService {
     );
 
     // Bare `:name:` shortcodes not already part of a full `<...:id>` tag.
+    // Real ones become the full tag; the rest are hallucinated emojis the model
+    // invented (never returned by getServerExpressions), so drop them entirely.
     out = out.replace(/(^|[^<\w]):([a-zA-Z0-9_]+):(?!\d)/g, (full, pre, name) => {
       const emoji = byName.get(name.toLowerCase());
-      if (!emoji) return full;
-      return `${pre}<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`;
+      if (emoji) {
+        return `${pre}<${emoji.animated ? "a" : ""}:${emoji.name}:${emoji.id}>`;
+      }
+      return pre;
     });
 
-    return out.replace(/[ \t]{2,}/g, " ");
+    return out.replace(/[ \t]{2,}/g, " ").replace(/ +([.,!?])/g, "$1").trim();
   }
 
   private static extractGifFromSteps(steps: any[]): string | null {
