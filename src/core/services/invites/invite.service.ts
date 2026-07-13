@@ -3,7 +3,12 @@ import { inviteJoin } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import type { Guild, GuildMember, Invite } from "discord.js";
 
-type CachedInvite = { uses: number; maxUses: number; inviterId: string | null };
+type CachedInvite = {
+  uses: number;
+  maxUses: number;
+  inviterId: string | null;
+  inviterIsBot: boolean;
+};
 
 // guildId -> invite code -> last known state. Joins are attributed by diffing
 // a fresh invites.fetch() against this snapshot.
@@ -14,6 +19,7 @@ function snapshot(invite: Invite): CachedInvite {
     uses: invite.uses ?? 0,
     maxUses: invite.maxUses ?? 0,
     inviterId: invite.inviterId,
+    inviterIsBot: invite.inviter?.bot ?? false,
   };
 }
 
@@ -65,11 +71,15 @@ export const InviteService = {
       next.set(invite.code, snapshot(invite));
     }
 
-    const candidates: Array<{ code: string; inviterId: string | null }> = [];
+    const candidates: Array<{
+      code: string;
+      inviterId: string | null;
+      inviterIsBot: boolean;
+    }> = [];
     if (cached) {
       for (const [code, inv] of next) {
         if (inv.uses > (cached.get(code)?.uses ?? 0)) {
-          candidates.push({ code, inviterId: inv.inviterId });
+          candidates.push({ code, ...inv });
         }
       }
       // Single-use invites vanish on consumption instead of incrementing.
@@ -79,7 +89,7 @@ export const InviteService = {
           prev.maxUses > 0 &&
           prev.uses === prev.maxUses - 1
         ) {
-          candidates.push({ code, inviterId: prev.inviterId });
+          candidates.push({ code, ...prev });
         }
       }
     }
@@ -97,7 +107,10 @@ export const InviteService = {
     }
 
     const hit = candidates[0]!;
-    if (!hit.inviterId || hit.inviterId === member.id) return;
+    // Bot inviters = server-listing widgets (DISBOARD, Top.gg), not people.
+    if (!hit.inviterId || hit.inviterIsBot || hit.inviterId === member.id) {
+      return;
+    }
 
     await db
       .insert(inviteJoin)

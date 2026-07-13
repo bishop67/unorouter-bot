@@ -1,7 +1,7 @@
 import { topStatsEmbed } from "@/core/embeds/top-stats.embed";
 import { safeDeferReply, safeEditReply } from "@/core/utils/command.utils";
 import { db } from "@/lib/db";
-import { inviteJoin, member, memberMessages } from "@/lib/db-schema";
+import { inviteJoin, inviteSeed, member, memberMessages } from "@/lib/db-schema";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
@@ -41,7 +41,7 @@ export class TopCommand {
 
     const since = dayjs().subtract(lookback, "day").toISOString();
 
-    const [topUsers, topInviters] = await Promise.all([
+    const [topUsers, rankedInviters, seeds] = await Promise.all([
       db
         .select({ memberId: memberMessages.memberId, count: count() })
         .from(memberMessages)
@@ -65,10 +65,30 @@ export class TopCommand {
             gte(inviteJoin.createdAt, since),
           ),
         )
-        .groupBy(inviteJoin.inviterId)
-        .orderBy(desc(count()))
-        .limit(TOP_LIMIT),
+        .groupBy(inviteJoin.inviterId),
+      // Pre-tracking baseline only makes sense for the all-time window.
+      lookback >= 9999
+        ? db
+            .select({ inviterId: inviteSeed.inviterId, uses: inviteSeed.uses })
+            .from(inviteSeed)
+            .where(eq(inviteSeed.guildId, guild.id))
+        : Promise.resolve([]),
     ]);
+
+    const inviteTotals = new Map<string, number>();
+    for (const row of rankedInviters) {
+      inviteTotals.set(row.memberId, row.count);
+    }
+    for (const seed of seeds) {
+      inviteTotals.set(
+        seed.inviterId,
+        (inviteTotals.get(seed.inviterId) ?? 0) + seed.uses,
+      );
+    }
+    const topInviters = [...inviteTotals]
+      .map(([memberId, cnt]) => ({ memberId, count: cnt }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, TOP_LIMIT);
 
     await safeEditReply(interaction, {
       embeds: [topStatsEmbed({ lookback, topUsers, topInviters })],

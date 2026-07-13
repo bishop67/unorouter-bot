@@ -255,6 +255,26 @@ export const inviteJoin = pgTable(
   ],
 );
 
+// One-time baseline from Discord's per-invite uses counters at tracking
+// launch; per-invitee history was never stored by Discord. All-time /top adds
+// these to live invite_joins counts, lookback windows use live rows only.
+export const inviteSeed = pgTable(
+  "invite_seeds",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    inviterId: text("inviter_id").notNull(),
+    uses: integer("uses").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_invite_seeds_guild_inviter").on(
+      table.guildId,
+      table.inviterId,
+    ),
+  ],
+);
+
 export const grantLog = pgTable(
   "grant_logs",
   {
