@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { inviteJoin, inviteSeed, rewardClaim } from "@/lib/db-schema";
+import { inviteJoin, inviteSeed, member, rewardClaim } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import {
   dollarsToQuota,
@@ -153,6 +153,14 @@ export const InviteService = {
   async reconcileInviter(guildId: string, inviterId: string): Promise<void> {
     const quotaPerInvite = dollarsToQuota(INVITE_GRANT_DOLLARS);
     if (quotaPerInvite <= 0) return;
+
+    // The inviter must be a known member (reward_claims.target_member_id FKs to
+    // members). Inviters who left before the bot tracked them can't be rewarded.
+    const known = await db.query.member.findFirst({
+      where: eq(member.memberId, inviterId),
+      columns: { memberId: true },
+    });
+    if (!known) return;
 
     const [seed] = await db
       .select({ uses: inviteSeed.uses })
