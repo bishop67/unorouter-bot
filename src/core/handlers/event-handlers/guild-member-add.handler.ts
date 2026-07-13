@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { InviteService } from "@/core/services/invites/invite.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import { findTextChannel } from "@/shared/utils/channel.utils";
@@ -28,6 +29,14 @@ async function postWelcome(member: GuildMember): Promise<void> {
 
 export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   if (member.user.bot) return;
+
+  // Attribute before anything else: a later join would shift the invite diff.
+  await InviteService.recordJoin(member).catch((e) =>
+    logger.error("Invite attribution failed", {
+      member: member.id,
+      error: String(e),
+    }),
+  );
 
   // Welcome post in join-events. Native Discord join messages in the system
   // channel are suppressed so this is the only welcome line.

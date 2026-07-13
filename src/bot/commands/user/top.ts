@@ -1,7 +1,7 @@
 import { topStatsEmbed } from "@/core/embeds/top-stats.embed";
 import { safeDeferReply, safeEditReply } from "@/core/utils/command.utils";
 import { db } from "@/lib/db";
-import { memberMessages } from "@/lib/db-schema";
+import { inviteJoin, member, memberMessages } from "@/lib/db-schema";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
@@ -16,7 +16,7 @@ const TOP_LIMIT = 10;
 export class TopCommand {
   @Slash({
     name: "top",
-    description: "Top message senders and channels in this server",
+    description: "Top message senders and inviters in this server",
     dmPermission: false,
   })
   async top(
@@ -40,47 +40,38 @@ export class TopCommand {
     }
 
     const since = dayjs().subtract(lookback, "day").toISOString();
-    const filters = and(
-      eq(memberMessages.guildId, guild.id),
-      gte(memberMessages.createdAt, since),
-    );
 
-    const [rankedUsers, rankedChannels] = await Promise.all([
+    const [topUsers, topInviters] = await Promise.all([
       db
         .select({ memberId: memberMessages.memberId, count: count() })
         .from(memberMessages)
-        .where(filters)
+        .innerJoin(member, eq(member.memberId, memberMessages.memberId))
+        .where(
+          and(
+            eq(memberMessages.guildId, guild.id),
+            gte(memberMessages.createdAt, since),
+            eq(member.bot, false),
+          ),
+        )
         .groupBy(memberMessages.memberId)
         .orderBy(desc(count()))
-        .limit(TOP_LIMIT * 2),
+        .limit(TOP_LIMIT),
       db
-        .select({ channelId: memberMessages.channelId, count: count() })
-        .from(memberMessages)
-        .where(filters)
-        .groupBy(memberMessages.channelId)
+        .select({ memberId: inviteJoin.inviterId, count: count() })
+        .from(inviteJoin)
+        .where(
+          and(
+            eq(inviteJoin.guildId, guild.id),
+            gte(inviteJoin.createdAt, since),
+          ),
+        )
+        .groupBy(inviteJoin.inviterId)
         .orderBy(desc(count()))
-        .limit(TOP_LIMIT * 2),
+        .limit(TOP_LIMIT),
     ]);
 
-    const withBotFlag = await Promise.all(
-      rankedUsers.map(async (row) => {
-        const member = await guild.members
-          .fetch(row.memberId)
-          .catch(() => null);
-        return { row, isBot: member?.user.bot ?? false };
-      }),
-    );
-    const topUsers = withBotFlag
-      .filter((entry) => !entry.isBot)
-      .slice(0, TOP_LIMIT)
-      .map((entry) => entry.row);
-
-    const topChannels = rankedChannels
-      .filter((row) => guild.channels.cache.has(row.channelId))
-      .slice(0, TOP_LIMIT);
-
     await safeEditReply(interaction, {
-      embeds: [topStatsEmbed({ lookback, topUsers, topChannels })],
+      embeds: [topStatsEmbed({ lookback, topUsers, topInviters })],
       allowedMentions: { users: [], roles: [] },
     });
   }

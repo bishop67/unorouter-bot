@@ -2,6 +2,7 @@ import "@dotenvx/dotenvx/config";
 
 import { logger } from "@/lib/logger";
 import { BoostService } from "@/core/services/boost/boost.service";
+import { InviteService } from "@/core/services/invites/invite.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { VoteService } from "@/core/services/vote/vote.service";
 import { WEBSITE_URL } from "@/shared/config/branding";
@@ -52,6 +53,10 @@ bot.once("clientReady", async () => {
   // Seed guilds first: child writes (member_roles, member_messages) FK to it.
   await Promise.all(
     bot.guilds.cache.map((g) => MemberDataService.upsertGuild(g)),
+  );
+  // Snapshot invite uses so joins can be attributed to inviters by diff.
+  await Promise.all(
+    bot.guilds.cache.map((g) => InviteService.primeGuild(g)),
   );
   // Warm member cache: guildMemberUpdate for an uncached member emits a
   // partial oldMember with an empty role cache, breaking syncRoles diffs.
