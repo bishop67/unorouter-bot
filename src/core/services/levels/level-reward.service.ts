@@ -93,6 +93,10 @@ export class LevelRewardService {
       return;
     }
 
+    // A paid reward proves the member is linked, but they may have linked on the
+    // website without clicking the verify button - ensure they get the role.
+    await GrantService.ensureConnectedRole(member);
+
     await db
       .update(rewardClaim)
       .set({

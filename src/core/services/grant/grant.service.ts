@@ -243,7 +243,7 @@ export class GrantService {
     };
   }
 
-  private static async ensureConnectedRole(member: GuildMember): Promise<void> {
+  static async ensureConnectedRole(member: GuildMember): Promise<void> {
     const role = member.guild.roles.cache.find(
       (r) => r.name === CONNECTED_ROLE
     );
