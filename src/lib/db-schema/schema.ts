@@ -233,6 +233,28 @@ export const boostSlot = pgTable(
   ],
 );
 
+// One row per attributed join. Unique on (guild, invitee) so rejoin loops
+// can't farm the invite leaderboard. No FK to members: inviter may never be
+// upserted (left before bot started).
+export const inviteJoin = pgTable(
+  "invite_joins",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    inviterId: text("inviter_id").notNull(),
+    inviteeId: text("invitee_id").notNull(),
+    inviteCode: text("invite_code").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_invite_joins_guild_invitee").on(
+      table.guildId,
+      table.inviteeId,
+    ),
+    index("idx_invite_joins_inviter_guild").on(table.inviterId, table.guildId),
+  ],
+);
+
 export const grantLog = pgTable(
   "grant_logs",
   {

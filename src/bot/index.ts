@@ -3,6 +3,8 @@ import "./events/ai-chat";
 import "./events/channel-delete";
 import "./events/guild-member-add";
 import "./events/guild-member-update";
+import "./events/invite-create";
+import "./events/invite-delete";
 import "./events/message-create";
 import "./events/message-update";
 import "./events/thread-create";

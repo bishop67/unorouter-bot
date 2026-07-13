@@ -26,6 +26,7 @@ export const bot = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildExpressions,
+    GatewayIntentBits.GuildInvites,
     GatewayIntentBits.MessageContent,
   ],
   partials: [
