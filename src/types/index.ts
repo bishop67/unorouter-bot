@@ -95,6 +95,8 @@ export const GrantSource = {
   Boost: "boost",
   Connect: "connect",
   Vote: "vote",
+  Invite: "invite",
+  Level: "level",
 } as const;
 export type GrantSourceType = (typeof GrantSource)[keyof typeof GrantSource];
 
@@ -106,6 +108,8 @@ export const GRANT_SOURCE_LABEL: Record<GrantSourceType, string> = {
   boost: "server boost",
   connect: "connect bonus",
   vote: "vote reward",
+  invite: "invite reward",
+  level: "level reward",
 };
 
 // Vote sources, used as grantLog.sourceId. Top.gg sends a real webhook; Discords.com
@@ -133,3 +137,29 @@ export interface GrantResult {
   userId?: number;
   quota: number;
 }
+
+// Reward DMs a member can opt out of, per event. Recurring/noisy sources only;
+// one-time grants (connect, bug, ticket, manual) always DM so they're not missed.
+export const DM_TOGGLEABLE_SOURCES = [
+  GrantSource.Vote,
+  GrantSource.Invite,
+  GrantSource.Level,
+  GrantSource.Boost,
+] as const satisfies ReadonlyArray<GrantSourceType>;
+export type DmToggleableSource = (typeof DM_TOGGLEABLE_SOURCES)[number];
+
+export function isDmToggleable(
+  source: GrantSourceType,
+): source is DmToggleableSource {
+  return (DM_TOGGLEABLE_SOURCES as ReadonlyArray<GrantSourceType>).includes(
+    source,
+  );
+}
+
+// Label for the /notifications toggle buttons.
+export const DM_SOURCE_LABEL: Record<DmToggleableSource, string> = {
+  vote: "Vote rewards",
+  invite: "Invite rewards",
+  level: "Level-up rewards",
+  boost: "Boost rewards",
+};

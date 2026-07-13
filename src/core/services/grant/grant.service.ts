@@ -5,6 +5,7 @@ import { getUser, grantDiscordQuota } from "@/lib/new-api/openapi";
 import { bot } from "@/main";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { grantRewardEmbed } from "@/core/embeds/grant-reward.embed";
+import { DmPreferenceService } from "@/core/services/notifications/dm-preference.service";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import {
   GRANT_SOURCE_LABEL,
@@ -156,6 +157,10 @@ export class GrantService {
   ): Promise<void> {
     const addedDollars = QUOTA_PER_DOLLAR > 0 ? quota / QUOTA_PER_DOLLAR : 0;
     if (addedDollars <= 0) return;
+    // Respect the member's per-event DM opt-out (/notifications). The reward
+    // still lands + logs in grants-log; only the DM is suppressed.
+    if (!(await DmPreferenceService.isDmEnabled(targetDiscordId, sourceType)))
+      return;
     const totalDollars = await this.quotaToBalanceDollars(userId);
     // For votes, sourceId is the VoteSite; resolve its human label so the DM names
     // the real site instead of a hardcoded one.

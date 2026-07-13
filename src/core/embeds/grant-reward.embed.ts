@@ -12,6 +12,8 @@ const COPY: Record<GrantSourceType, RewardCopy> = {
   connect: { title: "Account Linked!", intro: "Thanks for linking your Discord account." },
   boost: { title: "Boost Reward!", intro: "Thanks for boosting the server!" },
   bug: { title: "Bug Bounty Reward!", intro: "Thanks for the bug report." },
+  invite: { title: "Invite Reward!", intro: "Thanks for inviting a new member!" },
+  level: { title: "Level Up Reward!", intro: "Thanks for staying active!" },
   ticket: { title: "Reward Granted!", intro: "A reward was added from your ticket." },
   command: { title: "Reward Granted!", intro: "A reward was added to your account." },
 };

@@ -25,17 +25,20 @@ export type ButtonId = (typeof ButtonId)[keyof typeof ButtonId];
 export const ButtonIdPrefix = {
   TicketRedeem: "ticket_redeem",
   BugRedeem: "bug_redeem",
+  DmToggle: "dm_toggle",
 } as const;
 
 export const ButtonIdBuilder = {
   ticketRedeem: (ticketId: number) =>
     `${ButtonIdPrefix.TicketRedeem}:${ticketId}`,
   bugRedeem: (bugId: number) => `${ButtonIdPrefix.BugRedeem}:${bugId}`,
+  dmToggle: (source: string) => `${ButtonIdPrefix.DmToggle}:${source}`,
 } as const;
 
 export const ButtonIdPattern = {
   TicketRedeem: new RegExp(`^${ButtonIdPrefix.TicketRedeem}:\\d+$`),
   BugRedeem: new RegExp(`^${ButtonIdPrefix.BugRedeem}:\\d+$`),
+  DmToggle: new RegExp(`^${ButtonIdPrefix.DmToggle}:\\w+$`),
 } as const;
 
 // --- Modal ids ---

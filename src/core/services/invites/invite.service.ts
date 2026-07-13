@@ -1,7 +1,15 @@
 import { db } from "@/lib/db";
 import { inviteJoin } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import {
+  dollarsToQuota,
+  GrantService,
+} from "@/core/services/grant/grant.service";
 import type { Guild, GuildMember, Invite } from "discord.js";
+
+const INVITE_GRANT_DOLLARS = parseFloat(
+  process.env.INVITE_GRANT_DOLLARS || "0.01",
+);
 
 type CachedInvite = {
   uses: number;
@@ -112,7 +120,9 @@ export const InviteService = {
       return;
     }
 
-    await db
+    // Unique (guild, invitee): a rejoin conflicts and returns 0 rows, so the
+    // reward below only fires on a genuinely new attributed join.
+    const inserted = await db
       .insert(inviteJoin)
       .values({
         guildId: guild.id,
@@ -120,6 +130,28 @@ export const InviteService = {
         inviteeId: member.id,
         inviteCode: hit.code,
       })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ id: inviteJoin.id });
+
+    if (!inserted.length) return;
+
+    const quota = dollarsToQuota(INVITE_GRANT_DOLLARS);
+    if (quota <= 0) return;
+    // Unlinked inviters get { linked:false } and are skipped silently, same as
+    // votes. Never throws into the join flow.
+    await GrantService.grantQuota({
+      targetDiscordId: hit.inviterId,
+      quota,
+      reason: "invited a new member",
+      sourceType: "invite",
+      sourceId: member.id,
+      grantedByDiscordId: "system",
+    }).catch((e) =>
+      logger.error("Invite reward failed", {
+        inviter: hit.inviterId,
+        invitee: member.id,
+        error: String(e),
+      }),
+    );
   },
 };

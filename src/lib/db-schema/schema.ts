@@ -294,6 +294,51 @@ export const grantLog = pgTable(
   ],
 );
 
+// Reward-DM opt-outs. One row per (member, source) the member muted; absence of
+// a row means the DM is ON (default). Only recurring sources are toggleable.
+export const dmOptout = pgTable(
+  "dm_optouts",
+  {
+    id: serial("id").primaryKey(),
+    memberId: text("member_id").notNull(),
+    source: text("source").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_dm_optouts_member_source").on(table.memberId, table.source),
+  ],
+);
+
+// One row per (member, tier) level-reward slot. rewarded=false is a SEED mark:
+// the member already held the tier role before rewards existed, so it must never
+// pay. rewarded=true means the tier was actually granted. The ledger is the
+// exactly-once guard for level payouts (the Discord role cache alone re-fires on
+// manual role removal/re-add).
+export const levelReward = pgTable(
+  "level_rewards",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    memberId: text("member_id").notNull(),
+    tier: integer("tier").notNull(),
+    // Seed mark: true = member already held this tier role at rollout, never pay.
+    // false = a genuine level-up we attempted to pay (may still be unpaid if the
+    // recipient was unlinked, in which case a later message retries it).
+    seeded: boolean("seeded").default(false).notNull(),
+    rewarded: boolean("rewarded").default(false).notNull(),
+    rewardedQuota: integer("rewarded_quota").default(0).notNull(),
+    createdAt: createdAt(),
+    rewardedAt: timestamp("rewarded_at", { precision: 3, mode: "string" }),
+  },
+  (table) => [
+    uniqueIndex("uq_level_rewards_member_tier").on(
+      table.memberId,
+      table.guildId,
+      table.tier,
+    ),
+  ],
+);
+
 // Persisted "member currently holds this vote role" state. Vote rewards fire
 // on the not-held to held transition against THIS table, not on cache diffs:
 // Discord's oldMember snapshot is unreliable (partial after restart = empty

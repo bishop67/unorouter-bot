@@ -3,6 +3,7 @@ import "@dotenvx/dotenvx/config";
 import { logger } from "@/lib/logger";
 import { BoostService } from "@/core/services/boost/boost.service";
 import { InviteService } from "@/core/services/invites/invite.service";
+import { LevelRewardService } from "@/core/services/levels/level-reward.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { VoteService } from "@/core/services/vote/vote.service";
 import { WEBSITE_URL } from "@/shared/config/branding";
@@ -84,6 +85,14 @@ bot.once("clientReady", async () => {
       ),
     ),
   );
+  // Seed level-reward ledger for members already holding level roles so the
+  // rollout never back-pays veterans. Detached; the message path self-heals too.
+  for (const g of bot.guilds.cache.values()) {
+    for (const m of g.members.cache.values()) {
+      if (m.user.bot) continue;
+      void LevelRewardService.reconcileMember(m);
+    }
+  }
   startWebhookServer();
   logger.info("Bot started", { clientId: bot.user?.id });
 });

@@ -3,6 +3,7 @@ import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-
 import { db } from "@/lib/db";
 import { memberGuild, memberMessages } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { LevelRewardService } from "@/core/services/levels/level-reward.service";
 import { SHOULD_USER_LEVEL_UP } from "@/shared/config/features";
 import { LEVEL_LIST, levelUpMessage } from "@/shared/config/levels";
 import { JAIL } from "@/shared/config/roles";
@@ -86,6 +87,7 @@ export class MessagesService {
       );
 
     const memberMessagesCount = result?.count ?? 0;
+    const member = message.member;
 
     for (const item of LEVEL_LIST) {
       if (memberMessagesCount >= item.count) {
@@ -93,23 +95,24 @@ export class MessagesService {
           (role) => role.name === item.role,
         );
 
-        if (
-          role &&
-          !message.member?.roles.cache.has(role?.id) &&
-          role.editable
-        ) {
-          await message.member?.roles.add(role);
+        if (role && member && !member.roles.cache.has(role.id) && role.editable) {
+          await member.roles.add(role);
 
           await (message.channel as TextChannel).send({
-            content: levelUpMessage(
-              message.member?.toString() ?? "",
-              role.toString(),
-            ),
+            content: levelUpMessage(member.toString(), role.toString()),
             allowedMentions: { users: [], roles: [] },
           });
+
+          // Genuine transition (bot just added the tier role): pay the tier once.
+          // Detached so the message handler isn't blocked on the grant.
+          void LevelRewardService.grantTier(member, item);
         }
       }
     }
+
+    // Lazily seed veterans (roles predate rewards) and retry any level-up that
+    // stayed unpaid while the recipient was unlinked. Detached, best-effort.
+    if (member) void LevelRewardService.reconcileMember(member);
   }
 
   // Fetch messages utility
