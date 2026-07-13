@@ -2,6 +2,8 @@ import {
   ConnectStatus,
   GrantService,
 } from "@/core/services/grant/grant.service";
+import { InviteService } from "@/core/services/invites/invite.service";
+import { LevelRewardService } from "@/core/services/levels/level-reward.service";
 import { logger } from "@/lib/logger";
 import { ButtonId } from "@/types/custom-ids";
 import { ButtonInteraction, GuildMember, MessageFlags, time } from "discord.js";
@@ -45,6 +47,11 @@ export class ClaimInteractions {
         await interaction.editReply(GrantService.linkPrompt());
         return;
       }
+
+      // Just linked: pay out any level/invite backlog they earned while unlinked.
+      // Detached, idempotent (ledger guards against double-pay).
+      void LevelRewardService.reconcileMember(member);
+      void InviteService.reconcileInviter(member.guild.id, member.id);
 
       if (result.bonusGranted) {
         await interaction.editReply(
