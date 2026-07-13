@@ -47,6 +47,8 @@ jobs:
           echo BOOST_CHANNEL="${{ secrets.BOOST_CHANNEL }}" >> .env
           echo CONNECT_GRANT_DOLLARS="${{ secrets.CONNECT_GRANT_DOLLARS }}" >> .env
           echo CONNECTED_ROLE="${{ secrets.CONNECTED_ROLE }}" >> .env
+          echo INVITE_GRANT_DOLLARS="${{ secrets.INVITE_GRANT_DOLLARS }}" >> .env
+          echo LEVEL_GRANT_DOLLARS="${{ secrets.LEVEL_GRANT_DOLLARS }}" >> .env
 
           echo WEBHOOK_PORT="${{ secrets.WEBHOOK_PORT }}" >> .env
           echo VOTE_GRANT_DOLLARS="${{ secrets.VOTE_GRANT_DOLLARS }}" >> .env
