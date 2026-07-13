@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { bugReport } from "@/lib/db-schema";
+import { bugReport, rewardClaim } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { ButtonId, ButtonIdBuilder } from "@/types/custom-ids";
 import { and, eq } from "drizzle-orm";
@@ -134,28 +134,60 @@ export class BugReportService {
     return db.query.bugReport.findFirst({ where: eq(bugReport.id, bugId) });
   }
 
+  static async getBugClaim(bugId: number) {
+    return db.query.rewardClaim.findFirst({
+      where: and(
+        eq(rewardClaim.sourceType, "bug"),
+        eq(rewardClaim.refId, String(bugId)),
+      ),
+    });
+  }
+
   static async setPendingReward(args: {
     bugId: number;
+    guildId: string;
     quota: number;
     reason: string;
     grantedBy: string;
     targetId: string;
   }): Promise<void> {
+    const grantedByMemberId =
+      args.grantedBy === "system" ? null : args.grantedBy;
     await db
-      .update(bugReport)
-      .set({
-        pendingRewardQuota: args.quota,
-        pendingRewardReason: args.reason,
-        pendingRewardGrantedBy: args.grantedBy,
-        pendingRewardTargetId: args.targetId,
+      .insert(rewardClaim)
+      .values({
+        sourceType: "bug",
+        guildId: args.guildId,
+        targetMemberId: args.targetId,
+        refId: String(args.bugId),
+        status: "pending",
+        pendingQuota: args.quota,
+        pendingReason: args.reason,
+        grantedByMemberId,
       })
-      .where(eq(bugReport.id, args.bugId));
+      .onConflictDoUpdate({
+        target: [
+          rewardClaim.sourceType,
+          rewardClaim.guildId,
+          rewardClaim.targetMemberId,
+          rewardClaim.refId,
+        ],
+        set: {
+          status: "pending",
+          pendingQuota: args.quota,
+          pendingReason: args.reason,
+          grantedByMemberId,
+          updatedAt: new Date().toISOString(),
+        },
+      });
   }
 
   static async markApproved(
     threadId: string,
     resolvedBy: string,
     rewardedQuota: number,
+    bugId: number,
+    targetId: string,
   ): Promise<void> {
     await db
       .update(bugReport)
@@ -166,6 +198,22 @@ export class BugReportService {
         resolvedAt: new Date().toISOString(),
       })
       .where(eq(bugReport.forumThreadId, threadId));
+
+    await db
+      .update(rewardClaim)
+      .set({
+        status: "paid",
+        rewardedQuota,
+        rewardedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(rewardClaim.sourceType, "bug"),
+          eq(rewardClaim.refId, String(bugId)),
+          eq(rewardClaim.targetMemberId, targetId),
+        ),
+      );
   }
 
   static async markRejected(

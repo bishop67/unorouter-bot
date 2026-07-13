@@ -2,12 +2,15 @@ import { Type as t } from "@sinclair/typebox/type";
 import { createSelectSchema } from "drizzle-typebox";
 import {
   bugReport,
-  grantLog,
+  channel,
   guild,
   member,
   memberGuild,
   memberMessages,
   memberRole,
+  rewardClaim,
+  rewardGrant,
+  role,
   ticket,
   ticketMessage,
 } from "./schema";
@@ -32,7 +35,21 @@ export const memberGuildSelectSchema = createSelectSchema(memberGuild, {
 });
 export type MemberGuild = typeof memberGuildSelectSchema.static;
 
-// MemberRole schemas
+// Role schemas (guild role entity; attributes extracted from member_roles)
+export const roleSelectSchema = createSelectSchema(role, {
+  roleId: t.String({ minLength: 17, maxLength: 20 }),
+  guildId: t.String({ minLength: 17, maxLength: 20 }),
+});
+export type Role = typeof roleSelectSchema.static;
+
+// Channel schemas
+export const channelSelectSchema = createSelectSchema(channel, {
+  channelId: t.String({ minLength: 17, maxLength: 20 }),
+  guildId: t.String({ minLength: 17, maxLength: 20 }),
+});
+export type Channel = typeof channelSelectSchema.static;
+
+// MemberRole schemas (pure association)
 export const memberRoleSelectSchema = createSelectSchema(memberRole, {
   roleId: t.String({ minLength: 17, maxLength: 20 }),
   memberId: t.String({ minLength: 17, maxLength: 20 }),
@@ -60,6 +77,10 @@ export type TicketMessage = typeof ticketMessageSelectSchema.static;
 export const bugReportSelectSchema = createSelectSchema(bugReport);
 export type BugReport = typeof bugReportSelectSchema.static;
 
-// GrantLog schemas
-export const grantLogSelectSchema = createSelectSchema(grantLog);
-export type GrantLog = typeof grantLogSelectSchema.static;
+// RewardGrant schemas (append-only reward audit)
+export const rewardGrantSelectSchema = createSelectSchema(rewardGrant);
+export type RewardGrant = typeof rewardGrantSelectSchema.static;
+
+// RewardClaim schemas (at-most-once reward obligation)
+export const rewardClaimSelectSchema = createSelectSchema(rewardClaim);
+export type RewardClaim = typeof rewardClaimSelectSchema.static;

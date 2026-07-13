@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { grantLog } from "@/lib/db-schema";
+import { rewardGrant } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { getUser, grantDiscordQuota } from "@/lib/new-api/openapi";
 import { bot } from "@/main";
@@ -30,6 +30,12 @@ const GRANT_LOG_CHANNEL_NAME =
 const QUOTA_PER_DOLLAR = parseInt(process.env.QUOTA_PER_DOLLAR || "500000", 10);
 export function dollarsToQuota(dollars: number): number {
   return Math.round(dollars * QUOTA_PER_DOLLAR);
+}
+
+// Automated grants pass the "system" sentinel; the normalized schema records the
+// actor as a nullable member FK, so NULL means system.
+function systemToNull(grantedBy: string): string | null {
+  return grantedBy === "system" ? null : grantedBy;
 }
 
 const CONNECT_GRANT_QUOTA = dollarsToQuota(
@@ -101,18 +107,18 @@ export class GrantService {
 
     const userId = json.data.user_id;
     await db
-      .insert(grantLog)
+      .insert(rewardGrant)
       .values({
-        targetDiscordId: params.targetDiscordId,
+        targetMemberId: params.targetDiscordId,
         newApiUserId: userId ?? null,
         quota: params.quota,
         reason: params.reason,
         sourceType: params.sourceType,
         sourceId: params.sourceId ?? null,
-        grantedByDiscordId: params.grantedByDiscordId
+        grantedByMemberId: systemToNull(params.grantedByDiscordId)
       })
       .catch((e) =>
-        logger.error("grantLog insert failed", { error: String(e) })
+        logger.error("reward grant insert failed", { error: String(e) })
       );
 
     await this.announce(
@@ -198,11 +204,11 @@ export class GrantService {
   static async connectBonus(member: GuildMember): Promise<ConnectResult> {
     if (!this.isConfigured()) return { status: ConnectStatus.NotLinked };
 
-    const prior = await db.query.grantLog
+    const prior = await db.query.rewardGrant
       .findFirst({
         where: and(
-          eq(grantLog.targetDiscordId, member.id),
-          eq(grantLog.sourceType, "connect")
+          eq(rewardGrant.targetMemberId, member.id),
+          eq(rewardGrant.sourceType, "connect")
         )
       })
       .catch(() => null);

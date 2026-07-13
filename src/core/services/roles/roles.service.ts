@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { memberRole, memberMessages } from "@/lib/db-schema";
-import { and, count, eq, ne } from "drizzle-orm";
+import { memberRole, memberMessages, role } from "@/lib/db-schema";
+import { and, count, eq, ne, sql } from "drizzle-orm";
 import { LEVEL_LIST } from "@/shared/config/levels";
 import { JAIL, LEVEL_ROLES, STATUS_ROLES } from "@/shared/config/roles";
 import type { UpdateDbRolesArgs } from "@/types";
@@ -30,19 +30,40 @@ export class RolesService {
       )[0];
       if (!newAddedRole) return;
 
+      const guildId = args.newMember.guild.id;
       const roleData = {
         roleId: newAddedRole.id,
         memberId: args.newMember.id,
-        name: newAddedRole.name,
-        guildId: args.newMember.guild.id,
+        guildId,
       };
 
-      db.insert(memberRole)
-        .values(roleData)
-        .onConflictDoUpdate({
-          target: [memberRole.memberId, memberRole.roleId],
-          set: roleData,
+      // Role entity is the FK parent for the association row.
+      db.insert(role)
+        .values({
+          roleId: newAddedRole.id,
+          guildId,
+          name: newAddedRole.name,
+          color: newAddedRole.color || null,
+          position: newAddedRole.position,
         })
+        .onConflictDoUpdate({
+          target: role.roleId,
+          set: {
+            name: sql`excluded.name`,
+            color: sql`excluded.color`,
+            position: sql`excluded.position`,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          },
+        })
+        .then(() =>
+          db
+            .insert(memberRole)
+            .values(roleData)
+            .onConflictDoUpdate({
+              target: [memberRole.memberId, memberRole.roleId],
+              set: roleData,
+            }),
+        )
         .catch(() => {});
     }
     if (args.newRoles.length < args.oldRoles.length) {

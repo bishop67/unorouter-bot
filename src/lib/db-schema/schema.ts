@@ -4,6 +4,7 @@ import {
   boolean,
   index,
   integer,
+  pgEnum,
   pgTable,
   serial,
   text,
@@ -18,6 +19,9 @@ import {
 // - FK constraints: <child_table>_<child_col>_fkey (Drizzle default for .references()).
 // - Indexes: idx_<table>_<col[_col]>; unique: uq_<table>_<col[_col]>.
 // - Cascade on parent delete by default; restrict only for guild deletion.
+// - Discord ids (guild/member/role/channel/message) are the natural text keys.
+// - Closed-set columns are Postgres native enums; their display labels live in
+//   app code (GRANT_SOURCE_LABEL / VOTE_SITE_LABEL / DM_SOURCE_LABEL).
 
 const createdAt = () =>
   timestamp("created_at", { precision: 3, mode: "string" })
@@ -28,6 +32,38 @@ const updatedAt = () =>
   timestamp("updated_at", { precision: 3, mode: "string" })
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull();
+
+// --- Enums (mirror the constants in src/types/index.ts) ---
+export const rewardSourceEnum = pgEnum("reward_source", [
+  "command",
+  "ticket",
+  "bug",
+  "boost",
+  "connect",
+  "vote",
+  "invite",
+  "level",
+]);
+export const claimStatusEnum = pgEnum("claim_status", [
+  "pending",
+  "paid",
+  "void",
+]);
+export const voteSiteEnum = pgEnum("vote_site", [
+  "topgg",
+  "discords",
+  "discadia",
+  "discordservers",
+]);
+export const ticketStatusEnum = pgEnum("ticket_status", ["open", "closed"]);
+export const ticketCategoryEnum = pgEnum("ticket_category", ["support", "bug"]);
+export const bugStatusEnum = pgEnum("bug_status", [
+  "open",
+  "approved",
+  "rejected",
+]);
+
+// --- Identity core ---
 
 export const guild = pgTable("guilds", {
   guildId: text("guild_id").primaryKey(),
@@ -48,6 +84,47 @@ export const member = pgTable("members", {
   system: boolean("system").default(false).notNull(),
 });
 
+// One row per guild role. Extracted from member_roles so role attributes
+// (name/color/position) are stored once, not duplicated per holder. hexColor is
+// derived from color at read, not stored.
+export const role = pgTable(
+  "roles",
+  {
+    roleId: text("role_id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    name: text("name"),
+    color: integer("color"),
+    position: integer("position"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("idx_roles_guild").on(table.guildId)],
+);
+
+// One row per referenced Discord channel. FK target for message/ticket rows so
+// channel_id is a real reference, not a bare id.
+export const channel = pgTable(
+  "channels",
+  {
+    channelId: text("channel_id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    name: text("name"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [index("idx_channels_guild").on(table.guildId)],
+);
+
 export const memberGuild = pgTable(
   "member_guilds",
   {
@@ -66,7 +143,6 @@ export const memberGuild = pgTable(
       }),
     status: boolean("status").default(true).notNull(),
     nickname: text("nickname"),
-    displayName: text("display_name"),
     warnings: integer("warnings").default(0).notNull(),
     joinedAt: timestamp("joined_at", { precision: 3, mode: "string" }),
     premiumSince: timestamp("premium_since", { precision: 3, mode: "string" }),
@@ -80,11 +156,17 @@ export const memberGuild = pgTable(
   ],
 );
 
+// Pure member<->role association. Role attributes live in `roles`.
 export const memberRole = pgTable(
   "member_roles",
   {
     id: serial("id").primaryKey(),
-    roleId: text("role_id").notNull(),
+    roleId: text("role_id")
+      .notNull()
+      .references(() => role.roleId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     guildId: text("guild_id")
       .notNull()
       .references(() => guild.guildId, {
@@ -97,10 +179,6 @@ export const memberRole = pgTable(
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
-    name: text("name"),
-    color: integer("color"),
-    hexColor: text("hex_color"),
-    position: integer("position"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -127,7 +205,12 @@ export const memberMessages = pgTable(
         onUpdate: "cascade",
       }),
     messageId: text("message_id").notNull(),
-    channelId: text("channel_id").notNull(),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => channel.channelId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     createdAt: createdAt(),
   },
   (table) => [
@@ -136,22 +219,32 @@ export const memberMessages = pgTable(
   ],
 );
 
+// --- Domain entities ---
+
 export const ticket = pgTable(
   "tickets",
   {
     id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
-    channelId: text("channel_id").notNull(),
-    openerId: text("opener_id").notNull(),
-    category: text("category").default("support").notNull(),
-    status: text("status").default("open").notNull(),
-    // Reward intent set when staff approves; consumed on opener-redeem (or
-    // immediately on grantQuota when the opener is already linked). Once
-    // redeemedAt is set the ticket cannot be re-rewarded.
-    pendingRewardQuota: integer("pending_reward_quota"),
-    pendingRewardReason: text("pending_reward_reason"),
-    pendingRewardGrantedBy: text("pending_reward_granted_by"),
-    redeemedAt: timestamp("redeemed_at", { precision: 3, mode: "string" }),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    channelId: text("channel_id")
+      .notNull()
+      .references(() => channel.channelId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    openerId: text("opener_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    category: ticketCategoryEnum("category").default("support").notNull(),
+    status: ticketStatusEnum("status").default("open").notNull(),
     createdAt: createdAt(),
     closedAt: timestamp("closed_at", { precision: 3, mode: "string" }),
   },
@@ -171,8 +264,10 @@ export const ticketMessage = pgTable(
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
-    authorId: text("author_id").notNull(),
-    authorTag: text("author_tag").notNull(),
+    authorId: text("author_id").references(() => member.memberId, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
     content: text("content").notNull(),
     createdAt: createdAt(),
   },
@@ -183,22 +278,22 @@ export const bugReport = pgTable(
   "bug_reports",
   {
     id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
     forumThreadId: text("forum_thread_id").notNull(),
-    reporterId: text("reporter_id").notNull(),
-    status: text("status").default("open").notNull(),
+    reporterId: text("reporter_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    status: bugStatusEnum("status").default("open").notNull(),
     rewardedQuota: integer("rewarded_quota").default(0).notNull(),
     resolvedBy: text("resolved_by"),
-    // Same pending-reward intent as tickets: staff approve sets these, the
-    // recipient redeems (or instant grant when already linked) clears them +
-    // stamps resolvedAt. Re-rewards are blocked once resolvedAt is set. The
-    // recipient may differ from the reporter (some other thread participant
-    // may have actually identified the bug), so pendingRewardTargetId is
-    // recorded explicitly.
-    pendingRewardQuota: integer("pending_reward_quota"),
-    pendingRewardReason: text("pending_reward_reason"),
-    pendingRewardGrantedBy: text("pending_reward_granted_by"),
-    pendingRewardTargetId: text("pending_reward_target_id"),
     createdAt: createdAt(),
     resolvedAt: timestamp("resolved_at", { precision: 3, mode: "string" }),
   },
@@ -207,17 +302,24 @@ export const bugReport = pgTable(
   ],
 );
 
-// One row per "boost slot" a user holds. Discord doesn't expose per-user boost
-// counts to bots, so we count rows here: each system boost message Discord
-// posts in the system channel adds one slot. nextPayoutAt advances by 30 days
-// each time the monthly cron credits the user; active flips to false when the
-// user drops their premiumSince (cancelled boost).
+// One row per boost slot a member holds. nextPayoutAt advances 30 days each time
+// the monthly cron credits the member; active flips false on cancel.
 export const boostSlot = pgTable(
   "boost_slots",
   {
     id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
-    memberId: text("member_id").notNull(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     sourceMessageId: text("source_message_id"),
     startedAt: createdAt(),
     nextPayoutAt: timestamp("next_payout_at", {
@@ -233,16 +335,26 @@ export const boostSlot = pgTable(
   ],
 );
 
-// One row per attributed join. Unique on (guild, invitee) so rejoin loops
-// can't farm the invite leaderboard. No FK to members: inviter may never be
-// upserted (left before bot started).
+// One row per attributed join. Unique (guild, invitee) blocks rejoin farming.
+// inviter_id is FK-less: the inviter may have left before the bot existed and is
+// never upserted into members.
 export const inviteJoin = pgTable(
   "invite_joins",
   {
     id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
     inviterId: text("inviter_id").notNull(),
-    inviteeId: text("invitee_id").notNull(),
+    inviteeId: text("invitee_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
     inviteCode: text("invite_code").notNull(),
     createdAt: createdAt(),
   },
@@ -255,14 +367,18 @@ export const inviteJoin = pgTable(
   ],
 );
 
-// One-time baseline from Discord's per-invite uses counters at tracking
-// launch; per-invitee history was never stored by Discord. All-time /top adds
-// these to live invite_joins counts, lookback windows use live rows only.
+// One-time baseline of Discord's per-invite uses counters at tracking launch.
+// inviter_id FK-less (same reason as invite_joins).
 export const inviteSeed = pgTable(
   "invite_seeds",
   {
     id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
     inviterId: text("inviter_id").notNull(),
     uses: integer("uses").notNull(),
     createdAt: createdAt(),
@@ -275,33 +391,112 @@ export const inviteSeed = pgTable(
   ],
 );
 
-export const grantLog = pgTable(
-  "grant_logs",
+// --- Reward domain ---
+
+// Append-only audit: one row per successful new-api credit. granted_by is NULL
+// for automated ("system") grants, else the acting member. The dedupe index
+// serves both connect (target+source) and vote (target+source+source_id+time).
+export const rewardGrant = pgTable(
+  "reward_grants",
   {
     id: serial("id").primaryKey(),
-    targetDiscordId: text("target_discord_id").notNull(),
+    targetMemberId: text("target_member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    guildId: text("guild_id").references(() => guild.guildId, {
+      onDelete: "restrict",
+      onUpdate: "cascade",
+    }),
     newApiUserId: integer("new_api_user_id"),
     quota: integer("quota").notNull(),
     reason: text("reason").notNull(),
-    sourceType: text("source_type").notNull(),
+    sourceType: rewardSourceEnum("source_type").notNull(),
     sourceId: text("source_id"),
-    grantedByDiscordId: text("granted_by_discord_id").notNull(),
+    grantedByMemberId: text("granted_by_member_id").references(
+      () => member.memberId,
+      { onDelete: "set null", onUpdate: "cascade" },
+    ),
     createdAt: createdAt(),
   },
   (table) => [
-    index("idx_grant_logs_target").on(table.targetDiscordId),
-    index("idx_grant_logs_source").on(table.sourceType, table.sourceId),
+    index("idx_reward_grants_target").on(table.targetMemberId),
+    index("idx_reward_grants_dedupe").on(
+      table.targetMemberId,
+      table.sourceType,
+      table.sourceId,
+      table.createdAt,
+    ),
   ],
 );
 
-// Reward-DM opt-outs. One row per (member, source) the member muted; absence of
-// a row means the DM is ON (default). Only recurring sources are toggleable.
+// At-most-once reward obligation per (source, entity). Folds level_rewards, the
+// invite ledger, and the ticket/bug pending-redeem intent into one table. A
+// claim is created pending, transitions to paid when the grant lands (grant_id
+// links the audit row). rewarded_at is the once-lock.
+export const rewardClaim = pgTable(
+  "reward_claims",
+  {
+    id: serial("id").primaryKey(),
+    sourceType: rewardSourceEnum("source_type").notNull(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    targetMemberId: text("target_member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    refId: text("ref_id"),
+    status: claimStatusEnum("status").default("pending").notNull(),
+    pendingQuota: integer("pending_quota"),
+    pendingReason: text("pending_reason"),
+    grantedByMemberId: text("granted_by_member_id").references(
+      () => member.memberId,
+      { onDelete: "set null", onUpdate: "cascade" },
+    ),
+    earnedUnits: integer("earned_units"),
+    rewardedQuota: integer("rewarded_quota").default(0).notNull(),
+    rewardedAt: timestamp("rewarded_at", { precision: 3, mode: "string" }),
+    grantId: integer("grant_id").references(() => rewardGrant.id, {
+      onDelete: "set null",
+      onUpdate: "cascade",
+    }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_reward_claims_source_guild_target_ref").on(
+      table.sourceType,
+      table.guildId,
+      table.targetMemberId,
+      table.refId,
+    ),
+    index("idx_reward_claims_status").on(table.status, table.sourceType),
+  ],
+);
+
+// --- Operational state ---
+
+// Reward-DM opt-outs. Presence of a (member, source) row = muted. Only recurring
+// sources (vote/invite/level/boost) are toggled by /notifications.
 export const dmOptout = pgTable(
   "dm_optouts",
   {
     id: serial("id").primaryKey(),
-    memberId: text("member_id").notNull(),
-    source: text("source").notNull(),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    source: rewardSourceEnum("source").notNull(),
     createdAt: createdAt(),
   },
   (table) => [
@@ -309,46 +504,18 @@ export const dmOptout = pgTable(
   ],
 );
 
-// One row per (member, tier) level-reward slot. rewarded=false is a SEED mark:
-// the member already held the tier role before rewards existed, so it must never
-// pay. rewarded=true means the tier was actually granted. The ledger is the
-// exactly-once guard for level payouts (the Discord role cache alone re-fires on
-// manual role removal/re-add).
-export const levelReward = pgTable(
-  "level_rewards",
-  {
-    id: serial("id").primaryKey(),
-    guildId: text("guild_id").notNull(),
-    memberId: text("member_id").notNull(),
-    tier: integer("tier").notNull(),
-    // Seed mark: true = member already held this tier role at rollout, never pay.
-    // false = a genuine level-up we attempted to pay (may still be unpaid if the
-    // recipient was unlinked, in which case a later message retries it).
-    seeded: boolean("seeded").default(false).notNull(),
-    rewarded: boolean("rewarded").default(false).notNull(),
-    rewardedQuota: integer("rewarded_quota").default(0).notNull(),
-    createdAt: createdAt(),
-    rewardedAt: timestamp("rewarded_at", { precision: 3, mode: "string" }),
-  },
-  (table) => [
-    uniqueIndex("uq_level_rewards_member_tier").on(
-      table.memberId,
-      table.guildId,
-      table.tier,
-    ),
-  ],
-);
-
-// Persisted "member currently holds this vote role" state. Vote rewards fire
-// on the not-held to held transition against THIS table, not on cache diffs:
-// Discord's oldMember snapshot is unreliable (partial after restart = empty
-// role cache) while this survives restarts and missed events.
+// Persisted "member currently holds this vote role" transition guard.
 export const voteRoleHold = pgTable(
   "vote_role_holds",
   {
     id: serial("id").primaryKey(),
-    memberId: text("member_id").notNull(),
-    site: text("site").notNull(),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    site: voteSiteEnum("site").notNull(),
     createdAt: createdAt(),
   },
   (table) => [

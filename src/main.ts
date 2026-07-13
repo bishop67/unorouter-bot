@@ -85,13 +85,18 @@ bot.once("clientReady", async () => {
       ),
     ),
   );
-  // Seed level-reward ledger for members already holding level roles so the
-  // rollout never back-pays veterans. Detached; the message path self-heals too.
+  // Reconcile level rewards against message counts: pays any earned-but-unpaid
+  // tier once (backfill), idempotent via reward_claims. Detached; the message
+  // path reconciles too.
   for (const g of bot.guilds.cache.values()) {
     for (const m of g.members.cache.values()) {
       if (m.user.bot) continue;
       void LevelRewardService.reconcileMember(m);
     }
+  }
+  // Reconcile the invite backlog per guild (seed baseline + live joins).
+  for (const g of bot.guilds.cache.values()) {
+    void InviteService.reconcileAll(g.id);
   }
   startWebhookServer();
   logger.info("Bot started", { clientId: bot.user?.id });

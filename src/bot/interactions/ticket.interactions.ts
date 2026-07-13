@@ -181,7 +181,8 @@ export class TicketInteractions {
       });
       return;
     }
-    if (row.redeemedAt) {
+    const claim = await TicketService.getTicketClaim(row.id);
+    if (claim?.status === "paid") {
       await interaction.reply({
         content: "This ticket has already been rewarded.",
         flags: [MessageFlags.Ephemeral],
@@ -208,7 +209,8 @@ export class TicketInteractions {
       await interaction.editReply("Ticket not found.");
       return;
     }
-    if (row.redeemedAt) {
+    const existingClaim = await TicketService.getTicketClaim(ticketId);
+    if (existingClaim?.status === "paid") {
       await interaction.editReply("This ticket has already been rewarded.");
       return;
     }
@@ -224,22 +226,24 @@ export class TicketInteractions {
         grantedByDiscordId: interaction.user.id,
       });
 
+      // Persist the intent first so markRedeemed has a claim row to flip, and so
+      // the opener can self-redeem after linking when unlinked.
+      await TicketService.setPendingReward({
+        ticketId,
+        guildId: row.guildId,
+        targetId: row.openerId,
+        quota,
+        reason: parsed.reason,
+        grantedBy: interaction.user.id,
+      });
+
       if (result.linked) {
-        await TicketService.markRedeemed(ticketId);
+        await TicketService.markRedeemed(ticketId, quota);
         await interaction.editReply(
           `Granted **$${parsed.amount}** to <@${parsed.targetId}>.`,
         );
         return;
       }
-
-      // Not linked: persist the intent so the opener can self-redeem with a
-      // single click after they link. Approve & Reward stays locked until then.
-      await TicketService.setPendingReward({
-        ticketId,
-        quota,
-        reason: parsed.reason,
-        grantedBy: interaction.user.id,
-      });
 
       const channel = interaction.channel as GuildTextBasedChannel | null;
       await channel?.send({
@@ -265,18 +269,20 @@ export class TicketInteractions {
       await interaction.editReply("Ticket not found.");
       return;
     }
-    if (row.redeemedAt) {
+    const claim = await TicketService.getTicketClaim(ticketId);
+    if (claim?.status === "paid") {
       await interaction.editReply("Already redeemed.");
       return;
     }
-    if (interaction.user.id !== row.openerId) {
+    if (interaction.user.id !== claim?.targetMemberId) {
       await interaction.editReply("Only the ticket opener can redeem this.");
       return;
     }
     if (
-      row.pendingRewardQuota == null ||
-      !row.pendingRewardReason ||
-      !row.pendingRewardGrantedBy
+      claim.status !== "pending" ||
+      claim.pendingQuota == null ||
+      !claim.pendingReason ||
+      !claim.grantedByMemberId
     ) {
       await interaction.editReply("No pending reward on this ticket.");
       return;
@@ -284,12 +290,12 @@ export class TicketInteractions {
 
     try {
       const result = await GrantService.grantQuota({
-        targetDiscordId: row.openerId,
-        quota: row.pendingRewardQuota,
-        reason: row.pendingRewardReason,
+        targetDiscordId: claim.targetMemberId,
+        quota: claim.pendingQuota,
+        reason: claim.pendingReason,
         sourceType: "ticket",
         sourceId: String(row.id),
-        grantedByDiscordId: row.pendingRewardGrantedBy,
+        grantedByDiscordId: claim.grantedByMemberId,
       });
       if (!result.linked) {
         await interaction.editReply(
@@ -297,7 +303,7 @@ export class TicketInteractions {
         );
         return;
       }
-      await TicketService.markRedeemed(ticketId);
+      await TicketService.markRedeemed(ticketId, claim.pendingQuota);
       await interaction.editReply("Reward delivered to your balance.");
     } catch (err) {
       logger.error("Ticket redeem failed", { error: String(err) });

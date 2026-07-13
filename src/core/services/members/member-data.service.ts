@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
-import { guild, member, memberGuild, memberRole } from "@/lib/db-schema";
+import { guild, member, memberGuild, memberRole, role } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { EVERYONE } from "@/shared/config/roles";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { Guild, GuildMember, User } from "discord.js";
 
 // Slim port of coding-global's MemberDataService for our smaller schema. Upserts
@@ -61,6 +61,7 @@ export class MemberDataService {
     try {
       const memberRow = prepareMember(gm.user);
       const memberGuildRow = prepareMemberGuild(gm);
+      const roleEntities = prepareRoleEntities(gm);
       const roleRows = prepareMemberRoles(gm);
 
       await db
@@ -77,6 +78,21 @@ export class MemberDataService {
             set: memberGuildRow,
           }),
         (async () => {
+          // Role entities are FK parents for the association rows below.
+          if (roleEntities.length > 0) {
+            await db
+              .insert(role)
+              .values(roleEntities)
+              .onConflictDoUpdate({
+                target: role.roleId,
+                set: {
+                  name: sql`excluded.name`,
+                  color: sql`excluded.color`,
+                  position: sql`excluded.position`,
+                  updatedAt: sql`CURRENT_TIMESTAMP`,
+                },
+              });
+          }
           await db
             .delete(memberRole)
             .where(
@@ -124,12 +140,25 @@ function prepareMemberGuild(m: GuildMember) {
     guildId: m.guild.id,
     status: true,
     nickname: m.nickname,
-    displayName: m.displayName,
     joinedAt: m.joinedAt?.toISOString() ?? null,
     premiumSince: m.premiumSince?.toISOString() ?? null,
   };
 }
 
+// Role-entity upserts: one `roles` row per held role (attributes live here now).
+function prepareRoleEntities(m: GuildMember) {
+  return m.roles.cache
+    .filter((r) => r.name !== EVERYONE)
+    .map((r) => ({
+      roleId: r.id,
+      guildId: m.guild.id,
+      name: r.name,
+      color: r.color || null,
+      position: r.position,
+    }));
+}
+
+// Pure member<->role association rows.
 function prepareMemberRoles(m: GuildMember) {
   return m.roles.cache
     .filter((r) => r.name !== EVERYONE)
@@ -137,9 +166,5 @@ function prepareMemberRoles(m: GuildMember) {
       roleId: r.id,
       guildId: m.guild.id,
       memberId: m.id,
-      name: r.name,
-      color: r.color || null,
-      hexColor: r.hexColor,
-      position: r.position,
     }));
 }

@@ -1,8 +1,8 @@
 import { userJailedEmbed } from "@/core/embeds/user-jailed.embed";
 import { RolesService } from "@/core/services/roles/roles.service";
 import { db } from "@/lib/db";
-import { member, memberGuild, memberRole } from "@/lib/db-schema";
-import { and, eq } from "drizzle-orm";
+import { member, memberGuild, memberRole, role } from "@/lib/db-schema";
+import { and, eq, sql } from "drizzle-orm";
 import { JAIL } from "@/shared/config/roles";
 import type { DeleteUserMessagesParams } from "@/types";
 import {
@@ -70,6 +70,8 @@ export class DeleteUserMessagesService {
       (await params.guild.members.fetch(memberId).catch(() => null));
     const alreadyJailed = discordMember?.roles.cache.has(jailRoleId);
 
+    const jailDiscordRole = params.guild.roles.cache.get(jailRoleId);
+
     await db.transaction(async (tx) => {
       await tx
         .insert(member)
@@ -78,6 +80,26 @@ export class DeleteUserMessagesService {
           username: params.user?.username || "Unknown User",
         })
         .onConflictDoNothing();
+
+      // Role entity is the FK parent for the association row below.
+      await tx
+        .insert(role)
+        .values({
+          roleId: jailRoleId,
+          guildId: params.guild.id,
+          name: jailDiscordRole?.name ?? JAIL,
+          color: jailDiscordRole?.color || null,
+          position: jailDiscordRole?.position ?? null,
+        })
+        .onConflictDoUpdate({
+          target: role.roleId,
+          set: {
+            name: sql`excluded.name`,
+            color: sql`excluded.color`,
+            position: sql`excluded.position`,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          },
+        });
 
       await tx
         .delete(memberRole)
@@ -92,15 +114,14 @@ export class DeleteUserMessagesService {
         roleId: jailRoleId,
         memberId: params.memberId,
         guildId: params.guild.id,
-        name: JAIL,
       });
     });
 
     // Replace ALL of the member's roles with only Jail: removing Verified (and any
     // others) is what actually isolates them - Jail can see only PRISON, and Verified
     // is denied PRISON view, so a jailed user must not keep Verified.
-    const role = params.guild.roles.cache.get(jailRoleId);
-    if (discordMember && role?.editable) {
+    const jailRole = params.guild.roles.cache.get(jailRoleId);
+    if (discordMember && jailRole?.editable) {
       await discordMember.roles
         .set([jailRoleId], "Jailed: spam detected")
         .catch(() => discordMember.roles.add(jailRoleId).catch(error));
@@ -254,7 +275,7 @@ export class DeleteUserMessagesService {
     });
 
     const displayName =
-      (dbMember?.memberGuilds as any)?.[0]?.displayName ||
+      (dbMember?.memberGuilds as any)?.[0]?.nickname ||
       dbMember?.globalName ||
       dbMember?.username ||
       "Unknown";

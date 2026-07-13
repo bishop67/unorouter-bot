@@ -1,16 +1,22 @@
 import { db } from "@/lib/db";
-import { ticket, ticketMessage } from "@/lib/db-schema";
+import {
+  channel as channelTable,
+  rewardClaim,
+  ticket,
+  ticketMessage,
+} from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { STAFF_ROLES } from "@/shared/config/roles";
 import { findCategory, findTextChannel } from "@/shared/utils/channel.utils";
 import { ButtonId, ButtonIdBuilder } from "@/types/custom-ids";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   ActionRowBuilder,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
+  type Client,
   type Guild,
   type GuildMember,
   type GuildTextBasedChannel,
@@ -163,6 +169,15 @@ export class TicketService {
       return { status: TicketOpenStatus.Error, error: String(err) };
     }
 
+    // Channel entity is the FK parent for the ticket row.
+    await db
+      .insert(channelTable)
+      .values({ channelId: channel.id, guildId: guild.id, name: channel.name })
+      .onConflictDoUpdate({
+        target: channelTable.channelId,
+        set: { name: sql`excluded.name`, updatedAt: sql`CURRENT_TIMESTAMP` },
+      });
+
     await db.insert(ticket).values({
       guildId: guild.id,
       channelId: channel.id,
@@ -192,7 +207,6 @@ export class TicketService {
       .values({
         ticketId: row.id,
         authorId: message.author.id,
-        authorTag: message.author.tag,
         content: message.content || "(no text content)",
       })
       .catch(() => {});
@@ -212,27 +226,72 @@ export class TicketService {
     return db.query.ticket.findFirst({ where: eq(ticket.id, ticketId) });
   }
 
+  static async getTicketClaim(ticketId: number) {
+    return db.query.rewardClaim.findFirst({
+      where: and(
+        eq(rewardClaim.sourceType, "ticket"),
+        eq(rewardClaim.refId, String(ticketId)),
+      ),
+    });
+  }
+
   static async setPendingReward(args: {
     ticketId: number;
+    guildId: string;
+    targetId: string;
     quota: number;
     reason: string;
     grantedBy: string;
   }): Promise<void> {
+    const grantedByMemberId =
+      args.grantedBy === "system" ? null : args.grantedBy;
     await db
-      .update(ticket)
-      .set({
-        pendingRewardQuota: args.quota,
-        pendingRewardReason: args.reason,
-        pendingRewardGrantedBy: args.grantedBy,
+      .insert(rewardClaim)
+      .values({
+        sourceType: "ticket",
+        guildId: args.guildId,
+        targetMemberId: args.targetId,
+        refId: String(args.ticketId),
+        status: "pending",
+        pendingQuota: args.quota,
+        pendingReason: args.reason,
+        grantedByMemberId,
       })
-      .where(eq(ticket.id, args.ticketId));
+      .onConflictDoUpdate({
+        target: [
+          rewardClaim.sourceType,
+          rewardClaim.guildId,
+          rewardClaim.targetMemberId,
+          rewardClaim.refId,
+        ],
+        set: {
+          status: "pending",
+          pendingQuota: args.quota,
+          pendingReason: args.reason,
+          grantedByMemberId,
+          updatedAt: new Date().toISOString(),
+        },
+      });
   }
 
-  static async markRedeemed(ticketId: number): Promise<void> {
+  static async markRedeemed(
+    ticketId: number,
+    rewardedQuota: number,
+  ): Promise<void> {
     await db
-      .update(ticket)
-      .set({ redeemedAt: new Date().toISOString() })
-      .where(eq(ticket.id, ticketId));
+      .update(rewardClaim)
+      .set({
+        status: "paid",
+        rewardedQuota,
+        rewardedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(rewardClaim.sourceType, "ticket"),
+          eq(rewardClaim.refId, String(ticketId)),
+        ),
+      );
   }
 
   static async close(channel: GuildTextBasedChannel): Promise<boolean> {
@@ -244,7 +303,11 @@ export class TicketService {
       .set({ status: TicketStatus.Closed, closedAt: new Date().toISOString() })
       .where(eq(ticket.id, row.id));
 
-    const transcript = await this.buildTranscript(row.id, channel.name);
+    const transcript = await this.buildTranscript(
+      row.id,
+      channel.name,
+      channel.client,
+    );
     const logChannel = findTextChannel(channel.guild, TICKET_LOG_CHANNEL_NAME);
     if (logChannel) {
       await logChannel.send({
@@ -270,14 +333,32 @@ export class TicketService {
   private static async buildTranscript(
     ticketId: number,
     channelName: string,
+    client: Client,
   ): Promise<AttachmentBuilder> {
     const messages = await db.query.ticketMessage.findMany({
       where: eq(ticketMessage.ticketId, ticketId),
       orderBy: (m, { asc }) => [asc(m.createdAt)],
     });
 
-    const lines = messages.map(
-      (m) => `[${m.createdAt}] ${m.authorTag}: ${m.content}`,
+    // authorTag is no longer stored; resolve the tag from the author id at read.
+    const tagCache = new Map<string, string>();
+    const resolveAuthor = async (authorId: string | null): Promise<string> => {
+      if (!authorId) return "Unknown";
+      const cached = tagCache.get(authorId);
+      if (cached) return cached;
+      const user =
+        client.users.cache.get(authorId) ??
+        (await client.users.fetch(authorId).catch(() => null));
+      const tag = user?.tag ?? authorId;
+      tagCache.set(authorId, tag);
+      return tag;
+    };
+
+    const lines = await Promise.all(
+      messages.map(
+        async (m) =>
+          `[${m.createdAt}] ${await resolveAuthor(m.authorId)}: ${m.content}`,
+      ),
     );
     const body = `Transcript for ticket #${ticketId} (${channelName})\n\n${lines.join("\n")}\n`;
     return new AttachmentBuilder(Buffer.from(body, "utf-8"), {

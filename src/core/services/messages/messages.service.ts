@@ -1,7 +1,7 @@
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { db } from "@/lib/db";
-import { memberGuild, memberMessages } from "@/lib/db-schema";
+import { channel, memberGuild, memberMessages } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { LevelRewardService } from "@/core/services/levels/level-reward.service";
 import { SHOULD_USER_LEVEL_UP } from "@/shared/config/features";
@@ -16,7 +16,7 @@ import {
   RESTJSONErrorCodes,
   TextChannel,
 } from "discord.js";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 
 export class MessagesService {
   static async addMessageDb(message: Message<boolean>) {
@@ -37,6 +37,16 @@ export class MessagesService {
 
     // catch message edits
     try {
+      // Channel entity is the FK parent for the memberMessages insert below.
+      const channelName = "name" in message.channel ? message.channel.name : null;
+      await db
+        .insert(channel)
+        .values({ channelId, guildId, name: channelName })
+        .onConflictDoUpdate({
+          target: channel.channelId,
+          set: { name: sql`excluded.name`, updatedAt: sql`CURRENT_TIMESTAMP` },
+        });
+
       await db
         .insert(memberMessages)
         .values({ id: messageId, channelId, guildId, memberId, messageId })
@@ -102,16 +112,14 @@ export class MessagesService {
             content: levelUpMessage(member.toString(), role.toString()),
             allowedMentions: { users: [], roles: [] },
           });
-
-          // Genuine transition (bot just added the tier role): pay the tier once.
-          // Detached so the message handler isn't blocked on the grant.
-          void LevelRewardService.grantTier(member, item);
         }
       }
     }
 
-    // Lazily seed veterans (roles predate rewards) and retry any level-up that
-    // stayed unpaid while the recipient was unlinked. Detached, best-effort.
+    // Single reward path: reconcile against the true message count pays every
+    // qualifying tier exactly once (ledger onConflictDoNothing is the guard).
+    // Runs once per message; do NOT also call payTier here or the same tier
+    // races itself. Detached, best-effort.
     if (member) void LevelRewardService.reconcileMember(member);
   }
 

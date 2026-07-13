@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { grantLog, voteRoleHold } from "@/lib/db-schema";
+import { rewardGrant, voteRoleHold } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { GrantService, dollarsToQuota } from "@/core/services/grant/grant.service";
 import { VoteSite, VOTE_SITE_LABEL } from "@/types";
@@ -61,12 +61,12 @@ export class VoteService {
     // the param a string and let failures propagate: fail closed, never pay
     // on an unreadable dedupe state.
     const since = new Date(Date.now() - DEDUPE_MS[site]).toISOString();
-    const recent = await db.query.grantLog.findFirst({
+    const recent = await db.query.rewardGrant.findFirst({
       where: and(
-        eq(grantLog.targetDiscordId, voterDiscordId),
-        eq(grantLog.sourceType, "vote"),
-        eq(grantLog.sourceId, site),
-        gte(grantLog.createdAt, since),
+        eq(rewardGrant.targetMemberId, voterDiscordId),
+        eq(rewardGrant.sourceType, "vote"),
+        eq(rewardGrant.sourceId, site),
+        gte(rewardGrant.createdAt, since),
       ),
     });
 

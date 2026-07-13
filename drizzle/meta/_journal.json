@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1780594931159,
-      "tag": "0000_narrow_blonde_phantom",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1783098480483,
-      "tag": "0001_quick_sunfire",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1783957334850,
-      "tag": "0002_jazzy_bishop",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1783957840986,
-      "tag": "0003_magical_viper",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1783974326209,
-      "tag": "0004_freezing_magus",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1783974789975,
-      "tag": "0005_wide_mockingbird",
+      "when": 1783978107657,
+      "tag": "0000_bumpy_marauders",
       "breakpoints": true
     }
   ]

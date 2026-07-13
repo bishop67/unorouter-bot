@@ -1,11 +1,12 @@
 import { db } from "@/lib/db";
-import { inviteJoin } from "@/lib/db-schema";
+import { inviteJoin, inviteSeed, rewardClaim } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import {
   dollarsToQuota,
   GrantService,
 } from "@/core/services/grant/grant.service";
 import type { Guild, GuildMember, Invite } from "discord.js";
+import { and, count, eq } from "drizzle-orm";
 
 const INVITE_GRANT_DOLLARS = parseFloat(
   process.env.INVITE_GRANT_DOLLARS || "0.01",
@@ -120,8 +121,8 @@ export const InviteService = {
       return;
     }
 
-    // Unique (guild, invitee): a rejoin conflicts and returns 0 rows, so the
-    // reward below only fires on a genuinely new attributed join.
+    // Unique (guild, invitee): a rejoin conflicts and returns 0 rows, so we only
+    // reconcile on a genuinely new attributed join.
     const inserted = await db
       .insert(inviteJoin)
       .values({
@@ -135,23 +136,167 @@ export const InviteService = {
 
     if (!inserted.length) return;
 
-    const quota = dollarsToQuota(INVITE_GRANT_DOLLARS);
-    if (quota <= 0) return;
-    // Unlinked inviters get { linked:false } and are skipped silently, same as
-    // votes. Never throws into the join flow.
-    await GrantService.grantQuota({
-      targetDiscordId: hit.inviterId,
-      quota,
-      reason: "invited a new member",
-      sourceType: "invite",
-      sourceId: member.id,
-      grantedByDiscordId: "system",
-    }).catch((e) =>
-      logger.error("Invite reward failed", {
+    await InviteService.reconcileInviter(guild.id, hit.inviterId).catch((e) =>
+      logger.error("Invite reconcile failed", {
         inviter: hit.inviterId,
         invitee: member.id,
         error: String(e),
       }),
     );
+  },
+
+  // Reconcile one inviter: earned = invite_seeds.uses + count(invite_joins); pay
+  // the (earned - already-paid) gap to the inviter if linked, and advance the
+  // ledger. Idempotent + backtracking: re-running only pays a newly-earned
+  // invite, never re-pays, and back-pays the historical seed baseline once. The
+  // per-inviter reward_claims row (source='invite', ref=inviterId) is the ledger.
+  async reconcileInviter(guildId: string, inviterId: string): Promise<void> {
+    const quotaPerInvite = dollarsToQuota(INVITE_GRANT_DOLLARS);
+    if (quotaPerInvite <= 0) return;
+
+    const [seed] = await db
+      .select({ uses: inviteSeed.uses })
+      .from(inviteSeed)
+      .where(
+        and(
+          eq(inviteSeed.guildId, guildId),
+          eq(inviteSeed.inviterId, inviterId),
+        ),
+      );
+    const [live] = await db
+      .select({ c: count() })
+      .from(inviteJoin)
+      .where(
+        and(
+          eq(inviteJoin.guildId, guildId),
+          eq(inviteJoin.inviterId, inviterId),
+        ),
+      );
+    const earned = (seed?.uses ?? 0) + (live?.c ?? 0);
+    if (earned <= 0) return;
+
+    // Claim/find the per-inviter ledger row. earned_units = units already PAID.
+    await db
+      .insert(rewardClaim)
+      .values({
+        sourceType: "invite",
+        guildId,
+        targetMemberId: inviterId,
+        refId: inviterId,
+        status: "pending",
+        earnedUnits: 0,
+      })
+      .onConflictDoNothing();
+
+    const [claim] = await db
+      .select({
+        id: rewardClaim.id,
+        earnedUnits: rewardClaim.earnedUnits,
+        rewardedQuota: rewardClaim.rewardedQuota,
+      })
+      .from(rewardClaim)
+      .where(
+        and(
+          eq(rewardClaim.sourceType, "invite"),
+          eq(rewardClaim.guildId, guildId),
+          eq(rewardClaim.targetMemberId, inviterId),
+          eq(rewardClaim.refId, inviterId),
+        ),
+      );
+    if (!claim) return;
+
+    const paidUnits = claim.earnedUnits ?? 0;
+    const owed = earned - paidUnits;
+    if (owed <= 0) return;
+
+    const owedQuota = owed * quotaPerInvite;
+
+    // Claim the units FIRST via a conditional update: advance earned_units to
+    // `earned` only if it is still `paidUnits`. Exactly one concurrent reconcile
+    // wins this row; losers get 0 rows and stop, so the grant below can never
+    // run twice for the same units. If the grant then fails, we roll the units
+    // back so a later run retries.
+    const claimedUnits = await db
+      .update(rewardClaim)
+      .set({ earnedUnits: earned, updatedAt: new Date().toISOString() })
+      .where(
+        and(
+          eq(rewardClaim.id, claim.id),
+          eq(rewardClaim.earnedUnits, paidUnits),
+        ),
+      )
+      .returning({ id: rewardClaim.id });
+    if (!claimedUnits.length) return; // lost the race; the winner pays
+
+    const result = await GrantService.grantQuota({
+      targetDiscordId: inviterId,
+      quota: owedQuota,
+      reason:
+        owed === 1 ? "invited a new member" : `invited ${owed} new members`,
+      sourceType: "invite",
+      sourceId: inviterId,
+      grantedByDiscordId: "system",
+    }).catch((e) => {
+      logger.error("Invite reward grant failed", {
+        inviter: inviterId,
+        error: String(e),
+      });
+      return null;
+    });
+
+    // Grant failed or inviter not linked: roll the units back so a later run
+    // (after they link) retries. Guard the rollback on the value we set, so a
+    // concurrent advance isn't clobbered.
+    if (!result || !result.linked) {
+      await db
+        .update(rewardClaim)
+        .set({ earnedUnits: paidUnits, updatedAt: new Date().toISOString() })
+        .where(
+          and(eq(rewardClaim.id, claim.id), eq(rewardClaim.earnedUnits, earned)),
+        )
+        .catch(() => {});
+      return;
+    }
+
+    await db
+      .update(rewardClaim)
+      .set({
+        status: "paid",
+        rewardedQuota: claim.rewardedQuota + owedQuota,
+        rewardedAt: new Date().toISOString(),
+      })
+      .where(eq(rewardClaim.id, claim.id))
+      .catch((e) =>
+        logger.error("Invite ledger advance failed", {
+          inviter: inviterId,
+          error: String(e),
+        }),
+      );
+  },
+
+  // Boot reconcile: pay any invite backlog for every inviter with a seed or a
+  // live join. Best-effort per inviter.
+  async reconcileAll(guildId: string): Promise<void> {
+    const seedInviters = await db
+      .select({ inviterId: inviteSeed.inviterId })
+      .from(inviteSeed)
+      .where(eq(inviteSeed.guildId, guildId));
+    const joinInviters = await db
+      .selectDistinct({ inviterId: inviteJoin.inviterId })
+      .from(inviteJoin)
+      .where(eq(inviteJoin.guildId, guildId));
+
+    const inviters = new Set<string>();
+    for (const r of seedInviters) inviters.add(r.inviterId);
+    for (const r of joinInviters) inviters.add(r.inviterId);
+
+    for (const inviterId of inviters) {
+      await InviteService.reconcileInviter(guildId, inviterId).catch((e) =>
+        logger.error("Invite reconcile (boot) failed", {
+          inviter: inviterId,
+          error: String(e),
+        }),
+      );
+    }
   },
 };

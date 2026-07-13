@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { memberRole } from "@/lib/db-schema";
+import { memberRole, role } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { InviteService } from "@/core/services/invites/invite.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
@@ -43,14 +43,17 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   await postWelcome(member);
 
   // Read saved roles before any upsert - upsert would overwrite them from the
-  // empty live cache on rejoin.
-  const savedRoles = await db.query.memberRole
-    .findMany({
-      where: and(
+  // empty live cache on rejoin. Role name comes from the joined role entity.
+  const savedRoles = await db
+    .select({ roleId: memberRole.roleId, name: role.name })
+    .from(memberRole)
+    .innerJoin(role, eq(memberRole.roleId, role.roleId))
+    .where(
+      and(
         eq(memberRole.memberId, member.id),
         eq(memberRole.guildId, member.guild.id),
       ),
-    })
+    )
     .catch(() => []);
 
   // FK parents for member_roles writes.

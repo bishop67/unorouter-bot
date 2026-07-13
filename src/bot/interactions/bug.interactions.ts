@@ -45,6 +45,14 @@ export class BugInteractions {
       });
       return;
     }
+    const existingClaim = await BugReportService.getBugClaim(row.id);
+    if (existingClaim?.status === "paid") {
+      await interaction.reply({
+        content: "This bug report has already been resolved.",
+        flags: [MessageFlags.Ephemeral],
+      });
+      return;
+    }
 
     // Build the recipient picker from everyone who's engaged with this bug.
     // thread.members.fetch() only returns people Discord has flagged as
@@ -181,6 +189,11 @@ export class BugInteractions {
       await interaction.editReply("Bug report already resolved.");
       return;
     }
+    const existingClaim = await BugReportService.getBugClaim(bugId);
+    if (existingClaim?.status === "paid") {
+      await interaction.editReply("Bug report already resolved.");
+      return;
+    }
 
     const quota = dollarsToQuota(parsed.amount);
     try {
@@ -193,11 +206,26 @@ export class BugInteractions {
         grantedByDiscordId: interaction.user.id,
       });
 
+      // Persist the intent first so markApproved has a claim row to flip, and so
+      // the recipient can self-redeem after linking when unlinked. The recipient
+      // may differ from the thread starter (someone else found the bug), so
+      // persist parsed.targetId explicitly.
+      await BugReportService.setPendingReward({
+        bugId,
+        guildId: row.guildId,
+        quota,
+        reason: parsed.reason,
+        grantedBy: interaction.user.id,
+        targetId: parsed.targetId,
+      });
+
       if (result.linked) {
         await BugReportService.markApproved(
           row.forumThreadId,
           interaction.user.id,
           quota,
+          bugId,
+          parsed.targetId,
         );
         await interaction.editReply(
           `Approved and granted **$${parsed.amount}** to <@${parsed.targetId}>. Reason: ${parsed.reason}`,
@@ -206,17 +234,6 @@ export class BugInteractions {
         await thread?.setArchived(true).catch(() => {});
         return;
       }
-
-      // Not linked: stash pending intent + post self-redeem button. The
-      // recipient may differ from the thread starter (someone else found the
-      // bug), so persist parsed.targetId explicitly.
-      await BugReportService.setPendingReward({
-        bugId,
-        quota,
-        reason: parsed.reason,
-        grantedBy: interaction.user.id,
-        targetId: parsed.targetId,
-      });
 
       const thread = interaction.channel as ThreadChannel | null;
       await thread?.send({
@@ -242,20 +259,22 @@ export class BugInteractions {
       await interaction.editReply("Bug report not found.");
       return;
     }
-    if (row.resolvedAt) {
+    const claim = await BugReportService.getBugClaim(bugId);
+    if (claim?.status === "paid") {
       await interaction.editReply("Already redeemed.");
       return;
     }
     if (
-      row.pendingRewardQuota == null ||
-      !row.pendingRewardReason ||
-      !row.pendingRewardGrantedBy ||
-      !row.pendingRewardTargetId
+      claim?.status !== "pending" ||
+      claim.pendingQuota == null ||
+      !claim.pendingReason ||
+      !claim.grantedByMemberId ||
+      !claim.targetMemberId
     ) {
       await interaction.editReply("No pending reward on this report.");
       return;
     }
-    if (interaction.user.id !== row.pendingRewardTargetId) {
+    if (interaction.user.id !== claim.targetMemberId) {
       await interaction.editReply(
         "Only the picked recipient can redeem this reward.",
       );
@@ -264,12 +283,12 @@ export class BugInteractions {
 
     try {
       const result = await GrantService.grantQuota({
-        targetDiscordId: row.pendingRewardTargetId,
-        quota: row.pendingRewardQuota,
-        reason: row.pendingRewardReason,
+        targetDiscordId: claim.targetMemberId,
+        quota: claim.pendingQuota,
+        reason: claim.pendingReason,
         sourceType: "bug",
         sourceId: String(row.id),
-        grantedByDiscordId: row.pendingRewardGrantedBy,
+        grantedByDiscordId: claim.grantedByMemberId,
       });
       if (!result.linked) {
         await interaction.editReply(
@@ -279,8 +298,10 @@ export class BugInteractions {
       }
       await BugReportService.markApproved(
         row.forumThreadId,
-        row.pendingRewardGrantedBy,
-        row.pendingRewardQuota,
+        claim.grantedByMemberId,
+        claim.pendingQuota,
+        bugId,
+        claim.targetMemberId,
       );
       await interaction.editReply("Reward delivered to your balance.");
       const thread = interaction.channel as ThreadChannel | null;
