@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { inviteJoin, inviteSeed, member, rewardClaim } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { MemberDataService } from "@/core/services/members/member-data.service";
 import {
   dollarsToQuota,
   GrantService,
@@ -120,6 +121,11 @@ export const InviteService = {
     if (!hit.inviterId || hit.inviterIsBot || hit.inviterId === member.id) {
       return;
     }
+
+    // invitee_id FKs to members; the join handler upserts the member only AFTER
+    // attribution (to keep the invite-diff first), so ensure the member row
+    // exists here before the FK insert.
+    await MemberDataService.upsertMemberOnly(member);
 
     // Unique (guild, invitee): a rejoin conflicts and returns 0 rows, so we only
     // reconcile on a genuinely new attributed join.

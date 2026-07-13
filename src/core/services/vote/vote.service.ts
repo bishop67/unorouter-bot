@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { rewardGrant, voteRoleHold } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { GrantService, dollarsToQuota } from "@/core/services/grant/grant.service";
+import { MemberDataService } from "@/core/services/members/member-data.service";
 import { VoteSite, VOTE_SITE_LABEL } from "@/types";
 import type { Guild, GuildMember } from "discord.js";
 import { and, eq, gte } from "drizzle-orm";
@@ -132,6 +133,10 @@ export class VoteService {
       }
 
       if (held) continue;
+
+      // vote_role_holds.member_id FKs to members; ensure the member row exists
+      // before the claim (an uncached voter may not be upserted yet).
+      await MemberDataService.upsertMemberOnly(newMember);
 
       // Atomic claim: concurrent events race on the unique (member, site) key,
       // only the insert winner pays.

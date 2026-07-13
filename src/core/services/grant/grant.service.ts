@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { rewardGrant } from "@/lib/db-schema";
+import { member, rewardGrant } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { getUser, grantDiscordQuota } from "@/lib/new-api/openapi";
 import { bot } from "@/main";
@@ -106,6 +106,15 @@ export class GrantService {
     }
 
     const userId = json.data.user_id;
+    // reward_grants.target_member_id FKs to members. The recipient is linked on
+    // the platform but may never have been seen by the bot as a guild member
+    // (e.g. voted via webhook while uncached), so ensure a member row exists.
+    // A real profile fills in on their next guild event.
+    await db
+      .insert(member)
+      .values({ memberId: params.targetDiscordId, username: params.targetDiscordId })
+      .onConflictDoNothing();
+
     await db
       .insert(rewardGrant)
       .values({
