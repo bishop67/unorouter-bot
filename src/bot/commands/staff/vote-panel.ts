@@ -73,7 +73,7 @@ export class VotePanelCommand {
     ].filter(([, url]) => url) as [string, string][];
 
     const description = [
-      `Upvote ${BOT_NAME} on the listing sites below and the reward lands automatically.`,
+      `Upvote ${BOT_NAME} on the listing sites below and the reward lands automatically almost every time.`,
       "",
       `**How it works:**`,
       `- Every **Top.gg** vote drops ${reward} straight to your account`,
@@ -83,6 +83,8 @@ export class VotePanelCommand {
       `- You can vote on each site again every **12 hours**`,
       "",
       `Tap a button to vote.`,
+      "",
+      `⚠️ Once in a while a listing site does not tell us about a vote, so a reward can quietly go missing. Sorry when that happens. There is nothing you need to do; just vote again in the next window and it will land.`,
     ];
 
     if (extraLinks.length) {
