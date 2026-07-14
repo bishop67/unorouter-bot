@@ -228,6 +228,8 @@ export class MessagesService {
 
     if (!member || !message.guild) return;
 
+    if (/moderator-only/i.test(message.channel.name ?? "")) return;
+
     const inviteCodes = [
       ...new Set(MessagesService.extractInviteCodes(message.content)),
     ].slice(0, 5);
