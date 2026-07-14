@@ -6,12 +6,12 @@ Source: `src/core/services/vote/vote.service.ts`. Reward amount is
 
 ## The two delivery mechanisms
 
-| Site | Signal | `ownsRole` | Bot strips role? | Dedupe window |
-| --- | --- | --- | --- | --- |
-| **Top.gg** | Webhook (HMAC-SHA256, `x-topgg-signature`) | n/a | n/a | 1h |
-| **Discords.com** | Role add (`Server Voter`) | `false` | Yes, after reward | 1h |
-| **Discadia** | Role add (`Discadia Voter`) | `false` | Yes, after reward | 1h |
-| **DiscordServers.com** | Role add (`DiscordServers Voter`) via VoteManager.xyz | `true` | No (external bot removes on its 12h cycle) | 11h |
+| Site                   | Signal                                                | `ownsRole` | Bot strips role?                           | Dedupe window |
+| ---------------------- | ----------------------------------------------------- | ---------- | ------------------------------------------ | ------------- |
+| **Top.gg**             | Webhook (HMAC-SHA256, `x-topgg-signature`)            | n/a        | n/a                                        | 1h            |
+| **Discords.com**       | Role add (`Server Voter`)                             | `false`    | Yes, after reward                          | 1h            |
+| **Discadia**           | Role add (`Discadia Voter`)                           | `false`    | Yes, after reward                          | 1h            |
+| **DiscordServers.com** | Role add (`DiscordServers Voter`) via VoteManager.xyz | `true`     | No (external bot removes on its 12h cycle) | 11h           |
 
 Role names come from env: `DISCORDS_VOTE_ROLE`, `DISCADIA_VOTE_ROLE`,
 `DISCORDSERVERS_VOTE_ROLE`. Blank disables the site.
@@ -34,7 +34,7 @@ Role names come from env: `DISCORDS_VOTE_ROLE`, `DISCADIA_VOTE_ROLE`,
    NEVER against Discord's `oldMember` cache diff (an uncached oldMember after a
    restart reads every held role as just-added -> confirmed double-pay Jul 3).
 4. On not-held -> held: upsert member row (FK), atomically `INSERT ... ON
-   CONFLICT DO NOTHING` a hold (only the insert winner pays), then `reward()`.
+CONFLICT DO NOTHING` a hold (only the insert winner pays), then `reward()`.
 5. `reward()` dedupes on `reward_grants` (`vote/<site>` within the window),
    grants quota, logs `Vote rewarded`.
 6. Role cleanup:
@@ -46,12 +46,22 @@ Role names come from env: `DISCORDS_VOTE_ROLE`, `DISCADIA_VOTE_ROLE`,
 7. On role removed (owner-bot expiry or our strip): the hold is cleared to
    re-arm.
 
-## Boot reconciliation
+## Reconciliation (boot + periodic sweep)
 
-`reconcileRoleHolds(guild)` runs at startup after member-cache warmup: replays
-role transitions missed while the bot was down (role gained -> claim + reward,
-guarded by grant dedupe; role lost -> clear hold), and clears holds for members
-who left the guild so a rejoin + vote still pays.
+`reconcileRoleHolds(guild)` replays role transitions against `vote_role_holds`:
+role gained -> claim + reward (grant dedupe blocks re-pay), role lost -> clear
+hold, and clears holds for members who left the guild so a rejoin + vote still
+pays.
+
+It runs in two places:
+
+- **Boot**, after member-cache warmup (`main.ts`): catches transitions missed
+  while the bot was down.
+- **Periodic sweep** every `VOTE_SWEEP_INTERVAL_MS` (default 10min), via
+  `VoteService.startCron(client)` (`main.ts`, next to the boost cron): catches a
+  role added while the bot missed its live `guildMemberUpdate` mid-session. This
+  is what clears a stuck owned role (Discords/Discadia) and pays the owed vote
+  without waiting for a restart.
 
 ## Known failure modes (why a vote can miss a reward)
 
@@ -60,14 +70,15 @@ who left the guild so a rejoin + vote still pays.
   Discadia) the role is never stripped, so it can sit **uncleared** on the
   member. This is the most common "I voted but didn't get paid" and the "roles
   don't get cleaned up" report - same root cause. Discadia and Discords are the
-  flakiest at actually assigning the role. Reconciliation only catches a stuck
-  role at the next bot restart, not mid-session.
+  flakiest at actually assigning the role. The periodic sweep (above) clears a
+  stuck role and pays the owed vote within `VOTE_SWEEP_INTERVAL_MS` (10min); a
+  restart also catches it via boot reconciliation.
 - **Grant failure**: `grantQuota` throws -> hold released, no pay, retried on
   the next member event. Logged `Vote grant failed`.
 - **Not linked**: voter hasn't linked their Discord to a new-api account ->
   skipped silently, logged `voter not linked`, role still stripped.
 - **Dedupe hit**: a legit re-fire inside the window -> logged `duplicate
-  delivery`, no pay (intended).
+delivery`, no pay (intended).
 
 ## Diagnosing a specific user (SSH, read-only)
 
@@ -86,5 +97,7 @@ ssh ... "docker logs unorouter-bot --since 3h 2>&1 | grep -iE '<site>|$MID|vote'
 
 A missing site row with no `duplicate`/`failed` log line for that user =
 the role event never reached the bot (site or gateway), not a bot bug.
+
 ```
+
 ```

@@ -4,7 +4,7 @@ import { logger } from "@/lib/logger";
 import { GrantService, dollarsToQuota } from "@/core/services/grant/grant.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { VoteSite, VOTE_SITE_LABEL } from "@/types";
-import type { Guild, GuildMember } from "discord.js";
+import type { Client, Guild, GuildMember } from "discord.js";
 import { and, eq, gte } from "drizzle-orm";
 
 // Role-based vote sites: a role is added on upvote, no webhook. Maps the configured
@@ -35,6 +35,14 @@ const DEDUPE_MS: Record<VoteSite, number> = {
 };
 
 const VOTE_GRANT_DOLLARS = parseFloat(process.env.VOTE_GRANT_DOLLARS || "0.10");
+
+// Mid-session stuck-role sweep cadence. Default 10min: frequent enough that a
+// missed vote role clears fast, cheap enough (in-memory role check per member,
+// DB hit only on a hold/role mismatch).
+const SWEEP_INTERVAL_MS = parseInt(
+  process.env.VOTE_SWEEP_INTERVAL_MS || "600000",
+  10,
+);
 
 export type VoteRewardResult =
   | { ok: true; rewarded: boolean; linked: boolean }
@@ -223,5 +231,26 @@ export class VoteService {
         .where(eq(voteRoleHold.id, hold.id))
         .catch(() => {});
     }
+  }
+
+  /**
+   * Periodic sweep. Boot reconciliation only runs at startup, so a role added
+   * while the bot missed its guildMemberUpdate (listing-site flakiness or a
+   * dropped gateway event) sits uncleared on the member mid-session: the reward
+   * never fired and, for owned roles, the strip that clears it never ran. This
+   * re-runs reconcileRoleHolds on an interval so an owed vote is paid (grant
+   * dedupe blocks re-pay) and a stuck owned role is stripped without waiting for
+   * the next restart.
+   */
+  static startCron(client: Client): void {
+    const tick = async () => {
+      for (const guild of client.guilds.cache.values()) {
+        await this.reconcileRoleHolds(guild).catch((e) =>
+          logger.error("Vote hold sweep failed", { guild: guild.id, error: String(e) }),
+        );
+      }
+    };
+    setInterval(() => void tick(), SWEEP_INTERVAL_MS);
+    logger.info("Vote role sweep started", { intervalMs: SWEEP_INTERVAL_MS });
   }
 }

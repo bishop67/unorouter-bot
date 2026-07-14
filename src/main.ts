@@ -51,6 +51,7 @@ bot.guards = [ErrorBoundary];
 bot.once("clientReady", async () => {
   await bot.initApplicationCommands();
   BoostService.startCron();
+  VoteService.startCron(bot);
   // Seed guilds first: child writes (member_roles, member_messages) FK to it.
   await Promise.all(
     bot.guilds.cache.map((g) => MemberDataService.upsertGuild(g)),
