@@ -33,6 +33,8 @@ jobs:
           echo STAFF_ROLES="${{ secrets.STAFF_ROLES }}" >> .env
           echo STATUS_ROLES="${{ secrets.STATUS_ROLES }}" >> .env
           echo LEVEL_ROLES="${{ secrets.LEVEL_ROLES }}" >> .env
+          echo ADULT_AGE_ROLES="${{ secrets.ADULT_AGE_ROLES }}" >> .env
+          echo ADULT_ROLE="${{ secrets.ADULT_ROLE }}" >> .env
 
           echo TICKET_CATEGORY="${{ secrets.TICKET_CATEGORY }}" >> .env
           echo TICKET_LOG_CHANNEL="${{ secrets.TICKET_LOG_CHANNEL }}" >> .env
