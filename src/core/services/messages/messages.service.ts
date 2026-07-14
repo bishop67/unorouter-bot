@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { channel, memberGuild, memberMessages } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { LevelRewardService } from "@/core/services/levels/level-reward.service";
+import { isAdmin } from "@/core/utils/command.utils";
 import { SHOULD_USER_LEVEL_UP } from "@/shared/config/features";
 import { LEVEL_LIST, levelUpMessage } from "@/shared/config/levels";
 import { JAIL } from "@/shared/config/roles";
@@ -228,7 +229,8 @@ export class MessagesService {
 
     if (!member || !message.guild) return;
 
-    if (/moderator-only/i.test(message.channel.name ?? "")) return;
+    // Admins post invites anywhere; the rule only polices non-admin members.
+    if (isAdmin(member)) return;
 
     const inviteCodes = [
       ...new Set(MessagesService.extractInviteCodes(message.content)),

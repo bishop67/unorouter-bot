@@ -3,6 +3,14 @@
 export const STAFF_ROLES =
   process.env.STAFF_ROLES?.split(",").map((s) => s.trim()) || [];
 
+// Admin-tier roles (subset of staff). Defaults to the first staff role.
+export const ADMIN_ROLES = process.env.ADMIN_ROLES?.split(",").map((s) =>
+  s.trim(),
+) ||
+  (process.env.STAFF_ROLES?.split(",").map((s) => s.trim())?.[0]
+    ? [process.env.STAFF_ROLES.split(",")[0]!.trim()]
+    : []);
+
 export const STATUS_ROLES =
   process.env.STATUS_ROLES?.split(",").map((s) => s.trim()) || [];
 

@@ -1,4 +1,4 @@
-import { STAFF_ROLES } from "@/shared/config/roles";
+import { ADMIN_ROLES, STAFF_ROLES } from "@/shared/config/roles";
 import { GuildMember, type TextChannel } from "discord.js";
 import type {
   CommandInteraction,
@@ -98,4 +98,10 @@ export function isStaff(member: GuildMember | null | undefined): boolean {
   if (!member) return false;
   if (STAFF_ROLES.length === 0) return false;
   return member.roles.cache.some((role) => STAFF_ROLES.includes(role.name));
+}
+
+export function isAdmin(member: GuildMember | null | undefined): boolean {
+  if (!member) return false;
+  if (ADMIN_ROLES.length === 0) return false;
+  return member.roles.cache.some((role) => ADMIN_ROLES.includes(role.name));
 }
