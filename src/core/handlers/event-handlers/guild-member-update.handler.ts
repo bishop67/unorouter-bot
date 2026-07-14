@@ -68,4 +68,6 @@ async function syncRoles(
     guildRoles,
     memberDbRoles,
   });
+
+  await RolesService.reconcileAdultRole(newMember);
 }

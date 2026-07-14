@@ -3,6 +3,7 @@ import { memberRole, role } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { InviteService } from "@/core/services/invites/invite.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
+import { RolesService } from "@/core/services/roles/roles.service";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import type { GuildMember } from "discord.js";
@@ -88,14 +89,16 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   );
   if (verifiedRole?.editable) restoreIds.add(verifiedRole.id);
 
-  if (restoreIds.size === 0) return;
+  if (restoreIds.size > 0) {
+    await member.roles
+      .add([...restoreIds], "Restore roles + auto-verify on join")
+      .catch((e) =>
+        logger.error("Role restore on join failed", {
+          member: member.id,
+          error: String(e),
+        }),
+      );
+  }
 
-  await member.roles
-    .add([...restoreIds], "Restore roles + auto-verify on join")
-    .catch((e) =>
-      logger.error("Role restore on join failed", {
-        member: member.id,
-        error: String(e),
-      }),
-    );
+  await RolesService.reconcileAdultRole(member);
 }

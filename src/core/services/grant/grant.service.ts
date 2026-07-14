@@ -6,6 +6,7 @@ import { bot } from "@/main";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { grantRewardEmbed } from "@/core/embeds/grant-reward.embed";
 import { DmPreferenceService } from "@/core/services/notifications/dm-preference.service";
+import { RolesService } from "@/core/services/roles/roles.service";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import {
   GRANT_SOURCE_LABEL,
@@ -257,13 +258,17 @@ export class GrantService {
       (r) => r.name === CONNECTED_ROLE
     );
     if (!role || !role.editable) return;
-    if (member.roles.cache.has(role.id)) return;
+    if (member.roles.cache.has(role.id)) {
+      await RolesService.reconcileAdultRole(member);
+      return;
+    }
     await member.roles.add(role, `Discord linked to ${BOT_NAME}`).catch((e) =>
       logger.error("Connected role add failed", {
         member: member.id,
         error: String(e)
       })
     );
+    await RolesService.reconcileAdultRole(member);
   }
 
   private static async announce(

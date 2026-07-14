@@ -2,7 +2,14 @@ import { db } from "@/lib/db";
 import { memberRole, memberMessages, role } from "@/lib/db-schema";
 import { and, count, eq, ne, sql } from "drizzle-orm";
 import { LEVEL_LIST } from "@/shared/config/levels";
-import { JAIL, LEVEL_ROLES, STATUS_ROLES } from "@/shared/config/roles";
+import {
+  ADULT_AGE_ROLES,
+  ADULT_ROLE,
+  CONNECTED_ROLE,
+  JAIL,
+  LEVEL_ROLES,
+  STATUS_ROLES,
+} from "@/shared/config/roles";
 import type { UpdateDbRolesArgs } from "@/types";
 import { Guild, Role } from "discord.js";
 
@@ -183,6 +190,33 @@ export class RolesService {
       if (memberMessagesCount < levelRole.count && role) {
         args.newMember.roles.remove(role);
       }
+    }
+  }
+
+  // Grants ADULT_ROLE only to members holding both an adult age role and the
+  // connected role; strips it when either is missing. Restricted channel access
+  // is an AND of the two, which Discord overwrites (OR-only) cannot express.
+  static async reconcileAdultRole(member: GuildMember): Promise<void> {
+    if (member.user.bot) return;
+    const adultRole = member.guild.roles.cache.find(
+      (r) => r.name === ADULT_ROLE,
+    );
+    if (!adultRole || !adultRole.editable) return;
+
+    const names = new Set(member.roles.cache.map((r) => r.name));
+    const isAdult = ADULT_AGE_ROLES.some((n) => names.has(n));
+    const isConnected = CONNECTED_ROLE !== "" && names.has(CONNECTED_ROLE);
+    const shouldHave = isAdult && isConnected;
+    const hasRole = member.roles.cache.has(adultRole.id);
+
+    if (shouldHave && !hasRole) {
+      await member.roles
+        .add(adultRole, "Adult age role + connected")
+        .catch(() => {});
+    } else if (!shouldHave && hasRole) {
+      await member.roles
+        .remove(adultRole, "Lost adult age role or connected")
+        .catch(() => {});
     }
   }
 
