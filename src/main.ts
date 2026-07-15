@@ -9,7 +9,7 @@ import { WEBSITE_URL } from "@/shared/config/branding";
 import { ConfigValidator } from "@/shared/config/validator";
 import { ErrorBoundary } from "@/bot/guards/error-boundary.guard";
 import { startWebhookServer } from "@/elysia";
-import { ActivityType, GatewayIntentBits, Partials } from "discord.js";
+import { ActivityType, GatewayIntentBits, type Guild, Partials } from "discord.js";
 import { Client } from "discordx";
 import "./bot";
 
@@ -47,54 +47,44 @@ export const bot = new Client({
 // so this is the idiomatic boundary.
 bot.guards = [ErrorBoundary];
 
+// Per-guild boot sequence. Order matters: the guild row is the FK parent for
+// member/role writes, and vote reconcile + member-count both need a warm member
+// cache. Invite snapshot and cache warmup are independent, so they run together.
+// Heavy backfills (level rewards, invite backlog) are NOT here - run `!verify`.
+async function bootGuild(g: Guild): Promise<void> {
+  await MemberDataService.upsertGuild(g);
+  await Promise.all([
+    InviteService.primeGuild(g),
+    g.members.fetch().catch((e) =>
+      logger.error("Member cache warmup failed", {
+        guild: g.id,
+        error: String(e),
+      }),
+    ),
+  ]);
+  await VoteService.reconcileRoleHolds(g).catch((e) =>
+    logger.error("Vote hold reconcile failed", {
+      guild: g.id,
+      error: String(e),
+    }),
+  );
+  void MemberDataService.updateMemberCount(g);
+}
+
 bot.once("clientReady", async () => {
   await bot.initApplicationCommands();
   BoostService.startCron();
   VoteService.startCron(bot);
-  // Seed guilds first: child writes (member_roles, member_messages) FK to it.
-  await Promise.all(
-    bot.guilds.cache.map((g) => MemberDataService.upsertGuild(g)),
-  );
-  // Snapshot invite uses so joins can be attributed to inviters by diff.
-  await Promise.all(
-    bot.guilds.cache.map((g) => InviteService.primeGuild(g)),
-  );
-  // Warm member cache: guildMemberUpdate for an uncached member emits a
-  // partial oldMember with an empty role cache, breaking syncRoles diffs.
-  // Lazy caching leaves members cold after every deploy restart.
-  await Promise.all(
-    bot.guilds.cache.map((g) =>
-      g.members
-        .fetch()
-        .catch((e) =>
-          logger.error("Member cache warmup failed", {
-            guild: g.id,
-            error: String(e),
-          }),
-        ),
-    ),
-  );
-  // Replay vote-role transitions missed while down (needs the warm cache).
-  await Promise.all(
-    bot.guilds.cache.map((g) =>
-      VoteService.reconcileRoleHolds(g).catch((e) =>
-        logger.error("Vote hold reconcile failed", {
-          guild: g.id,
-          error: String(e),
-        }),
+  await Promise.all(bot.guilds.cache.map(bootGuild));
+  // Keep member-count channels fresh even if a join/leave rename was rate-limited
+  // (Discord caps channel renames at 2/10min).
+  setInterval(
+    () =>
+      bot.guilds.cache.forEach(
+        (g) => void MemberDataService.updateMemberCount(g),
       ),
-    ),
+    60 * 60 * 1000,
   );
-  // Member-count channels: refresh on boot (with warm cache) + hourly, so the
-  // counter self-corrects even if a join/leave rename was rate-limited or the
-  // channel changed. Discord caps renames at 2/10min per channel.
-  const refreshMemberCounts = () =>
-    bot.guilds.cache.forEach((g) => void MemberDataService.updateMemberCount(g));
-  refreshMemberCounts();
-  setInterval(refreshMemberCounts, 60 * 60 * 1000);
-  // Level-reward + invite-backlog reconcile are NOT run on boot (they loop every
-  // member/guild). Run them on demand via the staff `!verify` command, which
-  // does the full member sync + both backfills.
   startWebhookServer();
   logger.info("Bot started", { clientId: bot.user?.id });
 });
