@@ -7,6 +7,7 @@ export function userLevelEmbed(params: {
   displayName: string;
   avatarUrl: string | null;
   messageCount: number;
+  inviteCount: number;
   currentRole: string | null;
   nextRole: string | null;
   currentThreshold: number;
@@ -17,6 +18,7 @@ export function userLevelEmbed(params: {
   const lines = [
     `**Level:** ${params.currentRole ?? "No level yet"}`,
     `**Messages:** \`${fmt(params.messageCount)}\``,
+    `**Invited:** \`${fmt(params.inviteCount)}\``,
   ];
 
   if (params.nextRole && params.nextThreshold !== null) {

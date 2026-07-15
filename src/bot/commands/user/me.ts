@@ -1,7 +1,7 @@
 import { userLevelEmbed } from "@/core/embeds/user-level.embed";
 import { safeDeferReply, safeEditReply } from "@/core/utils/command.utils";
 import { db } from "@/lib/db";
-import { memberMessages } from "@/lib/db-schema";
+import { inviteJoin, inviteSeed, memberMessages } from "@/lib/db-schema";
 import { LEVEL_LIST } from "@/shared/config/levels";
 import {
   ApplicationCommandOptionType,
@@ -32,6 +32,28 @@ async function replyWithLevelStats(
     );
   const messageCount = row?.count ?? 0;
 
+  const [[seedRow], [joinRow]] = await Promise.all([
+    db
+      .select({ uses: inviteSeed.uses })
+      .from(inviteSeed)
+      .where(
+        and(
+          eq(inviteSeed.guildId, guild.id),
+          eq(inviteSeed.inviterId, target.id),
+        ),
+      ),
+    db
+      .select({ count: count() })
+      .from(inviteJoin)
+      .where(
+        and(
+          eq(inviteJoin.guildId, guild.id),
+          eq(inviteJoin.inviterId, target.id),
+        ),
+      ),
+  ]);
+  const inviteCount = (seedRow?.uses ?? 0) + (joinRow?.count ?? 0);
+
   const roleMention = (name: string) =>
     guild.roles.cache.find((r) => r.name === name)?.toString() ?? `\`${name}\``;
 
@@ -47,6 +69,7 @@ async function replyWithLevelStats(
         displayName: member?.displayName ?? target.displayName,
         avatarUrl: (member ?? target).displayAvatarURL(),
         messageCount,
+        inviteCount,
         currentRole: current ? roleMention(current.role) : null,
         nextRole: next ? roleMention(next.role) : null,
         currentThreshold: current?.count ?? 0,
