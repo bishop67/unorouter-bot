@@ -80,6 +80,7 @@ export class GrantService {
     sourceType: GrantSourceType;
     sourceId?: string | null;
     grantedByDiscordId: string;
+    announceInviteeId?: string | null;
   }): Promise<GrantResult> {
     if (!this.isConfigured()) {
       logger.warn("Grant skipped: NEW_API_URL / NEW_API_ADMIN_TOKEN missing");
@@ -136,7 +137,8 @@ export class GrantService {
       params.quota,
       params.reason,
       params.sourceType,
-      userId
+      userId,
+      params.announceInviteeId
     );
 
     await this.dmReward(
@@ -276,7 +278,8 @@ export class GrantService {
     quota: number,
     reason: string,
     sourceType: GrantSourceType,
-    userId?: number | null
+    userId?: number | null,
+    inviteeDiscordId?: string | null
   ): Promise<void> {
     const guild = bot.guilds.cache.first();
     if (!guild) return;
@@ -288,6 +291,9 @@ export class GrantService {
       : `$${dollars.toFixed(2)}`;
     const tag = GRANT_SOURCE_LABEL[sourceType] ?? sourceType;
     const who = await this.formatUser(guild, targetDiscordId);
+    const invitee = inviteeDiscordId
+      ? `: ${await this.formatUser(guild, inviteeDiscordId)}`
+      : "";
     const balance = await this.quotaToBalanceDollars(userId);
     const balanceLabel =
       balance == null
@@ -295,7 +301,7 @@ export class GrantService {
         : ` (new balance **$${balance.toFixed(2)}**)`;
     await channel
       .send({
-        content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to ${who} - ${reason}${balanceLabel}`,
+        content: `\`[${tag}]\` Granted **${dollarLabel}** (${quota} quota) to ${who} - ${reason}${invitee}${balanceLabel}`,
         allowedMentions: { users: [], roles: [] }
       })
       .catch((e) =>

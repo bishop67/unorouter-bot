@@ -142,7 +142,7 @@ export const InviteService = {
 
     if (!inserted.length) return;
 
-    await InviteService.reconcileInviter(guild.id, hit.inviterId).catch((e) =>
+    await InviteService.reconcileInviter(guild.id, hit.inviterId, member.id).catch((e) =>
       logger.error("Invite reconcile failed", {
         inviter: hit.inviterId,
         invitee: member.id,
@@ -156,7 +156,11 @@ export const InviteService = {
   // ledger. Idempotent + backtracking: re-running only pays a newly-earned
   // invite, never re-pays, and back-pays the historical seed baseline once. The
   // per-inviter reward_claims row (source='invite', ref=inviterId) is the ledger.
-  async reconcileInviter(guildId: string, inviterId: string): Promise<void> {
+  async reconcileInviter(
+    guildId: string,
+    inviterId: string,
+    inviteeId?: string,
+  ): Promise<void> {
     const quotaPerInvite = dollarsToQuota(INVITE_GRANT_DOLLARS);
     if (quotaPerInvite <= 0) return;
 
@@ -250,6 +254,7 @@ export const InviteService = {
       sourceType: "invite",
       sourceId: inviterId,
       grantedByDiscordId: "system",
+      announceInviteeId: owed === 1 ? inviteeId : null,
     }).catch((e) => {
       logger.error("Invite reward grant failed", {
         inviter: inviterId,
