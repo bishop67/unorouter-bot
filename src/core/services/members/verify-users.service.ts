@@ -1,3 +1,5 @@
+import { InviteService } from "@/core/services/invites/invite.service";
+import { LevelRewardService } from "@/core/services/levels/level-reward.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { logger } from "@/lib/logger";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
@@ -57,6 +59,9 @@ export class VerifyAllUsersService {
             await m.roles.add(verifiedRole, "Bulk verify");
             verified++;
           }
+
+          // Backfill any earned-but-unpaid level reward (idempotent).
+          void LevelRewardService.reconcileMember(m);
         } catch (e) {
           failed++;
           logger.error("Bulk verify failed for member", {
@@ -73,6 +78,14 @@ export class VerifyAllUsersService {
             .catch(() => {});
         }
       }
+
+      // Invite backlog: seed baseline + reattribute live joins for the guild.
+      await InviteService.reconcileAll(guild.id).catch((e) =>
+        logger.error("Invite backlog reconcile failed", {
+          guild: guild.id,
+          error: String(e),
+        }),
+      );
 
       await progress
         .edit(

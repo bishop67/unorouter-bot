@@ -7,7 +7,7 @@ import { Discord, SimpleCommand } from "discordx";
 @Discord()
 export class VerifyUsers {
   @SimpleCommand({
-    aliases: ["verify-user", "verify-users", "verify-all"],
+    aliases: ["verify", "verify-user", "verify-users", "verify-all"],
     prefix: "!",
   })
   async verifyUsers(command: SimpleCommandMessage) {

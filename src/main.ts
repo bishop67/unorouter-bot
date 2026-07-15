@@ -3,7 +3,6 @@ import "@dotenvx/dotenvx/config";
 import { logger } from "@/lib/logger";
 import { BoostService } from "@/core/services/boost/boost.service";
 import { InviteService } from "@/core/services/invites/invite.service";
-import { LevelRewardService } from "@/core/services/levels/level-reward.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { VoteService } from "@/core/services/vote/vote.service";
 import { WEBSITE_URL } from "@/shared/config/branding";
@@ -93,19 +92,9 @@ bot.once("clientReady", async () => {
     bot.guilds.cache.forEach((g) => void MemberDataService.updateMemberCount(g));
   refreshMemberCounts();
   setInterval(refreshMemberCounts, 60 * 60 * 1000);
-  // Reconcile level rewards against message counts: pays any earned-but-unpaid
-  // tier once (backfill), idempotent via reward_claims. Detached; the message
-  // path reconciles too.
-  for (const g of bot.guilds.cache.values()) {
-    for (const m of g.members.cache.values()) {
-      if (m.user.bot) continue;
-      void LevelRewardService.reconcileMember(m);
-    }
-  }
-  // Reconcile the invite backlog per guild (seed baseline + live joins).
-  for (const g of bot.guilds.cache.values()) {
-    void InviteService.reconcileAll(g.id);
-  }
+  // Level-reward + invite-backlog reconcile are NOT run on boot (they loop every
+  // member/guild). Run them on demand via the staff `!verify` command, which
+  // does the full member sync + both backfills.
   startWebhookServer();
   logger.info("Bot started", { clientId: bot.user?.id });
 });
