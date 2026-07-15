@@ -13,6 +13,7 @@ import "./events/thread-delete";
 
 // Commands - User
 import "./commands/user/me";
+import "./commands/user/members";
 import "./commands/user/notifications";
 import "./commands/user/top";
 

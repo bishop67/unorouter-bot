@@ -3,8 +3,31 @@ import { guild, member, memberGuild, memberRole, role } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { MEMBERS_COUNT_CHANNELS } from "@/shared/config/features";
 import { EVERYONE } from "@/shared/config/roles";
+import {
+  generateChart,
+  type ChartDataPoint,
+} from "@/shared/utils/chart.utils";
 import { and, eq, sql } from "drizzle-orm";
+import dayjs from "dayjs";
 import type { Guild, GuildMember, User } from "discord.js";
+
+export type MemberFlowStats = {
+  buffer: Buffer;
+  fileName: string;
+  memberCount: number;
+  botCount: number;
+  thirtyDaysCount: number;
+  sevenDaysCount: number;
+  oneDayCount: number;
+  lookback: number;
+};
+
+function daysArray(start: Date, end: Date): Date[] {
+  const out: Date[] = [];
+  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1))
+    out.push(new Date(d));
+  return out;
+}
 
 // Slim port of coding-global's MemberDataService for our smaller schema. Upserts
 // `members`, `member_guilds`, and per-member `member_roles` for the current
@@ -144,6 +167,63 @@ export class MemberDataService {
           }),
         );
     }
+  }
+
+  // Builds the cumulative member-growth series from live join dates and a
+  // QuickChart-rendered PNG, plus human/bot counts and 30d/7d/24h memberflow.
+  // Uses Discord's live joinedAt (not DB history) so it works standalone.
+  static async memberFlowStats(g: Guild): Promise<MemberFlowStats | null> {
+    let members;
+    try {
+      members = await g.members.fetch();
+    } catch {
+      members = g.members.cache;
+    }
+
+    let memberCount = 0;
+    let botCount = 0;
+    for (const m of members.values()) {
+      if (m.user.bot) botCount++;
+      else memberCount++;
+    }
+
+    const dates = members
+      .filter((m) => !m.user.bot)
+      .map((m) => m.joinedAt ?? new Date())
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (!dates[0]) return null;
+
+    const days = daysArray(dates[0], dayjs().add(1, "day").toDate());
+    const data: ChartDataPoint[] = [];
+    let ptr = 0;
+    for (const day of days) {
+      const cur = dayjs(day);
+      while (ptr < dates.length && dayjs(dates[ptr]) <= cur) ptr++;
+      data.push({ x: cur.toDate(), y: ptr });
+    }
+
+    const last = data[data.length - 1]?.y ?? 0;
+    const thirtyDaysCount =
+      data.length > 31 ? last - data[data.length - 30]!.y : last;
+    const sevenDaysCount =
+      data.length > 8 ? last - data[data.length - 7]!.y : last;
+    const oneDayCount =
+      data.length > 3 ? last - data[data.length - 2]!.y : last;
+
+    const lookback = 9999;
+    const slice = data.length - 2 < lookback ? 0 : -lookback;
+    const buffer = await generateChart(data.slice(slice));
+
+    return {
+      buffer,
+      fileName: `${g.id}.png`,
+      memberCount,
+      botCount,
+      thirtyDaysCount,
+      sevenDaysCount,
+      oneDayCount,
+      lookback,
+    };
   }
 }
 
