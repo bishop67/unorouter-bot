@@ -73,25 +73,17 @@ export class VotePanelCommand {
     ].filter(([, url]) => url) as [string, string][];
 
     const description = [
-      `Upvote ${BOT_NAME} on the listing sites below and the reward lands automatically almost every time.`,
+      `Upvote ${BOT_NAME} below and ${reward} lands automatically.`,
+      `Each button pays every **12 hours**.`,
       "",
-      `**How it works:**`,
-      `- Every **Top.gg** vote drops ${reward} straight to your account`,
-      `- Every **Discords.com** vote drops ${reward} too`,
-      `- Every **Discadia** vote drops ${reward} as well`,
-      `- Every **DiscordServers.com** vote drops ${reward} too`,
-      `- You can vote on each site again every **12 hours**`,
-      "",
-      `Tap a button to vote.`,
-      "",
-      `⚠️ Once in a while a listing site does not tell us about a vote, so a reward can quietly go missing. Sorry when that happens. There is nothing you need to do; just vote again in the next window and it will land.`,
+      `⚠️ Listing sites go down or skip a vote now and then, so a reward can miss. No action needed, just vote again next window and it lands.`,
     ];
 
     if (extraLinks.length) {
       description.push(
         "",
-        `We are also listed here. These do not pay balance, but an upvote or bump helps us climb the rankings so more people find us:`,
-        ...extraLinks.map(([name, url]) => `- [${name}](${url})`),
+        `Also listed here (no balance, but upvotes/bumps help us rank):`,
+        extraLinks.map(([name, url]) => `[${name}](${url})`).join("  |  "),
       );
     }
 
