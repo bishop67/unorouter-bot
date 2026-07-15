@@ -86,6 +86,13 @@ bot.once("clientReady", async () => {
       ),
     ),
   );
+  // Member-count channels: refresh on boot (with warm cache) + hourly, so the
+  // counter self-corrects even if a join/leave rename was rate-limited or the
+  // channel changed. Discord caps renames at 2/10min per channel.
+  const refreshMemberCounts = () =>
+    bot.guilds.cache.forEach((g) => void MemberDataService.updateMemberCount(g));
+  refreshMemberCounts();
+  setInterval(refreshMemberCounts, 60 * 60 * 1000);
   // Reconcile level rewards against message counts: pays any earned-but-unpaid
   // tier once (backfill), idempotent via reward_claims. Detached; the message
   // path reconciles too.
