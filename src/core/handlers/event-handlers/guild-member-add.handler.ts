@@ -61,6 +61,8 @@ export async function handleGuildMemberAdd(member: GuildMember): Promise<void> {
   await MemberDataService.upsertGuild(member.guild);
   await MemberDataService.upsertMemberOnly(member);
 
+  void MemberDataService.updateMemberCount(member.guild);
+
   const wasJailed = savedRoles.some((r) => r.name === JAIL);
 
   if (wasJailed) {

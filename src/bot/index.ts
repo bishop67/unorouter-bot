@@ -2,6 +2,7 @@
 import "./events/ai-chat";
 import "./events/channel-delete";
 import "./events/guild-member-add";
+import "./events/guild-member-remove";
 import "./events/guild-member-update";
 import "./events/invite-create";
 import "./events/invite-delete";

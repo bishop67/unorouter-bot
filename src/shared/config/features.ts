@@ -11,3 +11,10 @@ export const PURGE_BOT_USER_IDS = new Set(
     .map((s) => s.trim())
     .filter(Boolean) ?? [],
 );
+
+// Locked voice channels renamed to show the live human member count. Match by
+// NAME substring (e.g. "members:" -> renamed "members: 428"). Comma-separated.
+export const MEMBERS_COUNT_CHANNELS =
+  process.env.MEMBERS_COUNT_CHANNELS?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean) ?? [];

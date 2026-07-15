@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { guild, member, memberGuild, memberRole, role } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { MEMBERS_COUNT_CHANNELS } from "@/shared/config/features";
 import { EVERYONE } from "@/shared/config/roles";
 import { and, eq, sql } from "drizzle-orm";
 import type { Guild, GuildMember, User } from "discord.js";
@@ -116,6 +117,32 @@ export class MemberDataService {
         username: gm.user.username,
         error: String(err),
       });
+    }
+  }
+
+  // Renames each MEMBERS_COUNT_CHANNELS channel to "<name> <non-bot count>", so a
+  // locked voice channel like "members:" shows the live human count. Discord caps
+  // channel renames at 2/10min per channel - joins/leaves beyond that are dropped
+  // silently until the window frees, which is fine for a rough live counter.
+  static async updateMemberCount(g: Guild): Promise<void> {
+    if (MEMBERS_COUNT_CHANNELS.length === 0) return;
+    try {
+      await g.members.fetch();
+    } catch {
+      // rate limited - fall back to cache
+    }
+    const count = g.members.cache.filter((m) => !m.user.bot).size;
+    for (const channelName of MEMBERS_COUNT_CHANNELS) {
+      const channel = g.channels.cache.find((c) => c.name.includes(channelName));
+      if (!channel) continue;
+      await channel
+        .setName(`${channelName} ${count}`)
+        .catch((e) =>
+          logger.error("Member-count channel rename failed", {
+            channel: channelName,
+            error: String(e),
+          }),
+        );
     }
   }
 }
