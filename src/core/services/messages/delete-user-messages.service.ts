@@ -1,5 +1,6 @@
 import { userJailedEmbed } from "@/core/embeds/user-jailed.embed";
 import { RolesService } from "@/core/services/roles/roles.service";
+import { TicketService } from "@/core/services/tickets/ticket.service";
 import { db } from "@/lib/db";
 import { member, memberGuild, memberRole, role } from "@/lib/db-schema";
 import { and, eq, sql } from "drizzle-orm";
@@ -130,6 +131,12 @@ export class DeleteUserMessagesService {
     if (!alreadyJailed) {
       await this.sendJailNotification(params);
     }
+
+    // Close any support tickets the jailed member had open so they can't keep
+    // spamming through them (and the channels don't linger). Best-effort.
+    await TicketService.closeAllForOpener(params.guild, params.memberId).catch(
+      error,
+    );
   }
 
   /**

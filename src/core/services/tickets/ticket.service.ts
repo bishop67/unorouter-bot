@@ -330,6 +330,46 @@ export class TicketService {
     });
   }
 
+  /**
+   * Close every open ticket a member opened. Used when a member is jailed so
+   * their support channels don't linger. Each ticket is closed via close()
+   * (transcript + log + channel delete); a ticket whose channel is already gone
+   * is marked closed in the DB so it can't be reopened as a duplicate.
+   */
+  static async closeAllForOpener(
+    guild: Guild,
+    openerId: string,
+  ): Promise<number> {
+    const rows = await db.query.ticket.findMany({
+      where: and(
+        eq(ticket.openerId, openerId),
+        eq(ticket.status, TicketStatus.Open),
+      ),
+    });
+
+    let closed = 0;
+    for (const row of rows) {
+      const channel = guild.channels.cache.get(row.channelId) as
+        | GuildTextBasedChannel
+        | undefined;
+      if (channel) {
+        if (await this.close(channel)) closed++;
+        continue;
+      }
+      // Channel is gone but the row is still open: settle the DB so it isn't
+      // treated as an active ticket.
+      await db
+        .update(ticket)
+        .set({
+          status: TicketStatus.Closed,
+          closedAt: new Date().toISOString(),
+        })
+        .where(eq(ticket.id, row.id));
+      closed++;
+    }
+    return closed;
+  }
+
   private static async buildTranscript(
     ticketId: number,
     channelName: string,
