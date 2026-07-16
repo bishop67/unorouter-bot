@@ -91,14 +91,14 @@ export class GrantCommand {
       if (!result.linked) {
         await safeEditReply(
           interaction,
-          `${user.tag} has not linked their Discord. ${GrantService.linkPrompt()}`,
+          `<@${user.id}> has not linked their Discord. ${GrantService.linkPrompt()}`,
         );
         return;
       }
 
       await safeEditReply(
         interaction,
-        `Granted **$${amount}** to ${user.tag}. Reason: ${reason}`,
+        `Granted **$${amount}** to <@${user.id}>. Reason: ${reason}`,
       );
     } catch (err) {
       logger.error("/grant failed", { error: String(err) });
