@@ -97,6 +97,7 @@ export const GrantSource = {
   Vote: "vote",
   Invite: "invite",
   Level: "level",
+  Transfer: "transfer",
 } as const;
 export type GrantSourceType = (typeof GrantSource)[keyof typeof GrantSource];
 
@@ -110,6 +111,7 @@ export const GRANT_SOURCE_LABEL: Record<GrantSourceType, string> = {
   vote: "vote reward",
   invite: "invite reward",
   level: "level reward",
+  transfer: "balance transfer",
 };
 
 // Vote sources, used as grantLog.sourceId. Top.gg sends a real webhook; Discords.com
@@ -137,6 +139,20 @@ export interface GrantResult {
   userId?: number;
   quota: number;
 }
+
+export type TransferResult =
+  | { ok: true; fromBalanceQuota: number }
+  | {
+      ok: false;
+      reason:
+        | "not_configured"
+        | "invalid_amount"
+        | "self"
+        | "sender_not_linked"
+        | "receiver_not_linked"
+        | "insufficient";
+      fromBalanceQuota?: number;
+    };
 
 // Reward DMs a member can opt out of, per event. Recurring/noisy sources only;
 // one-time grants (connect, bug, ticket, manual) always DM so they're not missed.

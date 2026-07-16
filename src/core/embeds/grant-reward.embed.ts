@@ -16,6 +16,7 @@ const COPY: Record<GrantSourceType, RewardCopy> = {
   level: { title: "Level Up Reward!", intro: "Thanks for staying active!" },
   ticket: { title: "Reward Granted!", intro: "A reward was added from your ticket." },
   command: { title: "Reward Granted!", intro: "A reward was added to your account." },
+  transfer: { title: "Balance Received!", intro: "Another member sent you some balance." },
 };
 
 export function grantRewardEmbed(params: {

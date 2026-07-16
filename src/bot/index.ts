@@ -22,6 +22,7 @@ import "./commands/staff/delete-user-messages";
 import "./commands/staff/verify-panel";
 import "./commands/staff/vote-panel";
 import "./commands/staff/grant";
+import "./commands/staff/transfer";
 import "./commands/staff/ticket-panel";
 import "./commands/staff/verify-users";
 

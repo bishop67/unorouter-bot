@@ -1,4 +1,9 @@
-import { ADMIN_ROLES, STAFF_ROLES } from "@/shared/config/roles";
+import {
+  ADMIN_ROLES,
+  CONNECTED_ROLE,
+  STAFF_ROLES,
+  TRANSFER_ROLES,
+} from "@/shared/config/roles";
 import { GuildMember, type TextChannel } from "discord.js";
 import type {
   CommandInteraction,
@@ -104,4 +109,15 @@ export function isAdmin(member: GuildMember | null | undefined): boolean {
   if (!member) return false;
   if (ADMIN_ROLES.length === 0) return false;
   return member.roles.cache.some((role) => ADMIN_ROLES.includes(role.name));
+}
+
+export function canTransfer(member: GuildMember | null | undefined): boolean {
+  if (!member) return false;
+  if (TRANSFER_ROLES.length === 0) return false;
+  return member.roles.cache.some((role) => TRANSFER_ROLES.includes(role.name));
+}
+
+export function isLinked(member: GuildMember | null | undefined): boolean {
+  if (!member || !CONNECTED_ROLE) return false;
+  return member.roles.cache.some((role) => role.name === CONNECTED_ROLE);
 }

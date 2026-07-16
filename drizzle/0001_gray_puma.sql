@@ -1,0 +1,1 @@
+ALTER TYPE "public"."reward_source" ADD VALUE 'transfer';

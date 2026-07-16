@@ -43,6 +43,7 @@ export const rewardSourceEnum = pgEnum("reward_source", [
   "vote",
   "invite",
   "level",
+  "transfer",
 ]);
 export const claimStatusEnum = pgEnum("claim_status", [
   "pending",

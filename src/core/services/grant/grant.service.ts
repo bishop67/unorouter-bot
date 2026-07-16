@@ -1,7 +1,11 @@
 import { db } from "@/lib/db";
 import { member, rewardGrant } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import { getUser, grantDiscordQuota } from "@/lib/new-api/openapi";
+import {
+  getUser,
+  grantDiscordQuota,
+  transferDiscordQuota
+} from "@/lib/new-api/openapi";
 import { bot } from "@/main";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
 import { grantRewardEmbed } from "@/core/embeds/grant-reward.embed";
@@ -13,7 +17,8 @@ import {
   VOTE_SITE_LABEL,
   VoteSite,
   type GrantResult,
-  type GrantSourceType
+  type GrantSourceType,
+  type TransferResult
 } from "@/types";
 import { type Guild, type GuildMember } from "discord.js";
 import { and, eq } from "drizzle-orm";
@@ -150,6 +155,83 @@ export class GrantService {
     );
 
     return { linked: true, userId, quota: params.quota };
+  }
+
+  /**
+   * Move quota from one linked member to another via the atomic new-api
+   * discord_transfer endpoint (deduct sender + credit receiver in one locked tx).
+   * The endpoint owns the balance check; this only records the receiver-side
+   * audit row, announce, and DM on success. `fromBalanceQuota` is the sender's
+   * balance after the transfer, for the caller's reply.
+   */
+  static async transferQuota(params: {
+    fromDiscordId: string;
+    toDiscordId: string;
+    quota: number;
+  }): Promise<TransferResult> {
+    if (!this.isConfigured()) return { ok: false, reason: "not_configured" };
+    if (params.quota <= 0) return { ok: false, reason: "invalid_amount" };
+    if (params.fromDiscordId === params.toDiscordId) {
+      return { ok: false, reason: "self" };
+    }
+
+    const res = await transferDiscordQuota({
+      from_discord_id: params.fromDiscordId,
+      to_discord_id: params.toDiscordId,
+      quota: params.quota
+    }).catch((e: { status?: number; data?: unknown }) => {
+      logger.error("Transfer request failed", { status: e.status, body: e.data });
+      throw new Error(`new-api transfer failed (${e.status ?? "?"})`);
+    });
+
+    const json = res.data;
+    if (json.success === false) {
+      throw new Error(json.message || "new-api transfer rejected");
+    }
+
+    const data = json.data;
+    if (!data.from_linked) return { ok: false, reason: "sender_not_linked" };
+    if (!data.to_linked) return { ok: false, reason: "receiver_not_linked" };
+    if (data.insufficient) {
+      return { ok: false, reason: "insufficient", fromBalanceQuota: data.from_balance };
+    }
+
+    await db
+      .insert(rewardGrant)
+      .values({
+        targetMemberId: params.toDiscordId,
+        newApiUserId: data.to_user_id ?? null,
+        quota: params.quota,
+        reason: `transfer from ${params.fromDiscordId}`,
+        sourceType: "transfer",
+        sourceId: params.fromDiscordId,
+        grantedByMemberId: params.fromDiscordId
+      })
+      .catch((e) =>
+        logger.error("transfer grant insert failed", { error: String(e) })
+      );
+
+    await this.announce(
+      params.toDiscordId,
+      params.quota,
+      `transfer from <@${params.fromDiscordId}>`,
+      "transfer",
+      data.to_user_id
+    );
+
+    await this.dmReward(
+      params.toDiscordId,
+      data.to_user_id,
+      params.quota,
+      "transfer"
+    );
+
+    logger.info("Balance transferred", {
+      from: params.fromDiscordId,
+      to: params.toDiscordId,
+      quota: params.quota
+    });
+    return { ok: true, fromBalanceQuota: data.from_balance };
   }
 
   // Current balance in dollars for the DM "Total" line. Best-effort: returns null

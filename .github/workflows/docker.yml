@@ -31,6 +31,8 @@ jobs:
           echo KLIPY_API_KEY="${{ secrets.KLIPY_API_KEY }}" >> .env
 
           echo STAFF_ROLES="${{ secrets.STAFF_ROLES }}" >> .env
+          echo TRANSFER_ROLES="${{ secrets.TRANSFER_ROLES }}" >> .env
+          echo GRANT_OWNER_IDS="${{ secrets.GRANT_OWNER_IDS }}" >> .env
           echo STATUS_ROLES="${{ secrets.STATUS_ROLES }}" >> .env
           echo LEVEL_ROLES="${{ secrets.LEVEL_ROLES }}" >> .env
           echo ADULT_AGE_ROLES="${{ secrets.ADULT_AGE_ROLES }}" >> .env

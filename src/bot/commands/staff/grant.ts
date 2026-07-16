@@ -2,16 +2,12 @@ import {
   dollarsToQuota,
   GrantService,
 } from "@/core/services/grant/grant.service";
-import {
-  isStaff,
-  safeDeferReply,
-  safeEditReply,
-} from "@/core/utils/command.utils";
+import { safeDeferReply, safeEditReply } from "@/core/utils/command.utils";
+import { GRANT_OWNER_IDS } from "@/shared/config/roles";
 import { logger } from "@/lib/logger";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
-  GuildMember,
   MessageFlags,
   PermissionFlagsBits,
   User,
@@ -57,7 +53,7 @@ export class GrantCommand {
     )
       return;
 
-    if (!isStaff(interaction.member as GuildMember)) {
+    if (!GRANT_OWNER_IDS.includes(interaction.user.id)) {
       await safeEditReply(
         interaction,
         "You are not allowed to use this command.",

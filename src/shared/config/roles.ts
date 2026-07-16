@@ -14,6 +14,16 @@ export const ADMIN_ROLES = process.env.ADMIN_ROLES?.split(",").map((s) =>
 export const STATUS_ROLES =
   process.env.STATUS_ROLES?.split(",").map((s) => s.trim()) || [];
 
+// Roles allowed to use /transfer (give own balance to another linked user).
+export const TRANSFER_ROLES =
+  process.env.TRANSFER_ROLES?.split(",").map((s) => s.trim()) || [];
+
+// Discord user ids allowed to use the private /grant (mints new balance). Not
+// role-based on purpose: not even admins may mint unless their id is listed.
+export const GRANT_OWNER_IDS = process.env.GRANT_OWNER_IDS?.split(",")
+  .map((s) => s.trim())
+  .filter(Boolean) || ["883310265972707328", "1302775229923332119"];
+
 export const LEVEL_ROLES =
   process.env.LEVEL_ROLES?.split(",").map((s) => s.trim()) || [];
 
