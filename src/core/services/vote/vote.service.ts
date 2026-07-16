@@ -164,9 +164,12 @@ export class VoteService {
         return null;
       });
 
-      // Transient failure: release the hold so the next member event retries
-      // instead of burning the vote. Duplicates keep the hold.
-      if (!result || (!result.ok && result.reason !== "duplicate")) {
+      // Transient failure or unlinked voter: release the hold so the next
+      // member event or sweep retries instead of burning the vote. An unlinked
+      // voter gets paid by the sweep once they link, while the role persists.
+      // Duplicates keep the hold.
+      const notLinked = result?.ok === true && !result.linked;
+      if (!result || notLinked || (!result.ok && result.reason !== "duplicate")) {
         await db
           .delete(voteRoleHold)
           .where(
@@ -179,8 +182,10 @@ export class VoteService {
       }
 
       // Strip only roles WE own, so the next vote re-triggers. Externally-managed
-      // roles are left for their owner bot to remove on its own schedule.
-      if (!roleSite.ownsRole && role.editable) {
+      // roles are left for their owner bot to remove on its own schedule. An
+      // unlinked voter keeps the role: it is the only durable record of the
+      // vote, and the sweep pays off it after they link.
+      if (!roleSite.ownsRole && role.editable && !notLinked) {
         await newMember.roles
           .remove(role, `${VOTE_SITE_LABEL[roleSite.site]} vote reward processed`)
           .catch((e) =>

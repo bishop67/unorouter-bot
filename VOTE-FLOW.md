@@ -76,7 +76,12 @@ It runs in two places:
 - **Grant failure**: `grantQuota` throws -> hold released, no pay, retried on
   the next member event. Logged `Vote grant failed`.
 - **Not linked**: voter hasn't linked their Discord to a new-api account ->
-  skipped silently, logged `voter not linked`, role still stripped.
+  no pay yet, logged `voter not linked`, hold released and role KEPT (even
+  `ownsRole:false` sites skip the strip). The role is the durable record of the
+  unpaid vote: once they link, the next sweep (or the verify-channel claim
+  button, which also runs `handleVoteRole`) pays it and then strips/clears as
+  usual. A voter who never links keeps the role until an external bot removes
+  it; the sweep retries (and logs) each cycle in the meantime.
 - **Dedupe hit**: a legit re-fire inside the window -> logged `duplicate
 delivery`, no pay (intended).
 

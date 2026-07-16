@@ -11,7 +11,7 @@ import {
   STATUS_ROLES,
 } from "@/shared/config/roles";
 import type { UpdateDbRolesArgs } from "@/types";
-import { Guild, Role } from "discord.js";
+import { Guild, GuildMember, Role } from "discord.js";
 
 export class RolesService {
   static async updateDbRoles(args: UpdateDbRolesArgs) {

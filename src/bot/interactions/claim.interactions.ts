@@ -4,6 +4,7 @@ import {
 } from "@/core/services/grant/grant.service";
 import { InviteService } from "@/core/services/invites/invite.service";
 import { LevelRewardService } from "@/core/services/levels/level-reward.service";
+import { VoteService } from "@/core/services/vote/vote.service";
 import { logger } from "@/lib/logger";
 import { ButtonId } from "@/types/custom-ids";
 import { ButtonInteraction, GuildMember, MessageFlags, time } from "discord.js";
@@ -48,10 +49,11 @@ export class ClaimInteractions {
         return;
       }
 
-      // Just linked: pay out any level/invite backlog they earned while unlinked.
-      // Detached, idempotent (ledger guards against double-pay).
+      // Just linked: pay out any level/invite/vote backlog they earned while
+      // unlinked. Detached, idempotent (ledger guards against double-pay).
       void LevelRewardService.reconcileMember(member);
       void InviteService.reconcileInviter(member.guild.id, member.id);
+      void VoteService.handleVoteRole(member);
 
       if (result.bonusGranted) {
         await interaction.editReply(
