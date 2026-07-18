@@ -293,6 +293,85 @@ export const InviteService = {
       );
   },
 
+  // The join-diff can miss joins (downtime, ambiguous multi-candidate diffs,
+  // single-use races), and a missed join is otherwise unrecoverable: earned =
+  // seed + attributed joins never catches up. Discord's per-invite `uses`
+  // counters are the ground truth members see on their own links, so lift each
+  // inviter's seed until seed + joins >= sum(uses) across their live invites.
+  // Never lowers: a deleted invite drops out of the sum while the ledger keeps
+  // history. Rejoins re-count in `uses`, accepted as the price of recovery.
+  async syncSeedsFromLiveUses(guild: Guild): Promise<void> {
+    const invites = await guild.invites.fetch().catch((e) => {
+      logger.error("Invite fetch for seed sync failed", {
+        guild: guild.id,
+        error: String(e),
+      });
+      return null;
+    });
+    if (!invites) return;
+
+    const liveUses = new Map<string, number>();
+    for (const invite of invites.values()) {
+      if (!invite.inviterId || invite.inviter?.bot || !invite.uses) continue;
+      liveUses.set(
+        invite.inviterId,
+        (liveUses.get(invite.inviterId) ?? 0) + invite.uses,
+      );
+    }
+
+    for (const [inviterId, uses] of liveUses) {
+      try {
+        const [seed] = await db
+          .select({ uses: inviteSeed.uses })
+          .from(inviteSeed)
+          .where(
+            and(
+              eq(inviteSeed.guildId, guild.id),
+              eq(inviteSeed.inviterId, inviterId),
+            ),
+          );
+        const [live] = await db
+          .select({ c: count() })
+          .from(inviteJoin)
+          .where(
+            and(
+              eq(inviteJoin.guildId, guild.id),
+              eq(inviteJoin.inviterId, inviterId),
+            ),
+          );
+        const gap = uses - ((seed?.uses ?? 0) + (live?.c ?? 0));
+        if (gap <= 0) continue;
+        if (seed) {
+          await db
+            .update(inviteSeed)
+            .set({ uses: seed.uses + gap })
+            .where(
+              and(
+                eq(inviteSeed.guildId, guild.id),
+                eq(inviteSeed.inviterId, inviterId),
+              ),
+            );
+        } else {
+          await db
+            .insert(inviteSeed)
+            .values({ guildId: guild.id, inviterId, uses: gap })
+            .onConflictDoNothing();
+        }
+        logger.info("Invite seed lifted from live uses", {
+          guild: guild.id,
+          inviter: inviterId,
+          gap,
+        });
+      } catch (e) {
+        logger.error("Invite seed sync failed", {
+          guild: guild.id,
+          inviter: inviterId,
+          error: String(e),
+        });
+      }
+    }
+  },
+
   // Boot reconcile: pay any invite backlog for every inviter with a seed or a
   // live join. Best-effort per inviter.
   async reconcileAll(guildId: string): Promise<void> {

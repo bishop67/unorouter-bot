@@ -79,7 +79,14 @@ export class VerifyAllUsersService {
         }
       }
 
-      // Invite backlog: seed baseline + reattribute live joins for the guild.
+      // Invite backlog: lift seed baselines to Discord's live invite uses
+      // (recovers joins the diff missed), then pay any unpaid gap.
+      await InviteService.syncSeedsFromLiveUses(guild).catch((e) =>
+        logger.error("Invite seed sync failed", {
+          guild: guild.id,
+          error: String(e),
+        }),
+      );
       await InviteService.reconcileAll(guild.id).catch((e) =>
         logger.error("Invite backlog reconcile failed", {
           guild: guild.id,
