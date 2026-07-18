@@ -146,12 +146,20 @@ export class GrantService {
       params.announceInviteeId
     );
 
+    // Name the person behind the reward in the DM: the new member for invites,
+    // the granting staff for manual grants (system grants stay anonymous).
+    const dmActorId =
+      params.sourceType === "invite"
+        ? params.announceInviteeId
+        : systemToNull(params.grantedByDiscordId);
+
     await this.dmReward(
       params.targetDiscordId,
       userId,
       params.quota,
       params.sourceType,
-      params.sourceId
+      params.sourceId,
+      dmActorId
     );
 
     return { linked: true, userId, quota: params.quota };
@@ -223,7 +231,9 @@ export class GrantService {
       params.toDiscordId,
       data.to_user_id,
       params.quota,
-      "transfer"
+      "transfer",
+      params.fromDiscordId,
+      params.fromDiscordId
     );
 
     logger.info("Balance transferred", {
@@ -253,7 +263,8 @@ export class GrantService {
     userId: number | null | undefined,
     quota: number,
     sourceType: GrantSourceType,
-    sourceId?: string | null
+    sourceId?: string | null,
+    actorId?: string | null
   ): Promise<void> {
     const addedDollars = QUOTA_PER_DOLLAR > 0 ? quota / QUOTA_PER_DOLLAR : 0;
     if (addedDollars <= 0) return;
@@ -273,7 +284,8 @@ export class GrantService {
       addedDollars,
       totalDollars,
       voteAgainHours: sourceType === "vote" ? 12 : undefined,
-      voteSiteLabel
+      voteSiteLabel,
+      actorId
     });
     const user = await bot.users.fetch(targetDiscordId).catch(() => null);
     if (!user) return;

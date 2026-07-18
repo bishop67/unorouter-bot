@@ -19,12 +19,19 @@ const COPY: Record<GrantSourceType, RewardCopy> = {
   transfer: { title: "Balance Received!", intro: "Another member sent you some balance." },
 };
 
+const ACTOR_LABEL: Partial<Record<GrantSourceType, string>> = {
+  invite: "New member",
+  transfer: "From",
+  command: "Granted by",
+};
+
 export function grantRewardEmbed(params: {
   sourceType: GrantSourceType;
   addedDollars: number;
   totalDollars: number | null;
   voteAgainHours?: number;
   voteSiteLabel?: string;
+  actorId?: string | null;
 }): APIEmbed {
   const copy = COPY[params.sourceType] ?? COPY.command;
   const fmt = (n: number) =>
@@ -35,11 +42,15 @@ export function grantRewardEmbed(params: {
       ? `Thanks for voting for us on ${params.voteSiteLabel}!`
       : copy.intro;
 
-  const lines = [
-    intro,
+  const lines = [intro];
+  const actorLabel = ACTOR_LABEL[params.sourceType];
+  if (params.actorId && actorLabel) {
+    lines.push(`**${actorLabel}:** <@${params.actorId}>`);
+  }
+  lines.push(
     "",
     `**+${fmt(params.addedDollars)}** added to your balance.`,
-  ];
+  );
   if (params.totalDollars !== null) {
     lines.push(`**Total balance:** ${fmt(params.totalDollars)}`);
   }
