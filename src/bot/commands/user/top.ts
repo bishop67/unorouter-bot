@@ -1,7 +1,13 @@
 import { topStatsEmbed } from "@/core/embeds/top-stats.embed";
 import { safeDeferReply, safeEditReply } from "@/core/utils/command.utils";
 import { db } from "@/lib/db";
-import { inviteJoin, inviteSeed, member, memberMessages } from "@/lib/db-schema";
+import {
+  inviteJoin,
+  inviteSeed,
+  member,
+  memberMessages,
+  rewardGrant,
+} from "@/lib/db-schema";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
@@ -41,7 +47,7 @@ export class TopCommand {
 
     const since = dayjs().subtract(lookback, "day").toISOString();
 
-    const [topUsers, rankedInviters, seeds] = await Promise.all([
+    const [topUsers, rankedInviters, seeds, topVoters] = await Promise.all([
       db
         .select({ memberId: memberMessages.memberId, count: count() })
         .from(memberMessages)
@@ -73,6 +79,19 @@ export class TopCommand {
             .from(inviteSeed)
             .where(eq(inviteSeed.guildId, guild.id))
         : Promise.resolve([]),
+      // Vote grants carry no guildId; rewarded votes are guild-agnostic.
+      db
+        .select({ memberId: rewardGrant.targetMemberId, count: count() })
+        .from(rewardGrant)
+        .where(
+          and(
+            eq(rewardGrant.sourceType, "vote"),
+            gte(rewardGrant.createdAt, since),
+          ),
+        )
+        .groupBy(rewardGrant.targetMemberId)
+        .orderBy(desc(count()))
+        .limit(TOP_LIMIT),
     ]);
 
     const inviteTotals = new Map<string, number>();
@@ -91,7 +110,7 @@ export class TopCommand {
       .slice(0, TOP_LIMIT);
 
     await safeEditReply(interaction, {
-      embeds: [topStatsEmbed({ lookback, topUsers, topInviters })],
+      embeds: [topStatsEmbed({ lookback, topUsers, topInviters, topVoters })],
       allowedMentions: { users: [], roles: [] },
     });
   }
