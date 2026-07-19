@@ -83,7 +83,7 @@ export class VotePanelCommand {
       `- You can vote on each site again every **12 hours**`,
       "",
       `⚠️ Listing sites go down or skip a vote now and then, so a reward can miss. No action needed, just vote again next window and it lands.`,
-      `⏳ *Vote balance expires if it sits unused - spend it.*`,
+      `⏳ *Rewards expire if unused.*`,
     ];
 
     if (extraLinks.length) {

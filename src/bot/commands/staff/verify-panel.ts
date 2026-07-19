@@ -67,7 +67,7 @@ export class VerifyPanelCommand {
           `2. Click **${buttonLabel}** below`,
           `3. Bonus lands automatically`,
           "",
-          `⏳ *Bonus balance expires if it sits unused - claim it and spend it.*`,
+          `⏳ *Rewards expire if unused.*`,
         ].join("\n"),
       )
       .setColor(0x9b59ff);
