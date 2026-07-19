@@ -66,6 +66,8 @@ export class VerifyPanelCommand {
           `1. [Connect Discord in your account settings](${settingsLink})`,
           `2. Click **${buttonLabel}** below`,
           `3. Bonus lands automatically`,
+          "",
+          `⏳ *Bonus balance expires if it sits unused - claim it and spend it.*`,
         ].join("\n"),
       )
       .setColor(0x9b59ff);
