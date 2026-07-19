@@ -138,6 +138,7 @@ export interface GrantResult {
   linked: boolean;
   userId?: number;
   quota: number;
+  ipDuplicate?: boolean;
 }
 
 export type TransferResult =

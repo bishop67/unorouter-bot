@@ -91,6 +91,7 @@ export class VoteService {
       sourceType: "vote",
       sourceId: site,
       grantedByDiscordId: "system",
+      checkIpUnique: true,
     }).catch((e) => {
       logger.error("Vote grant failed", { voterDiscordId, site, error: String(e) });
       return null;

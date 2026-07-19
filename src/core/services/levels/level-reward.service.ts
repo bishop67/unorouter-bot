@@ -74,6 +74,7 @@ export class LevelRewardService {
       sourceType: "level",
       sourceId: String(item.tier),
       grantedByDiscordId: "system",
+      checkIpUnique: true,
     }).catch((e) => {
       logger.error("Level reward grant failed", {
         member: member.id,

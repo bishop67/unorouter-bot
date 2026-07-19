@@ -990,6 +990,7 @@ export interface GetAllChannelsData {
 export interface GrantDiscordQuotaData {
   linked: boolean;
   user_id: number;
+  ip_duplicate?: boolean;
 }
 
 /**
@@ -998,6 +999,7 @@ export interface GrantDiscordQuotaData {
 export interface GrantDiscordQuotaRequest {
   discord_id: string;
   quota: number;
+  check_ip_unique?: boolean;
 }
 
 export interface GroupResult {

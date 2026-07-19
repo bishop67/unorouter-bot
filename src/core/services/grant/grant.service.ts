@@ -86,6 +86,7 @@ export class GrantService {
     sourceId?: string | null;
     grantedByDiscordId: string;
     announceInviteeId?: string | null;
+    checkIpUnique?: boolean;
   }): Promise<GrantResult> {
     if (!this.isConfigured()) {
       logger.warn("Grant skipped: NEW_API_URL / NEW_API_ADMIN_TOKEN missing");
@@ -97,7 +98,8 @@ export class GrantService {
 
     const res = await grantDiscordQuota({
       discord_id: params.targetDiscordId,
-      quota: params.quota
+      quota: params.quota,
+      check_ip_unique: params.checkIpUnique ?? false
     }).catch((e: { status?: number; data?: unknown }) => {
       logger.error("Grant request failed", { status: e.status, body: e.data });
       throw new Error(`new-api grant failed (${e.status ?? "?"})`);
@@ -110,6 +112,20 @@ export class GrantService {
 
     if (!json.data.linked) {
       return { linked: false, quota: params.quota };
+    }
+
+    if (json.data.ip_duplicate) {
+      logger.warn("Grant refused: register IP shared with another account", {
+        member: params.targetDiscordId,
+        sourceType: params.sourceType,
+        sourceId: params.sourceId ?? null
+      });
+      return {
+        linked: true,
+        userId: json.data.user_id,
+        quota: params.quota,
+        ipDuplicate: true
+      };
     }
 
     const userId = json.data.user_id;
@@ -336,12 +352,20 @@ export class GrantService {
       reason: "discord connect bonus",
       sourceType: "connect",
       sourceId: null,
-      grantedByDiscordId: "system"
+      grantedByDiscordId: "system",
+      checkIpUnique: true
     }).catch(() => ({ linked: false, quota }) as GrantResult);
 
     if (!result.linked) return { status: ConnectStatus.NotLinked };
 
     await this.ensureConnectedRole(member);
+    if (result.ipDuplicate) {
+      return {
+        status: ConnectStatus.Connected,
+        bonusGranted: false,
+        dollars: 0
+      };
+    }
     return {
       status: ConnectStatus.Connected,
       bonusGranted: quota > 0,

@@ -254,6 +254,7 @@ export const InviteService = {
       sourceType: "invite",
       sourceId: inviterId,
       grantedByDiscordId: "system",
+      checkIpUnique: true,
       announceInviteeId: owed === 1 ? inviteeId : null,
     }).catch((e) => {
       logger.error("Invite reward grant failed", {

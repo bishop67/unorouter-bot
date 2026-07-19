@@ -73,6 +73,7 @@ export class BoostService {
         sourceType: "boost",
         sourceId: message.id,
         grantedByDiscordId: "system",
+        checkIpUnique: true,
       });
       const member = await message.guild.members
         .fetch(memberId)
@@ -165,6 +166,7 @@ export class BoostService {
           sourceType: "boost",
           sourceId: String(slot.id),
           grantedByDiscordId: "system",
+          checkIpUnique: true,
         });
         // Always bump nextPayoutAt forward by one interval; if the user is
         // unlinked we still keep the schedule going so they get the missed
