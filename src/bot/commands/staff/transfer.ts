@@ -14,6 +14,7 @@ import {
   CommandInteraction,
   GuildMember,
   MessageFlags,
+  PermissionFlagsBits,
   User,
 } from "discord.js";
 import { Discord, Slash, SlashOption } from "discordx";
@@ -28,6 +29,7 @@ export class TransferCommand {
     name: "transfer",
     description: "Send some of your own balance to another linked member",
     dmPermission: false,
+    defaultMemberPermissions: PermissionFlagsBits.ManageMessages,
   })
   async transfer(
     @SlashOption({
