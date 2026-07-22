@@ -1,0 +1,44 @@
+name: GHCR Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ghcr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Empty .env: the Dockerfile COPYs it, but the k8s image gets ALL config from
+      # runtime env vars (which win over .env). Keeps the public image secret-free.
+      - run: touch .env
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/unorouter/unorouter-bot:latest
+            ghcr.io/unorouter/unorouter-bot:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
