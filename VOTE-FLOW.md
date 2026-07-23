@@ -85,19 +85,24 @@ It runs in two places:
 - **Dedupe hit**: a legit re-fire inside the window -> logged `duplicate
 delivery`, no pay (intended).
 
-## Diagnosing a specific user (SSH, read-only)
+## Diagnosing a specific user (kubectl, read-only)
+
+DB = CloudNativePG `bot-pg` cluster (namespace `databases`, db `unorouter-bot-db`, primary
+pod `bot-pg-1`); bot logs = deploy/unorouter-bot in namespace `services`.
+`KUBECONFIG=infra/kubeconfig`.
 
 ```bash
 MID=<discord_id>
-ssh -o StrictHostKeyChecking=no don@152.53.135.101 \
-  "docker exec unorouter-bot-db psql -U unorouter -d unorouter-bot-db -c \
-  \"SELECT source_id AS site, quota, created_at FROM reward_grants \
-    WHERE target_member_id='$MID' AND source_type='vote' ORDER BY created_at DESC LIMIT 20;\""
+kubectl -n databases exec bot-pg-1 -c postgres -- \
+  psql -U postgres -d unorouter-bot-db -c \
+  "SELECT source_id AS site, quota, created_at FROM reward_grants \
+    WHERE target_member_id='$MID' AND source_type='vote' ORDER BY created_at DESC LIMIT 20;"
 # holds:
-ssh ... "docker exec unorouter-bot-db psql -U unorouter -d unorouter-bot-db -c \
-  \"SELECT site, created_at FROM vote_role_holds WHERE member_id='$MID';\""
+kubectl -n databases exec bot-pg-1 -c postgres -- \
+  psql -U postgres -d unorouter-bot-db -c \
+  "SELECT site, created_at FROM vote_role_holds WHERE member_id='$MID';"
 # logs:
-ssh ... "docker logs unorouter-bot --since 3h 2>&1 | grep -iE '<site>|$MID|vote'"
+kubectl -n services logs deploy/unorouter-bot --since 3h 2>&1 | grep -iE "<site>|$MID|vote"
 ```
 
 A missing site row with no `duplicate`/`failed` log line for that user =
