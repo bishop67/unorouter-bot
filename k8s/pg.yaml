@@ -76,6 +76,10 @@ spec:
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:
+  annotations:
+    # without this the CR is prunable: an ownership move deleted it once, which reset
+    # lastScheduleTime and dropped the Backup CR the freshness alert reads.
+    argocd.argoproj.io/sync-options: Prune=false
   name: bot-pg-daily
   namespace: databases
 spec:
