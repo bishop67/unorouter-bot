@@ -46,7 +46,10 @@ const SWEEP_INTERVAL_MS = parseInt(
 
 export type VoteRewardResult =
   | { ok: true; rewarded: boolean; linked: boolean }
-  | { ok: false; reason: "duplicate" | "not_configured" | "no_reward" };
+  | {
+      ok: false;
+      reason: "duplicate" | "not_configured" | "no_reward" | "ip_duplicate";
+    };
 
 export class VoteService {
   /**
@@ -102,6 +105,13 @@ export class VoteService {
     if (!result.linked) {
       logger.info("Vote reward skipped: voter not linked", { voterDiscordId, site });
       return { ok: true, rewarded: false, linked: false };
+    }
+
+    // No quota moved: the account shares a register IP with an older one. Reported
+    // as a failure so the caller never records or announces a payment that did not
+    // happen, and never keeps a hold that would disarm the site permanently.
+    if (result.ipDuplicate) {
+      return { ok: false, reason: "ip_duplicate" };
     }
 
     logger.info("Vote rewarded", { voterDiscordId, site, quota });
@@ -170,6 +180,7 @@ export class VoteService {
       // voter gets paid by the sweep once they link, while the role persists.
       // Duplicates keep the hold.
       const notLinked = result?.ok === true && !result.linked;
+      const ipBlocked = result?.ok === false && result.reason === "ip_duplicate";
       if (!result || notLinked || (!result.ok && result.reason !== "duplicate")) {
         await db
           .delete(voteRoleHold)
@@ -184,9 +195,9 @@ export class VoteService {
 
       // Strip only roles WE own, so the next vote re-triggers. Externally-managed
       // roles are left for their owner bot to remove on its own schedule. An
-      // unlinked voter keeps the role: it is the only durable record of the
-      // vote, and the sweep pays off it after they link.
-      if (!roleSite.ownsRole && role.editable && !notLinked) {
+      // unlinked or IP-blocked voter keeps the role: it is the only durable record
+      // of the vote, and the sweep pays off it once the block clears.
+      if (!roleSite.ownsRole && role.editable && !notLinked && !ipBlocked) {
         await newMember.roles
           .remove(role, `${VOTE_SITE_LABEL[roleSite.site]} vote reward processed`)
           .catch((e) =>

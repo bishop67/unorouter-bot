@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { member, rewardGrant } from "@/lib/db-schema";
+import { member, rewardGrant, rewardRefusal } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import {
   getUser,
@@ -120,6 +120,7 @@ export class GrantService {
         sourceType: params.sourceType,
         sourceId: params.sourceId ?? null
       });
+      await this.recordRefusal(params, json.data.user_id, "ip_duplicate");
       return {
         linked: true,
         userId: json.data.user_id,
@@ -179,6 +180,36 @@ export class GrantService {
     );
 
     return { linked: true, userId, quota: params.quota };
+  }
+
+  /**
+   * Append an AUDIT-ONLY row for a reward upstream declined to pay, so the scale
+   * of a refusal is still answerable once the pod's stdout logs are gone. Never
+   * read to decide a payout, and never throws: a failed audit write must not turn
+   * a refusal into a caller-visible error.
+   */
+  private static async recordRefusal(
+    params: { targetDiscordId: string; quota: number; sourceType: GrantSourceType; sourceId?: string | null },
+    newApiUserId: number | undefined,
+    reason: "ip_duplicate" | "not_linked"
+  ): Promise<void> {
+    try {
+      // FKs to members; a webhook voter may not be cached as a guild member yet.
+      await db
+        .insert(member)
+        .values({ memberId: params.targetDiscordId, username: params.targetDiscordId })
+        .onConflictDoNothing();
+      await db.insert(rewardRefusal).values({
+        targetMemberId: params.targetDiscordId,
+        newApiUserId: newApiUserId ?? null,
+        quota: params.quota,
+        sourceType: params.sourceType,
+        sourceId: params.sourceId ?? null,
+        reason
+      });
+    } catch (e) {
+      logger.error("reward refusal insert failed", { error: String(e) });
+    }
   }
 
   /**

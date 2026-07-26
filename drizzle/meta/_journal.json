@@ -15,6 +15,13 @@
       "when": 1784235232010,
       "tag": "0001_gray_puma",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785066261482,
+      "tag": "0002_lumpy_captain_flint",
+      "breakpoints": true
     }
   ]
 }

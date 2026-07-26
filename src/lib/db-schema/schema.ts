@@ -50,6 +50,12 @@ export const claimStatusEnum = pgEnum("claim_status", [
   "paid",
   "void",
 ]);
+// Why upstream declined to pay. "ip_duplicate" = the account shares a register
+// IP with an older one; "not_linked" = no platform account bound to the Discord id.
+export const rewardRefusalReasonEnum = pgEnum("reward_refusal_reason", [
+  "ip_duplicate",
+  "not_linked",
+]);
 export const voteSiteEnum = pgEnum("vote_site", [
   "topgg",
   "discords",
@@ -430,6 +436,35 @@ export const rewardGrant = pgTable(
       table.sourceId,
       table.createdAt,
     ),
+  ],
+);
+
+// AUDIT ONLY. A reward the upstream refused to pay, recorded so a refusal is
+// still answerable after the pod's stdout logs are gone. Nothing reads this table
+// to decide a payout: it carries no pending/claim semantics and is deliberately
+// NOT joined by the vote sweep or any reconcile path, so a row here can never
+// become a grant. Query it to size an incident, then pay deliberately if wanted.
+export const rewardRefusal = pgTable(
+  "reward_refusals",
+  {
+    id: serial("id").primaryKey(),
+    targetMemberId: text("target_member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    newApiUserId: integer("new_api_user_id"),
+    // What the grant WOULD have been, had it not been refused.
+    quota: integer("quota").notNull(),
+    sourceType: rewardSourceEnum("source_type").notNull(),
+    sourceId: text("source_id"),
+    reason: rewardRefusalReasonEnum("reason").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("idx_reward_refusals_target").on(table.targetMemberId),
+    index("idx_reward_refusals_reason").on(table.reason, table.createdAt),
   ],
 );
 
