@@ -170,13 +170,21 @@ export class GrantService {
         ? params.announceInviteeId
         : systemToNull(params.grantedByDiscordId);
 
+    // Only ticket/bug reasons are staff-written prose meant for the recipient;
+    // other sources store internal audit strings.
+    const dmReason =
+      params.sourceType === "ticket" || params.sourceType === "bug"
+        ? params.reason
+        : null;
+
     await this.dmReward(
       params.targetDiscordId,
       userId,
       params.quota,
       params.sourceType,
       params.sourceId,
-      dmActorId
+      dmActorId,
+      dmReason
     );
 
     return { linked: true, userId, quota: params.quota };
@@ -311,7 +319,8 @@ export class GrantService {
     quota: number,
     sourceType: GrantSourceType,
     sourceId?: string | null,
-    actorId?: string | null
+    actorId?: string | null,
+    reason?: string | null
   ): Promise<void> {
     const addedDollars = QUOTA_PER_DOLLAR > 0 ? quota / QUOTA_PER_DOLLAR : 0;
     if (addedDollars <= 0) return;
@@ -332,7 +341,8 @@ export class GrantService {
       totalDollars,
       voteAgainHours: sourceType === "vote" ? 12 : undefined,
       voteSiteLabel,
-      actorId
+      actorId,
+      reason
     });
     const user = await bot.users.fetch(targetDiscordId).catch(() => null);
     if (!user) return;
