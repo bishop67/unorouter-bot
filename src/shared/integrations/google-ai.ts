@@ -17,10 +17,14 @@ type ModelId = RawModelId extends infer T
 // Only models with a live free tier. gemini-2.0-flash / 2.5-flash-lite now
 // report free-tier limit:0, so they only waste rotation attempts.
 const FALLBACK_MODELS: ModelId[] = [
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.5-flash",
   "gemini-3.1-flash-lite-preview",
   "gemini-3-flash-preview",
   "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash"
 ];
 
 function getApiKeys() {
