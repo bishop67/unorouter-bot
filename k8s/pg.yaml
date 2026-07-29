@@ -43,6 +43,11 @@ metadata:
     # can never delete the database.
     argocd.argoproj.io/sync-options: Prune=false
 spec:
+  # see new-api/k8s/pg.yaml: CNPG owns the database backup, Velero must not file-copy a
+  # running data directory
+  inheritedMetadata:
+    annotations:
+      backup.velero.io/backup-volumes-excludes: pgdata,scratch-data,shm
   env:
     - name: AWS_REQUEST_CHECKSUM_CALCULATION
       value: when_required
