@@ -5,6 +5,7 @@
 export const ButtonId = {
   // Verify channel
   ClaimConnect: "claim_connect",
+  ServerTagStatus: "server_tag_status",
   // Ticket-panel entry buttons
   TicketOpenSupport: "ticket_open_support",
   TicketOpenBug: "ticket_open_bug",

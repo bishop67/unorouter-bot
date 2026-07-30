@@ -67,6 +67,13 @@ export class VerifyPanelCommand {
           `1. [Connect Discord in your account settings](${settingsLink})`,
           `2. Click **${buttonLabel}** below`,
           `3. Bonus lands automatically`,
+          ...(REWARDS.serverTag > 0
+            ? [
+                "",
+                `**Wear our server tag** and earn **$${formatDollars(REWARDS.serverTag)}** for every full day you keep it on.`,
+                `Set it in **User Settings -> Profiles -> Server Tag**, then check your status below.`,
+              ]
+            : []),
           "",
           `⏳ *Rewards expire if unused.*`,
         ].join("\n"),
@@ -80,6 +87,17 @@ export class VerifyPanelCommand {
         .setEmoji("🎁")
         .setStyle(ButtonStyle.Success),
     );
+    // Discord has no API for setting a user's server tag, so this only reports
+    // whether they are wearing it and what it pays.
+    if (REWARDS.serverTag > 0) {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(ButtonId.ServerTagStatus)
+          .setLabel(`Server tag: $${formatDollars(REWARDS.serverTag)}/day`)
+          .setEmoji("🏷️")
+          .setStyle(ButtonStyle.Secondary),
+      );
+    }
 
     try {
       await purgeOwnPanels(channel as TextChannel, ButtonId.ClaimConnect);

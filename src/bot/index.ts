@@ -30,5 +30,6 @@ import "./commands/staff/boost-backfill";
 // Interactions
 import "./interactions/bug.interactions";
 import "./interactions/claim.interactions";
+import "./interactions/server-tag.interactions";
 import "./interactions/reward.modal";
 import "./interactions/ticket.interactions";
