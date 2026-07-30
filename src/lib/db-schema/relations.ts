@@ -13,6 +13,7 @@ import {
   rewardClaim,
   rewardGrant,
   role,
+  serverTagWear,
   ticket,
   ticketMessage,
   voteRoleHold,
@@ -33,6 +34,7 @@ export const memberRelations = relations(member, ({ many }) => ({
   rewardGrants: many(rewardGrant),
   rewardClaims: many(rewardClaim),
   boostSlots: many(boostSlot),
+  serverTagWears: many(serverTagWear),
   voteRoleHolds: many(voteRoleHold),
   dmOptouts: many(dmOptout),
 }));
@@ -155,6 +157,17 @@ export const boostSlotRelations = relations(boostSlot, ({ one }) => ({
   }),
   member: one(member, {
     fields: [boostSlot.memberId],
+    references: [member.memberId],
+  }),
+}));
+
+export const serverTagWearRelations = relations(serverTagWear, ({ one }) => ({
+  guild: one(guild, {
+    fields: [serverTagWear.guildId],
+    references: [guild.guildId],
+  }),
+  member: one(member, {
+    fields: [serverTagWear.memberId],
     references: [member.memberId],
   }),
 }));

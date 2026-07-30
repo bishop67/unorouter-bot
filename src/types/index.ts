@@ -98,6 +98,7 @@ export const GrantSource = {
   Invite: "invite",
   Level: "level",
   Transfer: "transfer",
+  ServerTag: "servertag",
 } as const;
 export type GrantSourceType = (typeof GrantSource)[keyof typeof GrantSource];
 
@@ -112,6 +113,7 @@ export const GRANT_SOURCE_LABEL: Record<GrantSourceType, string> = {
   invite: "invite reward",
   level: "level reward",
   transfer: "balance transfer",
+  servertag: "server tag",
 };
 
 // Vote sources, used as grantLog.sourceId. Top.gg sends a real webhook; Discords.com
@@ -162,6 +164,7 @@ export const DM_TOGGLEABLE_SOURCES = [
   GrantSource.Invite,
   GrantSource.Level,
   GrantSource.Boost,
+  GrantSource.ServerTag,
 ] as const satisfies ReadonlyArray<GrantSourceType>;
 export type DmToggleableSource = (typeof DM_TOGGLEABLE_SOURCES)[number];
 
@@ -179,4 +182,5 @@ export const DM_SOURCE_LABEL: Record<DmToggleableSource, string> = {
   invite: "Invite rewards",
   level: "Level-up rewards",
   boost: "Boost rewards",
+  servertag: "Server tag rewards",
 };

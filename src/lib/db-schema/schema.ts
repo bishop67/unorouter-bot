@@ -44,6 +44,7 @@ export const rewardSourceEnum = pgEnum("reward_source", [
   "invite",
   "level",
   "transfer",
+  "servertag",
 ]);
 export const claimStatusEnum = pgEnum("claim_status", [
   "pending",
@@ -339,6 +340,42 @@ export const boostSlot = pgTable(
   (table) => [
     index("idx_boost_slots_member_guild").on(table.memberId, table.guildId),
     index("idx_boost_slots_due").on(table.active, table.nextPayoutAt),
+  ],
+);
+
+// One row per continuous window of wearing the guild's server tag. Reward is a
+// function of observed elapsed time, so dropping the tag closes the window and
+// discards its partial progress: re-adding starts a fresh clock and no amount of
+// toggling manufactures time that did not pass.
+export const serverTagWear = pgTable(
+  "server_tag_wears",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    startedAt: createdAt(),
+    nextPayoutAt: timestamp("next_payout_at", {
+      precision: 3,
+      mode: "string",
+    }).notNull(),
+    active: boolean("active").default(true).notNull(),
+    cancelledAt: timestamp("cancelled_at", { precision: 3, mode: "string" }),
+  },
+  (table) => [
+    uniqueIndex("uq_server_tag_wears_active")
+      .on(table.memberId, table.guildId)
+      .where(sql`${table.active}`),
+    index("idx_server_tag_wears_due").on(table.active, table.nextPayoutAt),
   ],
 );
 

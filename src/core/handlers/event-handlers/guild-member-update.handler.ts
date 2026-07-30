@@ -3,6 +3,7 @@ import { EVERYONE } from "@/shared/config/roles";
 import { RolesService } from "@/core/services/roles/roles.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { BoostService } from "@/core/services/boost/boost.service";
+import { ServerTagService } from "@/core/services/server-tag/server-tag.service";
 import { VoteService } from "@/core/services/vote/vote.service";
 import { db } from "@/lib/db";
 import { memberRole } from "@/lib/db-schema";
@@ -25,6 +26,8 @@ export async function handleGuildMemberUpdate(
   if (oldMember.premiumSince && !newMember.premiumSince) {
     await BoostService.handleBoostCancelled(newMember);
   }
+
+  await ServerTagService.handleTagChanged(oldMember, newMember);
 }
 
 async function syncRoles(

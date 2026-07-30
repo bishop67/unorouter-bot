@@ -1,6 +1,7 @@
 import { InviteService } from "@/core/services/invites/invite.service";
 import { LevelRewardService } from "@/core/services/levels/level-reward.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
+import { ServerTagService } from "@/core/services/server-tag/server-tag.service";
 import { logger } from "@/lib/logger";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import type { Guild, TextChannel } from "discord.js";
@@ -89,6 +90,13 @@ export class VerifyAllUsersService {
       );
       await InviteService.reconcileAll(guild.id).catch((e) =>
         logger.error("Invite backlog reconcile failed", {
+          guild: guild.id,
+          error: String(e),
+        }),
+      );
+
+      await ServerTagService.reconcile(guild).catch((e) =>
+        logger.error("Server tag reconcile failed", {
           guild: guild.id,
           error: String(e),
         }),

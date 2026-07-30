@@ -17,6 +17,7 @@ const COPY: Record<GrantSourceType, RewardCopy> = {
   ticket: { title: "Reward Granted!", intro: "A reward was added from your ticket." },
   command: { title: "Reward Granted!", intro: "A reward was added to your account." },
   transfer: { title: "Balance Received!", intro: "Another member sent you some balance." },
+  servertag: { title: "Server Tag Reward!", intro: "Thanks for repping our server tag!" },
 };
 
 const ACTOR_LABEL: Partial<Record<GrantSourceType, string>> = {
