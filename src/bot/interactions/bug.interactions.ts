@@ -1,8 +1,6 @@
 import { BugReportService } from "@/core/services/bugs/bug-report.service";
-import {
-  dollarsToQuota,
-  GrantService,
-} from "@/core/services/grant/grant.service";
+import { GrantService } from "@/core/services/grant/grant.service";
+import { dollarsToQuota } from "@/shared/config/rewards";
 import { isStaff } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import {

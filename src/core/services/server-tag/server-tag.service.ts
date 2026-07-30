@@ -1,7 +1,5 @@
-import {
-  dollarsToQuota,
-  GrantService,
-} from "@/core/services/grant/grant.service";
+import { GrantService } from "@/core/services/grant/grant.service";
+import { REWARDS, dollarsToQuota } from "@/shared/config/rewards";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { db } from "@/lib/db";
 import { serverTagWear } from "@/lib/db-schema";
@@ -15,7 +13,7 @@ import type {
   User,
 } from "discord.js";
 
-const GRANT_DOLLARS = parseFloat(process.env.SERVER_TAG_GRANT_DOLLARS || "0");
+const GRANT_DOLLARS = REWARDS.serverTag;
 const PAYOUT_INTERVAL_HOURS = parseInt(
   process.env.SERVER_TAG_PAYOUT_INTERVAL_HOURS || "24",
   10,

@@ -1,7 +1,8 @@
 import { db } from "@/lib/db";
 import { rewardGrant, voteRoleHold } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import { GrantService, dollarsToQuota } from "@/core/services/grant/grant.service";
+import { GrantService } from "@/core/services/grant/grant.service";
+import { REWARDS, dollarsToQuota } from "@/shared/config/rewards";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { VoteSite, VOTE_SITE_LABEL } from "@/types";
 import type { Client, Guild, GuildMember } from "discord.js";
@@ -34,7 +35,7 @@ const DEDUPE_MS: Record<VoteSite, number> = {
   [VoteSite.DiscordServers]: 11 * HOUR_MS,
 };
 
-const VOTE_GRANT_DOLLARS = parseFloat(process.env.VOTE_GRANT_DOLLARS || "0.10");
+const VOTE_GRANT_DOLLARS = REWARDS.vote;
 
 // Mid-session stuck-role sweep cadence. Default 10min: frequent enough that a
 // missed vote role clears fast, cheap enough (in-memory role check per member,

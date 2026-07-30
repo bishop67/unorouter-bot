@@ -1,5 +1,6 @@
 import { APIEmbed } from "discord.js";
 import { BOT_NAME, GREEN_COLOR, WEBSITE_URL } from "@/shared/config/branding";
+import { formatDollars } from "@/shared/config/rewards";
 import { type GrantSourceType } from "@/types";
 
 type RewardCopy = { title: string; intro: string };
@@ -36,8 +37,7 @@ export function grantRewardEmbed(params: {
   reason?: string | null;
 }): APIEmbed {
   const copy = COPY[params.sourceType] ?? COPY.command;
-  const fmt = (n: number) =>
-    Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
+  const fmt = (n: number) => `$${formatDollars(n)}`;
 
   const intro =
     params.sourceType === "vote" && params.voteSiteLabel

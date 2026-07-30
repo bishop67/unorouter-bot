@@ -1,7 +1,5 @@
-import {
-  dollarsToQuota,
-  GrantService,
-} from "@/core/services/grant/grant.service";
+import { GrantService } from "@/core/services/grant/grant.service";
+import { dollarsToQuota } from "@/shared/config/rewards";
 import {
   TicketCategory,
   TicketOpenStatus,

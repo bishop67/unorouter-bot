@@ -5,6 +5,7 @@ import {
   safeEditReply,
 } from "@/core/utils/command.utils";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
+import { REWARDS, formatDollars } from "@/shared/config/rewards";
 import { ButtonId } from "@/types/custom-ids";
 import {
   ActionRowBuilder,
@@ -49,7 +50,7 @@ export class VerifyPanelCommand {
     }
 
     const settingsLink = `${WEBSITE_URL}/settings?redirect=/settings`;
-    const bonus = parseFloat(process.env.CONNECT_GRANT_DOLLARS || "0");
+    const bonus = REWARDS.connect;
     const plainBonus = bonus > 0 ? `$${formatDollars(bonus)}` : "free balance";
     const boldBonus =
       bonus > 0 ? `**$${formatDollars(bonus)}**` : "**free balance**";
@@ -96,6 +97,3 @@ export class VerifyPanelCommand {
   }
 }
 
-function formatDollars(n: number): string {
-  return Number.isInteger(n) ? `${n}` : n.toFixed(2);
-}

@@ -5,6 +5,7 @@ import {
 import { InviteService } from "@/core/services/invites/invite.service";
 import { LevelRewardService } from "@/core/services/levels/level-reward.service";
 import { VoteService } from "@/core/services/vote/vote.service";
+import { formatDollars } from "@/shared/config/rewards";
 import { logger } from "@/lib/logger";
 import { ButtonId } from "@/types/custom-ids";
 import { ButtonInteraction, GuildMember, MessageFlags, time } from "discord.js";
@@ -57,7 +58,7 @@ export class ClaimInteractions {
 
       if (result.bonusGranted) {
         await interaction.editReply(
-          `Linked! You received the connected role and a one-time **$${result.dollars}** balance bonus. Thanks for joining!`,
+          `Linked! You received the connected role and a one-time **$${formatDollars(result.dollars)}** balance bonus. Thanks for joining!`,
         );
       } else {
         await interaction.editReply(

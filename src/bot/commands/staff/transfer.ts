@@ -1,7 +1,5 @@
-import {
-  dollarsToQuota,
-  GrantService,
-} from "@/core/services/grant/grant.service";
+import { GrantService } from "@/core/services/grant/grant.service";
+import { dollarsToQuota, formatDollars } from "@/shared/config/rewards";
 import {
   canTransfer,
   isLinked,
@@ -21,7 +19,7 @@ import { Discord, Slash, SlashOption } from "discordx";
 
 const QUOTA_PER_DOLLAR = parseInt(process.env.QUOTA_PER_DOLLAR || "500000", 10);
 const fmtDollars = (dollars: number) =>
-  Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+  `$${formatDollars(dollars)}`;
 
 @Discord()
 export class TransferCommand {

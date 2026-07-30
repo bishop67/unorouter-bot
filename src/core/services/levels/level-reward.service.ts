@@ -1,10 +1,8 @@
 import { db } from "@/lib/db";
 import { memberMessages, rewardClaim } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import {
-  dollarsToQuota,
-  GrantService,
-} from "@/core/services/grant/grant.service";
+import { GrantService } from "@/core/services/grant/grant.service";
+import { dollarsToQuota } from "@/shared/config/rewards";
 import { LEVEL_LIST } from "@/shared/config/levels";
 import type { GuildMember } from "discord.js";
 import { and, count, eq } from "drizzle-orm";

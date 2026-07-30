@@ -2,16 +2,12 @@ import { db } from "@/lib/db";
 import { inviteJoin, inviteSeed, member, rewardClaim } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { MemberDataService } from "@/core/services/members/member-data.service";
-import {
-  dollarsToQuota,
-  GrantService,
-} from "@/core/services/grant/grant.service";
+import { GrantService } from "@/core/services/grant/grant.service";
+import { REWARDS, dollarsToQuota } from "@/shared/config/rewards";
 import type { Guild, GuildMember, Invite } from "discord.js";
 import { and, count, eq } from "drizzle-orm";
 
-const INVITE_GRANT_DOLLARS = parseFloat(
-  process.env.INVITE_GRANT_DOLLARS || "0.01",
-);
+const INVITE_GRANT_DOLLARS = REWARDS.invite;
 
 type CachedInvite = {
   uses: number;

@@ -1,5 +1,6 @@
 import { voteRoutes } from "@/api/routes/vote.routes";
 import { logger } from "@/lib/logger";
+import { rewardsPayload } from "@/shared/config/rewards";
 import { node } from "@elysiajs/node";
 import { Elysia } from "elysia";
 
@@ -20,6 +21,10 @@ export function startWebhookServer(): void {
       logger.error("Webhook server error", { path, code, error: msg });
     })
     .get("/health", () => ({ ok: true }))
+    // Live payout amounts, read from the same config the payout code uses, so a
+    // consumer (the website docs) can never advertise a figure the bot no longer
+    // pays. Cluster-internal only; the service has no public ingress.
+    .get("/rewards", () => rewardsPayload())
     .use(voteRoutes)
     .listen(WEBHOOK_PORT, () =>
       logger.info("Webhook server started", { port: WEBHOOK_PORT }),

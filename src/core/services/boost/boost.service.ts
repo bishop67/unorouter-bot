@@ -1,7 +1,5 @@
-import {
-  dollarsToQuota,
-  GrantService,
-} from "@/core/services/grant/grant.service";
+import { GrantService } from "@/core/services/grant/grant.service";
+import { REWARDS, dollarsToQuota, formatDollars } from "@/shared/config/rewards";
 import { db } from "@/lib/db";
 import { boostSlot } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
@@ -28,7 +26,7 @@ export type BackfillSummary = {
   }[];
 };
 
-const BOOST_GRANT_DOLLARS = parseFloat(process.env.BOOST_GRANT_DOLLARS || "0");
+const BOOST_GRANT_DOLLARS = REWARDS.boost;
 const PAYOUT_INTERVAL_DAYS = parseInt(
   process.env.BOOST_PAYOUT_INTERVAL_DAYS || "30",
   10,
@@ -103,13 +101,13 @@ export class BoostService {
       if (result.linked) {
         await member?.user
           .send(
-            `Thanks for boosting! You earned **$${BOOST_GRANT_DOLLARS}** balance, and every $${BOOST_GRANT_DOLLARS}/month while you keep boosting lands automatically. 💜`,
+            `Thanks for boosting! You earned **$${formatDollars(BOOST_GRANT_DOLLARS)}** balance, and every $${formatDollars(BOOST_GRANT_DOLLARS)}/month while you keep boosting lands automatically. 💜`,
           )
           .catch(() => {});
       } else {
         await member?.user
           .send(
-            `Thanks for boosting! ${GrantService.linkPrompt()} Once linked, your boost reward (and every $${BOOST_GRANT_DOLLARS}/month while you keep boosting) lands automatically.`,
+            `Thanks for boosting! ${GrantService.linkPrompt()} Once linked, your boost reward (and every $${formatDollars(BOOST_GRANT_DOLLARS)}/month while you keep boosting) lands automatically.`,
           )
           .catch(() => {});
       }

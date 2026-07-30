@@ -8,6 +8,12 @@ import {
 } from "@/lib/new-api/openapi";
 import { bot } from "@/main";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
+import {
+  QUOTA_PER_DOLLAR,
+  REWARDS,
+  dollarsToQuota,
+  formatDollars,
+} from "@/shared/config/rewards";
 import { grantRewardEmbed } from "@/core/embeds/grant-reward.embed";
 import { DmPreferenceService } from "@/core/services/notifications/dm-preference.service";
 import { RolesService } from "@/core/services/roles/roles.service";
@@ -31,28 +37,16 @@ const NEW_API_ADMIN_TOKEN = process.env.NEW_API_ADMIN_TOKEN || "";
 const GRANT_LOG_CHANNEL_NAME =
   process.env.GRANT_LOG_CHANNEL?.trim() || "grants-log";
 
-// Bonuses are configured in DOLLARS; bot converts to new-api quota units.
-// new-api default QuotaPerUnit = 500000 quota = $1.
-const QUOTA_PER_DOLLAR = parseInt(process.env.QUOTA_PER_DOLLAR || "500000", 10);
-export function dollarsToQuota(dollars: number): number {
-  return Math.round(dollars * QUOTA_PER_DOLLAR);
-}
-
 // Automated grants pass the "system" sentinel; the normalized schema records the
 // actor as a nullable member FK, so NULL means system.
 function systemToNull(grantedBy: string): string | null {
   return grantedBy === "system" ? null : grantedBy;
 }
 
-const CONNECT_GRANT_QUOTA = dollarsToQuota(
-  parseFloat(process.env.CONNECT_GRANT_DOLLARS || "0")
-);
+const CONNECT_GRANT_DOLLARS = REWARDS.connect;
+const CONNECT_GRANT_QUOTA = dollarsToQuota(CONNECT_GRANT_DOLLARS);
 // Role given when a user proves their Discord is linked to the platform.
 const CONNECTED_ROLE = process.env.CONNECTED_ROLE?.trim() || BOT_NAME;
-
-const CONNECT_GRANT_DOLLARS = parseFloat(
-  process.env.CONNECT_GRANT_DOLLARS || "0"
-);
 
 export const ConnectStatus = {
   NotLinked: "not_linked",
@@ -445,9 +439,7 @@ export class GrantService {
     const channel = findTextChannel(guild, GRANT_LOG_CHANNEL_NAME);
     if (!channel) return;
     const dollars = QUOTA_PER_DOLLAR > 0 ? quota / QUOTA_PER_DOLLAR : 0;
-    const dollarLabel = Number.isInteger(dollars)
-      ? `$${dollars}`
-      : `$${dollars.toFixed(2)}`;
+    const dollarLabel = `$${formatDollars(dollars)}`;
     const tag = GRANT_SOURCE_LABEL[sourceType] ?? sourceType;
     const who = await this.formatUser(guild, targetDiscordId);
     const invitee = inviteeDiscordId

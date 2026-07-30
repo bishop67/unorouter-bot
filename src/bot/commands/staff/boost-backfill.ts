@@ -1,5 +1,6 @@
 import { BoostService } from "@/core/services/boost/boost.service";
 import { isStaff } from "@/core/utils/command.utils";
+import { formatDollars } from "@/shared/config/rewards";
 import { ChannelType, type GuildMember } from "discord.js";
 import type { SimpleCommandMessage } from "discordx";
 import { Discord, SimpleCommand } from "discordx";
@@ -31,7 +32,7 @@ export class BoostBackfill {
           "",
           `**Unpaid (needs manual /grant): ${summary.unpaid.length}**`,
           ...summary.unpaid.map(
-            (u) => `- <@${u.memberId}> $${u.dollars.toFixed(2)} (${u.reason})`,
+            (u) => `- <@${u.memberId}> $${formatDollars(u.dollars)} (${u.reason})`,
           ),
         ]
       : [];
@@ -42,7 +43,7 @@ export class BoostBackfill {
         `Boosters missing a slot: **${summary.created}**`,
         `Already tracked (skipped): **${summary.skipped}**`,
         `Retro months paid: **${summary.retroMonths}**`,
-        `Retro payout total: **$${summary.retroDollars.toFixed(2)}**`,
+        `Retro payout total: **$${formatDollars(summary.retroDollars)}**`,
         ...unpaid,
         dryRun ? "\nRun `!boost-backfill confirm` to apply." : "",
       ]

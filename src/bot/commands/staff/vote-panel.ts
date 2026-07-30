@@ -5,6 +5,7 @@ import {
   safeEditReply,
 } from "@/core/utils/command.utils";
 import { BOT_NAME } from "@/shared/config/branding";
+import { REWARDS, formatDollars } from "@/shared/config/rewards";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -58,7 +59,7 @@ export class VotePanelCommand {
       return;
     }
 
-    const dollars = parseFloat(process.env.VOTE_GRANT_DOLLARS || "0");
+    const dollars = REWARDS.vote;
     const reward =
       dollars > 0
         ? `**$${formatDollars(dollars)}** balance`
@@ -150,6 +151,3 @@ export class VotePanelCommand {
   }
 }
 
-function formatDollars(n: number): string {
-  return Number.isInteger(n) ? `${n}` : n.toFixed(2);
-}
