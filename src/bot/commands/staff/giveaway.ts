@@ -1,6 +1,6 @@
 import { GiveawayService } from "@/core/services/giveaway/giveaway.service";
 import {
-  isStaff,
+  isAdmin,
   purgeOwnPanels,
   safeDeferReply,
   safeEditReply,
@@ -43,12 +43,12 @@ export class GiveawayCommands {
     name: "giveaway-start",
     description: "Open a giveaway round and post the panel",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
   })
   async start(interaction: CommandInteraction) {
     if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
       return;
-    if (!isStaff(interaction.member as GuildMember)) {
+    if (!isAdmin(interaction.member as GuildMember)) {
       await safeEditReply(interaction, "You are not allowed to use this command.");
       return;
     }
@@ -125,12 +125,12 @@ export class GiveawayCommands {
     name: "giveaway-status",
     description: "Current giveaway standings",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
   })
   async status(interaction: CommandInteraction) {
     if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
       return;
-    if (!isStaff(interaction.member as GuildMember)) return;
+    if (!isAdmin(interaction.member as GuildMember)) return;
     const guild = interaction.guild;
     if (!guild) return;
 
@@ -161,12 +161,12 @@ export class GiveawayCommands {
     name: "giveaway-end",
     description: "Close the round, pick winners and pay them",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
   })
   async end(interaction: CommandInteraction) {
     if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
       return;
-    if (!isStaff(interaction.member as GuildMember)) return;
+    if (!isAdmin(interaction.member as GuildMember)) return;
     const guild = interaction.guild;
     if (!guild) return;
 
@@ -221,12 +221,12 @@ export class GiveawayCommands {
     name: "giveaway-stats",
     description: "All-time giveaway leaderboard",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
   })
   async stats(interaction: CommandInteraction) {
     if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
       return;
-    if (!isStaff(interaction.member as GuildMember)) return;
+    if (!isAdmin(interaction.member as GuildMember)) return;
     const guild = interaction.guild;
     if (!guild) return;
 
