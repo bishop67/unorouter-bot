@@ -50,7 +50,14 @@ export class MessagesService {
 
       await db
         .insert(memberMessages)
-        .values({ id: messageId, channelId, guildId, memberId, messageId })
+        .values({
+          id: messageId,
+          channelId,
+          guildId,
+          memberId,
+          messageId,
+          contentLength: content.trim().length,
+        })
         .onConflictDoUpdate({
           target: memberMessages.messageId,
           set: { channelId, guildId, memberId },

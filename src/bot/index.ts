@@ -26,10 +26,12 @@ import "./commands/staff/transfer";
 import "./commands/staff/ticket-panel";
 import "./commands/staff/verify-users";
 import "./commands/staff/boost-backfill";
+import "./commands/staff/giveaway";
 
 // Interactions
 import "./interactions/bug.interactions";
 import "./interactions/claim.interactions";
 import "./interactions/server-tag.interactions";
+import "./interactions/giveaway.interactions";
 import "./interactions/reward.modal";
 import "./interactions/ticket.interactions";

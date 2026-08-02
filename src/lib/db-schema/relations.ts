@@ -12,6 +12,9 @@ import {
   memberRole,
   rewardClaim,
   rewardGrant,
+  giveawayEntry,
+  giveawayRound,
+  giveawayWinner,
   role,
   serverTagWear,
   ticket,
@@ -35,6 +38,8 @@ export const memberRelations = relations(member, ({ many }) => ({
   rewardClaims: many(rewardClaim),
   boostSlots: many(boostSlot),
   serverTagWears: many(serverTagWear),
+  giveawayWins: many(giveawayWinner),
+  giveawayEntries: many(giveawayEntry),
   voteRoleHolds: many(voteRoleHold),
   dmOptouts: many(dmOptout),
 }));
@@ -168,6 +173,40 @@ export const serverTagWearRelations = relations(serverTagWear, ({ one }) => ({
   }),
   member: one(member, {
     fields: [serverTagWear.memberId],
+    references: [member.memberId],
+  }),
+}));
+
+export const giveawayRoundRelations = relations(
+  giveawayRound,
+  ({ one, many }) => ({
+    guild: one(guild, {
+      fields: [giveawayRound.guildId],
+      references: [guild.guildId],
+    }),
+    winners: many(giveawayWinner),
+    entries: many(giveawayEntry),
+  }),
+);
+
+export const giveawayEntryRelations = relations(giveawayEntry, ({ one }) => ({
+  round: one(giveawayRound, {
+    fields: [giveawayEntry.roundId],
+    references: [giveawayRound.id],
+  }),
+  member: one(member, {
+    fields: [giveawayEntry.memberId],
+    references: [member.memberId],
+  }),
+}));
+
+export const giveawayWinnerRelations = relations(giveawayWinner, ({ one }) => ({
+  round: one(giveawayRound, {
+    fields: [giveawayWinner.roundId],
+    references: [giveawayRound.id],
+  }),
+  member: one(member, {
+    fields: [giveawayWinner.memberId],
     references: [member.memberId],
   }),
 }));

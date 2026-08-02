@@ -45,6 +45,11 @@ export const rewardSourceEnum = pgEnum("reward_source", [
   "level",
   "transfer",
   "servertag",
+  "giveaway",
+]);
+export const giveawayWinnerKindEnum = pgEnum("giveaway_winner_kind", [
+  "ranked",
+  "random",
 ]);
 export const claimStatusEnum = pgEnum("claim_status", [
   "pending",
@@ -219,11 +224,15 @@ export const memberMessages = pgTable(
         onDelete: "cascade",
         onUpdate: "cascade",
       }),
+    // Length only, never content: the giveaway scores substantive messages and
+    // must not turn this table into a chat log.
+    contentLength: integer("content_length"),
     createdAt: createdAt(),
   },
   (table) => [
     uniqueIndex("uq_member_messages_message").on(table.messageId),
     index("idx_member_messages_member_guild").on(table.memberId, table.guildId),
+    index("idx_member_messages_created").on(table.createdAt),
   ],
 );
 
@@ -376,6 +385,102 @@ export const serverTagWear = pgTable(
       .on(table.memberId, table.guildId)
       .where(sql`${table.active}`),
     index("idx_server_tag_wears_due").on(table.active, table.nextPayoutAt),
+  ],
+);
+
+// One row per giveaway round. `endedAt` null means the round is still open; the
+// partial unique index below is what stops two open rounds per guild.
+export const giveawayRound = pgTable(
+  "giveaway_rounds",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    startedByMemberId: text("started_by_member_id").references(
+      () => member.memberId,
+      { onDelete: "set null", onUpdate: "cascade" },
+    ),
+    startedAt: createdAt(),
+    endedAt: timestamp("ended_at", { precision: 3, mode: "string" }),
+    // Payout snapshot, so retuning the env later never rewrites past results.
+    prizePool: text("prize_pool").notNull(),
+    announceMessageId: text("announce_message_id"),
+  },
+  (table) => [
+    uniqueIndex("uq_giveaway_rounds_open")
+      .on(table.guildId)
+      .where(sql`${table.endedAt} IS NULL`),
+    index("idx_giveaway_rounds_guild").on(table.guildId, table.startedAt),
+  ],
+);
+
+// Every scoring participant of a round, not just the winners: without this the
+// scores are computed and thrown away, leaving no way to see who earned what or
+// who keeps placing across rounds.
+export const giveawayEntry = pgTable(
+  "giveaway_entries",
+  {
+    id: serial("id").primaryKey(),
+    roundId: integer("round_id")
+      .notNull()
+      .references(() => giveawayRound.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    score: integer("score").notNull(),
+    // Per-signal points, so an announcement can show WHY someone placed.
+    breakdown: text("breakdown").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_giveaway_entries_round_member").on(
+      table.roundId,
+      table.memberId,
+    ),
+    index("idx_giveaway_entries_round_score").on(table.roundId, table.score),
+    index("idx_giveaway_entries_member").on(table.memberId),
+  ],
+);
+
+export const giveawayWinner = pgTable(
+  "giveaway_winners",
+  {
+    id: serial("id").primaryKey(),
+    roundId: integer("round_id")
+      .notNull()
+      .references(() => giveawayRound.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    place: integer("place").notNull(),
+    kind: giveawayWinnerKindEnum("kind").notNull(),
+    score: integer("score").notNull(),
+    quota: integer("quota").notNull(),
+    paid: boolean("paid").default(false).notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_giveaway_winners_round_member").on(
+      table.roundId,
+      table.memberId,
+    ),
+    index("idx_giveaway_winners_round").on(table.roundId, table.place),
   ],
 );
 
