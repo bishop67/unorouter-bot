@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1783978107657,
-      "tag": "0000_bumpy_marauders",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1784235232010,
-      "tag": "0001_gray_puma",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1785066261482,
-      "tag": "0002_lumpy_captain_flint",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1785431488780,
-      "tag": "0003_cold_tana_nile",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1785681581847,
-      "tag": "0004_adorable_mesmero",
+      "when": 1785683403784,
+      "tag": "0000_baseline",
       "breakpoints": true
     }
   ]
