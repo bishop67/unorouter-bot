@@ -1,7 +1,7 @@
 import { APIEmbed } from "discord.js";
 import { BOT_NAME, GREEN_COLOR, WEBSITE_URL } from "@/shared/config/branding";
 import { formatDollars } from "@/shared/config/rewards";
-import { type GrantSourceType } from "@/types";
+import { isDmToggleable, type GrantSourceType } from "@/types";
 
 type RewardCopy = { title: string; intro: string };
 
@@ -64,11 +64,19 @@ export function grantRewardEmbed(params: {
     lines.push("", `Vote again in **${params.voteAgainHours} hours** for another reward!`);
   }
 
+  // Only the recurring sources can be muted; one-time grants always DM, so
+  // promising an opt-out on those would be a lie.
+  const footerNote = isDmToggleable(params.sourceType)
+    ? " - mute these DMs with /notifications"
+    : "";
+
   return {
     color: GREEN_COLOR,
     title: copy.title,
     description: lines.join("\n"),
     timestamp: new Date().toISOString(),
-    footer: { text: `${BOT_NAME} - ${WEBSITE_URL.replace(/^https?:\/\//, "")}` },
+    footer: {
+      text: `${BOT_NAME} - ${WEBSITE_URL.replace(/^https?:\/\//, "")}${footerNote}`,
+    },
   };
 }
