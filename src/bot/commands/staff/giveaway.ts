@@ -156,7 +156,11 @@ export class GiveawayCommands {
       return;
     }
 
-    const embed = GiveawayService.resultsEmbed(round.id, winners);
+    const names = await GiveawayService.displayNames(
+      winners.map((w) => w.memberId),
+      guild,
+    );
+    const embed = GiveawayService.resultsEmbed(round.id, winners, names);
 
     const channel =
       findTextChannel(guild, GIVEAWAY_ANNOUNCE_CHANNEL) ??
@@ -208,8 +212,8 @@ export class GiveawayCommands {
     dmPermission: false,
   })
   async leaderboard(interaction: CommandInteraction) {
-    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
-      return;
+    // Public on purpose: a ranked board nobody can see is not a competition.
+    if (!(await safeDeferReply(interaction))) return;
     const guild = interaction.guild;
     if (!guild) return;
 
@@ -225,27 +229,42 @@ export class GiveawayCommands {
       return;
     }
 
-    const medals = ["🥇", "🥈", "🥉"];
     const top = all.slice(0, 10);
     const mine = all.findIndex((e) => e.memberId === interaction.user.id);
-    const lines = [
-      `**Giveaway standings** - round #${round.id}, ${all.length} taking part`,
-      "",
-      ...top.map((e, i) => {
-        const icon = i < GIVEAWAY_RANKED_COUNT ? (medals[i] ?? "🏅") : `${i + 1}.`;
-        const prize = i < GIVEAWAY_PRIZES.length
+    const ids = top.map((e) => e.memberId);
+    if (mine >= 0) ids.push(interaction.user.id);
+    // Plain names, not <@id>: a mention renders as "unknown-user" for anyone the
+    // viewer has not cached, which is most of the board.
+    const names = await GiveawayService.displayNames(ids, guild);
+
+    const medals = ["🥇", "🥈", "🥉"];
+    const board = top.map((e, i) => {
+      const rank = i < 3 ? medals[i] : `**#${i + 1}**`;
+      const prize =
+        i < GIVEAWAY_PRIZES.length
           ? ` - ${GiveawayService.formatPrize(GIVEAWAY_PRIZES[i]!)}`
           : "";
-        return `${icon} <@${e.memberId}> - **${e.score}** pts${prize}`;
-      }),
-      "",
-      mine >= 0
-        ? `You are **#${mine + 1}** with **${all[mine]!.score}** pts (${GiveawayService.formatBreakdown(all[mine]!.breakdown)})`
-        : "You have not scored yet. Vote, wear the tag, invite or boost - none of it needs chatting.",
-    ];
-    await safeEditReply(interaction, {
-      content: lines.join("\n"),
-      allowedMentions: { users: [], roles: [] },
+      return `${rank} ${names.get(e.memberId)} \`${e.score} pts\`${prize}`;
     });
+
+    const total = GIVEAWAY_PRIZES.reduce((a, b) => a + b, 0);
+    const embed = new EmbedBuilder()
+      .setTitle("🏆 Giveaway standings")
+      .setDescription(
+        [
+          `Round #${round.id} - **${all.length}** taking part, ${GiveawayService.formatPrize(total)} on the line.`,
+          "",
+          ...board,
+          "",
+          mine >= 0
+            ? `You are **#${mine + 1}** with \`${all[mine]!.score} pts\` (${GiveawayService.formatBreakdown(all[mine]!.breakdown)})`
+            : "You have not scored yet. Voting, wearing the server tag, inviting and boosting all count - none of it needs chatting.",
+        ].join("\n"),
+      )
+      .setColor(PURPLE)
+      .setFooter({ text: `Top ${GIVEAWAY_RANKED_COUNT} win by points; the rest are drawn at random` })
+      .setTimestamp(new Date());
+
+    await safeEditReply(interaction, { embeds: [embed] });
   }
 }

@@ -10,6 +10,7 @@ import {
   giveawayEntry,
   giveawayRound,
   giveawayWinner,
+  member as memberTable,
   memberMessages,
   rewardGrant,
   serverTagWear,
@@ -36,7 +37,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import { ButtonId } from "@/types/custom-ids";
 import { BOT_NAME } from "@/shared/config/branding";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 export type Breakdown = Partial<Record<GiveawaySignal, number>>;
 
@@ -379,6 +380,35 @@ export class GiveawayService {
     `);
   }
 
+  /**
+   * Display names for a set of ids.
+   *
+   * A plain <@id> mention renders as "unknown-user" for anyone the viewing
+   * client has not cached, which was most of the board. Prefer the live guild
+   * member, fall back to the username the bot already stores.
+   */
+  static async displayNames(
+    ids: string[],
+    guild?: Guild,
+  ): Promise<Map<string, string>> {
+    const names = new Map<string, string>();
+    if (!ids.length) return names;
+    const rows = await db
+      .select({ id: memberTable.memberId, username: memberTable.username })
+      .from(memberTable)
+      .where(inArray(memberTable.memberId, ids))
+      .catch(() => []);
+    for (const row of rows) names.set(row.id, row.username);
+    if (guild) {
+      for (const id of ids) {
+        const cached = guild.members.cache.get(id);
+        if (cached) names.set(id, cached.displayName || cached.user.username);
+      }
+    }
+    for (const id of ids) if (!names.get(id)) names.set(id, "unknown");
+    return names;
+  }
+
   static formatBreakdown(breakdown: Breakdown): string {
     const label: Record<GiveawaySignal, string> = {
       invite: "invites",
@@ -443,7 +473,11 @@ export class GiveawayService {
     return { embed, row };
   }
 
-  static resultsEmbed(roundId: number, winners: DrawnWinner[]): EmbedBuilder {
+  static resultsEmbed(
+    roundId: number,
+    winners: DrawnWinner[],
+    names?: Map<string, string>,
+  ): EmbedBuilder {
     const medals = ["🥇", "🥈", "🥉"];
     return new EmbedBuilder()
       .setTitle(`🎉 Giveaway results - round #${roundId}`)
@@ -452,7 +486,12 @@ export class GiveawayService {
           ...winners.map((w) => {
             const icon = w.kind === "ranked" ? (medals[w.place - 1] ?? "🏅") : "🎲";
             const tail = w.kind === "ranked" ? "" : " *(random draw)*";
-            return `${icon} <@${w.memberId}> - **${this.formatPrize(w.dollars)}** - ${w.score} pts${tail}\n> ${this.formatBreakdown(w.breakdown)}`;
+            // Mention the winner (they get pinged) but name them in text too, so
+            // the line still reads for viewers who have not cached them.
+            const label = names?.get(w.memberId)
+              ? `<@${w.memberId}> (${names.get(w.memberId)})`
+              : `<@${w.memberId}>`;
+            return `${icon} ${label} - **${this.formatPrize(w.dollars)}** - ${w.score} pts${tail}\n> ${this.formatBreakdown(w.breakdown)}`;
           }),
           "",
           `Top ${GIVEAWAY_RANKED_COUNT} placed by points; the rest were drawn at random from everyone who scored.`,
@@ -478,8 +517,9 @@ export class GiveawayService {
     const winners = await this.endRound(round, guild);
     const channel = this.announceChannel(guild);
     if (winners.length && channel) {
+      const names = await this.displayNames(winners.map((w) => w.memberId), guild);
       await channel
-        .send({ embeds: [this.resultsEmbed(round.id, winners)], allowedMentions: { users: [] } })
+        .send({ embeds: [this.resultsEmbed(round.id, winners, names)], allowedMentions: { users: [] } })
         .catch((e) => logger.error("Giveaway results post failed", { error: String(e) }));
     }
     logger.info("Giveaway round rolled", { round: round.id, winners: winners.length });
