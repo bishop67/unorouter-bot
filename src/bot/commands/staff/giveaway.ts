@@ -68,38 +68,9 @@ export class GiveawayCommands {
       return;
     }
 
-    const w = GIVEAWAY_WEIGHTS;
-    const embed = new EmbedBuilder()
-      .setTitle(`🎉 ${BOT_NAME} giveaway is live`)
-      .setDescription(
-        [
-          `**${GiveawayService.formatPrize(GIVEAWAY_PRIZES.reduce((a, b) => a + b, 0))}** in balance, split across ${GIVEAWAY_PRIZES.length} winners.`,
-          "",
-          "**You do NOT have to chat to win.** Everything you already do counts:",
-          `- Invite someone who joins - **${w.invite} pts**`,
-          `- Boost the server - **${w.boost} pts**`,
-          `- Wear our server tag - **${w.serverTag} pts**`,
-          `- Reach a new level - **${w.level} pts**`,
-          `- Vote for us on the listing sites - **${w.vote} pts** each`,
-          `- Send a message - **${w.message} pt**`,
-          "",
-          "**Prizes**",
-          prizeLine(),
-          "",
-          `Top ${GIVEAWAY_RANKED_COUNT} by points win outright. The rest are drawn at random from everyone who scored, so a few points still gives you a real shot.`,
-          "",
-          "Only verified members can take part. Points reset each round.",
-        ].join("\n"),
-      )
-      .setColor(PURPLE);
-
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(ButtonId.GiveawayScore)
-        .setLabel("My score")
-        .setEmoji("📊")
-        .setStyle(ButtonStyle.Success),
-    );
+    const panel = GiveawayService.panelEmbed();
+    const embed = panel.embed;
+    const row = panel.row;
 
     const channel =
       findTextChannel(guild, GIVEAWAY_ANNOUNCE_CHANNEL) ??
@@ -185,23 +156,7 @@ export class GiveawayCommands {
       return;
     }
 
-    const medals = ["🥇", "🥈", "🥉"];
-    const embed = new EmbedBuilder()
-      .setTitle(`🎉 Giveaway results - round #${round.id}`)
-      .setDescription(
-        [
-          ...winners.map((w) => {
-            const icon = w.kind === "ranked" ? (medals[w.place - 1] ?? "🏅") : "🎲";
-            const tail = w.kind === "ranked" ? "" : " *(random draw)*";
-            return `${icon} <@${w.memberId}> - **${GiveawayService.formatPrize(w.dollars)}** - ${w.score} pts${tail}\n> ${GiveawayService.formatBreakdown(w.breakdown)}`;
-          }),
-          "",
-          `Top ${GIVEAWAY_RANKED_COUNT} placed by points; the rest were drawn at random from everyone who scored.`,
-          "A new round opens soon - everything you already do counts toward it.",
-        ].join("\n"),
-      )
-      .setColor(PURPLE)
-      .setTimestamp(new Date());
+    const embed = GiveawayService.resultsEmbed(round.id, winners);
 
     const channel =
       findTextChannel(guild, GIVEAWAY_ANNOUNCE_CHANNEL) ??
@@ -243,6 +198,53 @@ export class GiveawayCommands {
             `${i + 1}. <@${r.member_id}> - **${r.wins}** win(s), ${r.total_score} pts across ${r.rounds} round(s)`,
         ),
       ].join("\n"),
+      allowedMentions: { users: [], roles: [] },
+    });
+  }
+
+  @Slash({
+    name: "giveaway-leaderboard",
+    description: "See the current giveaway standings",
+    dmPermission: false,
+  })
+  async leaderboard(interaction: CommandInteraction) {
+    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
+      return;
+    const guild = interaction.guild;
+    if (!guild) return;
+
+    const round = await GiveawayService.openRound(guild.id);
+    if (!round) {
+      await safeEditReply(interaction, "No giveaway is running right now.");
+      return;
+    }
+    await guild.members.fetch().catch(() => null);
+    const all = await GiveawayService.scoreRound(round, guild);
+    if (!all.length) {
+      await safeEditReply(interaction, "Nobody has scored yet this round.");
+      return;
+    }
+
+    const medals = ["🥇", "🥈", "🥉"];
+    const top = all.slice(0, 10);
+    const mine = all.findIndex((e) => e.memberId === interaction.user.id);
+    const lines = [
+      `**Giveaway standings** - round #${round.id}, ${all.length} taking part`,
+      "",
+      ...top.map((e, i) => {
+        const icon = i < GIVEAWAY_RANKED_COUNT ? (medals[i] ?? "🏅") : `${i + 1}.`;
+        const prize = i < GIVEAWAY_PRIZES.length
+          ? ` - ${GiveawayService.formatPrize(GIVEAWAY_PRIZES[i]!)}`
+          : "";
+        return `${icon} <@${e.memberId}> - **${e.score}** pts${prize}`;
+      }),
+      "",
+      mine >= 0
+        ? `You are **#${mine + 1}** with **${all[mine]!.score}** pts (${GiveawayService.formatBreakdown(all[mine]!.breakdown)})`
+        : "You have not scored yet. Vote, wear the tag, invite or boost - none of it needs chatting.",
+    ];
+    await safeEditReply(interaction, {
+      content: lines.join("\n"),
       allowedMentions: { users: [], roles: [] },
     });
   }

@@ -3,6 +3,7 @@ import "@dotenvx/dotenvx/config";
 import { logger } from "@/lib/logger";
 import { BoostService } from "@/core/services/boost/boost.service";
 import { ServerTagService } from "@/core/services/server-tag/server-tag.service";
+import { GiveawayService } from "@/core/services/giveaway/giveaway.service";
 import { InviteService } from "@/core/services/invites/invite.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { VoteService } from "@/core/services/vote/vote.service";
@@ -85,6 +86,7 @@ bot.once("clientReady", async () => {
   await Promise.all(bot.guilds.cache.map(bootGuild));
   // Started after bootGuild so its first tick reconciles against a warm member cache.
   ServerTagService.startCron(bot);
+  GiveawayService.startCron(bot);
   // Keep member-count channels fresh even if a join/leave rename was rate-limited
   // (Discord caps channel renames at 2/10min).
   setInterval(

@@ -17,7 +17,11 @@ import {
 import { logger } from "@/lib/logger";
 import {
   capPoints,
+  GIVEAWAY_ANNOUNCE_CHANNEL,
+  GIVEAWAY_AUTO_REPEAT,
+  GIVEAWAY_CRON_INTERVAL_MS,
   GIVEAWAY_ENABLED,
+  GIVEAWAY_ROUND_DAYS,
   GIVEAWAY_EXCLUDED_CHANNELS,
   GIVEAWAY_EXCLUDED_ROLES,
   GIVEAWAY_MESSAGE_COOLDOWN_SECONDS,
@@ -27,7 +31,11 @@ import {
   GIVEAWAY_WEIGHTS,
   type GiveawaySignal,
 } from "@/shared/config/giveaway";
-import type { Guild } from "discord.js";
+import { EmbedBuilder, type Client, type Guild, type TextChannel } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { findTextChannel } from "@/shared/utils/channel.utils";
+import { ButtonId } from "@/types/custom-ids";
+import { BOT_NAME } from "@/shared/config/branding";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 export type Breakdown = Partial<Record<GiveawaySignal, number>>;
@@ -389,5 +397,124 @@ export class GiveawayService {
 
   static formatPrize(dollars: number): string {
     return `$${formatDollars(dollars)}`;
+  }
+
+  static announceChannel(guild: Guild): TextChannel | null {
+    return findTextChannel(guild, GIVEAWAY_ANNOUNCE_CHANNEL);
+  }
+
+  static panelEmbed(): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
+    const w = GIVEAWAY_WEIGHTS;
+    const total = GIVEAWAY_PRIZES.reduce((a, b) => a + b, 0);
+    const embed = new EmbedBuilder()
+      .setTitle(`🎉 ${BOT_NAME} giveaway is live`)
+      .setDescription(
+        [
+          `**${this.formatPrize(total)}** in balance, split across ${GIVEAWAY_PRIZES.length} winners.`,
+          `Runs for **${GIVEAWAY_ROUND_DAYS} days**, then a new round starts automatically.`,
+          "",
+          "**You do NOT have to chat to win.** Everything you already do counts:",
+          `- Invite someone who joins - **${w.invite} pts**`,
+          `- Boost the server - **${w.boost} pts**`,
+          `- Wear our server tag - **${w.serverTag} pts**`,
+          `- Reach a new level - **${w.level} pts**`,
+          `- Vote for us on the listing sites - **${w.vote} pts** each`,
+          `- Send a message - **${w.message} pt**`,
+          "",
+          "**Prizes**",
+          GIVEAWAY_PRIZES.map(
+            (d, i) =>
+              `${i + 1}. ${this.formatPrize(d)}${i < GIVEAWAY_RANKED_COUNT ? "" : " (random draw)"}`,
+          ).join("\n"),
+          "",
+          `Top ${GIVEAWAY_RANKED_COUNT} by points win outright. The rest are drawn at random from everyone who scored, so a few points still gives you a real shot.`,
+          "",
+          "Use `/giveaway-leaderboard` to see the standings. Verified members only; points reset each round.",
+        ].join("\n"),
+      )
+      .setColor(0x9b59ff);
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(ButtonId.GiveawayScore)
+        .setLabel("My score")
+        .setEmoji("📊")
+        .setStyle(ButtonStyle.Success),
+    );
+    return { embed, row };
+  }
+
+  static resultsEmbed(roundId: number, winners: DrawnWinner[]): EmbedBuilder {
+    const medals = ["🥇", "🥈", "🥉"];
+    return new EmbedBuilder()
+      .setTitle(`🎉 Giveaway results - round #${roundId}`)
+      .setDescription(
+        [
+          ...winners.map((w) => {
+            const icon = w.kind === "ranked" ? (medals[w.place - 1] ?? "🏅") : "🎲";
+            const tail = w.kind === "ranked" ? "" : " *(random draw)*";
+            return `${icon} <@${w.memberId}> - **${this.formatPrize(w.dollars)}** - ${w.score} pts${tail}\n> ${this.formatBreakdown(w.breakdown)}`;
+          }),
+          "",
+          `Top ${GIVEAWAY_RANKED_COUNT} placed by points; the rest were drawn at random from everyone who scored.`,
+          "**A new round starts right now** - everything you already do counts toward it.",
+        ].join("\n"),
+      )
+      .setColor(0x9b59ff)
+      .setTimestamp(new Date());
+  }
+
+  /** Close the round, announce, and immediately open the next one. */
+  static async rollRound(guild: Guild): Promise<void> {
+    const round = await this.openRound(guild.id);
+    if (!round) {
+      if (GIVEAWAY_AUTO_REPEAT) await this.openAndAnnounce(guild);
+      return;
+    }
+    const dueAt =
+      new Date(round.startedAt).getTime() + GIVEAWAY_ROUND_DAYS * 86_400_000;
+    if (Date.now() < dueAt) return;
+
+    await guild.members.fetch().catch(() => null);
+    const winners = await this.endRound(round, guild);
+    const channel = this.announceChannel(guild);
+    if (winners.length && channel) {
+      await channel
+        .send({ embeds: [this.resultsEmbed(round.id, winners)], allowedMentions: { users: [] } })
+        .catch((e) => logger.error("Giveaway results post failed", { error: String(e) }));
+    }
+    logger.info("Giveaway round rolled", { round: round.id, winners: winners.length });
+    if (GIVEAWAY_AUTO_REPEAT) await this.openAndAnnounce(guild);
+  }
+
+  static async openAndAnnounce(guild: Guild): Promise<void> {
+    const next = await this.startRound(guild, "system");
+    if (!next) return;
+    const channel = this.announceChannel(guild);
+    if (!channel) return;
+    const panel = this.panelEmbed();
+    await channel
+      .send({ embeds: [panel.embed], components: [panel.row] })
+      .catch((e) => logger.error("Giveaway panel post failed", { error: String(e) }));
+  }
+
+  static startCron(client: Client): void {
+    if (!GIVEAWAY_ENABLED) {
+      logger.info("Giveaway cron disabled (GIVEAWAY_PRIZES empty)");
+      return;
+    }
+    const tick = async () => {
+      for (const guild of client.guilds.cache.values()) {
+        await this.rollRound(guild).catch((e) =>
+          logger.error("Giveaway cron tick failed", { guild: guild.id, error: String(e) }),
+        );
+      }
+    };
+    void tick();
+    setInterval(() => void tick(), GIVEAWAY_CRON_INTERVAL_MS);
+    logger.info("Giveaway cron started", {
+      intervalMs: GIVEAWAY_CRON_INTERVAL_MS,
+      roundDays: GIVEAWAY_ROUND_DAYS,
+      autoRepeat: GIVEAWAY_AUTO_REPEAT,
+    });
   }
 }

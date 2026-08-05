@@ -78,6 +78,21 @@ export const GIVEAWAY_EXCLUDED_CHANNELS = (
   .map((name) => name.trim().toLowerCase())
   .filter(Boolean);
 
+// Rounds run on a fixed clock and roll straight into the next one, so the
+// giveaway is always live and members never land on a dead panel.
+export const GIVEAWAY_ROUND_DAYS = parseInt(
+  process.env.GIVEAWAY_ROUND_DAYS || "7",
+  10,
+);
+
+export const GIVEAWAY_AUTO_REPEAT =
+  process.env.GIVEAWAY_AUTO_REPEAT?.trim() !== "false";
+
+export const GIVEAWAY_CRON_INTERVAL_MS = parseInt(
+  process.env.GIVEAWAY_CRON_INTERVAL_MS || "600000", // 10min
+  10,
+);
+
 export const GIVEAWAY_ANNOUNCE_CHANNEL =
   process.env.GIVEAWAY_ANNOUNCE_CHANNEL?.trim() || "giveaway";
 
