@@ -1,97 +1,26 @@
 import { GiveawayService } from "@/core/services/giveaway/giveaway.service";
 import {
   isAdmin,
-  purgeOwnPanels,
   safeDeferReply,
   safeEditReply,
 } from "@/core/utils/command.utils";
-import { logger } from "@/lib/logger";
-import { BOT_NAME } from "@/shared/config/branding";
 import {
-  GIVEAWAY_ANNOUNCE_CHANNEL,
   GIVEAWAY_PRIZES,
   GIVEAWAY_RANKED_COUNT,
-  GIVEAWAY_WEIGHTS,
 } from "@/shared/config/giveaway";
-import { findTextChannel } from "@/shared/utils/channel.utils";
-import { ButtonId } from "@/types/custom-ids";
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   CommandInteraction,
   EmbedBuilder,
   GuildMember,
   MessageFlags,
   PermissionFlagsBits,
-  TextChannel,
 } from "discord.js";
 import { Discord, Slash } from "discordx";
 
 const PURPLE = 0x9b59ff;
 
-function prizeLine(): string {
-  return GIVEAWAY_PRIZES.map(
-    (d, i) =>
-      `${i + 1}. ${GiveawayService.formatPrize(d)}${i < GIVEAWAY_RANKED_COUNT ? "" : " (random draw)"}`,
-  ).join("\n");
-}
-
 @Discord()
 export class GiveawayCommands {
-  @Slash({
-    name: "giveaway-start",
-    description: "Open a giveaway round and post the panel",
-    dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.Administrator,
-  })
-  async start(interaction: CommandInteraction) {
-    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
-      return;
-    if (!isAdmin(interaction.member as GuildMember)) {
-      await safeEditReply(interaction, "You are not allowed to use this command.");
-      return;
-    }
-    if (!GiveawayService.isEnabled()) {
-      await safeEditReply(interaction, "Giveaways are disabled (GIVEAWAY_PRIZES is empty).");
-      return;
-    }
-    const guild = interaction.guild;
-    if (!guild) return;
-
-    const round = await GiveawayService.startRound(guild, interaction.user.id);
-    if (!round) {
-      await safeEditReply(
-        interaction,
-        "A round is already open. Run `/giveaway-end` first.",
-      );
-      return;
-    }
-
-    const panel = GiveawayService.panelEmbed();
-    const embed = panel.embed;
-    const row = panel.row;
-
-    const channel =
-      findTextChannel(guild, GIVEAWAY_ANNOUNCE_CHANNEL) ??
-      (interaction.channel as TextChannel | null);
-    if (!channel) {
-      await safeEditReply(interaction, "No channel to post in.");
-      return;
-    }
-    try {
-      await purgeOwnPanels(channel, ButtonId.GiveawayScore);
-      await channel.send({ embeds: [embed], components: [row] });
-      await safeEditReply(interaction, `Round #${round.id} open in ${channel}.`);
-    } catch (err) {
-      logger.error("Giveaway panel post failed", { error: String(err) });
-      await safeEditReply(
-        interaction,
-        `Round #${round.id} opened but the panel failed: ${(err as Error).message}`,
-      );
-    }
-  }
-
   @Slash({
     name: "giveaway-status",
     description: "Current giveaway standings",
@@ -126,54 +55,6 @@ export class GiveawayCommands {
       ].join("\n"),
       allowedMentions: { users: [], roles: [] },
     });
-  }
-
-  @Slash({
-    name: "giveaway-end",
-    description: "Close the round, pick winners and pay them",
-    dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.Administrator,
-  })
-  async end(interaction: CommandInteraction) {
-    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
-      return;
-    if (!isAdmin(interaction.member as GuildMember)) return;
-    const guild = interaction.guild;
-    if (!guild) return;
-
-    const round = await GiveawayService.openRound(guild.id);
-    if (!round) {
-      await safeEditReply(interaction, "No round is open.");
-      return;
-    }
-
-    // Role exclusion reads the member cache; a cold cache would silently let
-    // excluded roles back into the draw.
-    await guild.members.fetch().catch(() => null);
-    const winners = await GiveawayService.endRound(round, guild);
-    if (!winners.length) {
-      await safeEditReply(interaction, `Round #${round.id} closed with no participants.`);
-      return;
-    }
-
-    const names = await GiveawayService.displayNames(
-      winners.map((w) => w.memberId),
-      guild,
-    );
-    const embed = GiveawayService.resultsEmbed(round.id, winners, names);
-
-    const channel =
-      findTextChannel(guild, GIVEAWAY_ANNOUNCE_CHANNEL) ??
-      (interaction.channel as TextChannel | null);
-    await channel
-      ?.send({ embeds: [embed], allowedMentions: { users: [] } })
-      .catch((e) => logger.error("Giveaway results post failed", { error: String(e) }));
-
-    const unpaid = winners.filter((w) => !w.paid);
-    await safeEditReply(
-      interaction,
-      `Round #${round.id} closed. ${winners.length} winners paid.${unpaid.length ? ` ${unpaid.length} need a manual grant.` : ""}`,
-    );
   }
 
   @Slash({
