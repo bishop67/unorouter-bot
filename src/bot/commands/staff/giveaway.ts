@@ -121,13 +121,20 @@ export class GiveawayCommands {
     const medals = ["🥇", "🥈", "🥉"];
     const board = top.map((e, i) => {
       const rank = i < 3 ? medals[i] : `**#${i + 1}**`;
+      // Only the ranked places are won by position. The remaining prizes are
+      // drawn at random, so showing them next to #4 and #5 promised those
+      // members a payout that rank has nothing to do with.
       const prize =
-        i < GIVEAWAY_PRIZES.length
+        i < GIVEAWAY_RANKED_COUNT
           ? ` - ${GiveawayService.formatPrize(GIVEAWAY_PRIZES[i]!)}`
           : "";
       return `${rank} ${names.get(e.memberId)} \`${e.score} pts\`${prize}`;
     });
 
+    const randomPrizes = GIVEAWAY_PRIZES.slice(GIVEAWAY_RANKED_COUNT);
+    const randomLine = randomPrizes.length
+      ? `🎲 ${randomPrizes.map((d) => GiveawayService.formatPrize(d)).join(" + ")} drawn at random from **everyone else with points** (${Math.max(all.length - GIVEAWAY_RANKED_COUNT, 0)} in the draw)`
+      : "";
     const total = GIVEAWAY_PRIZES.reduce((a, b) => a + b, 0);
     const embed = new EmbedBuilder()
       .setTitle("🏆 Giveaway standings")
@@ -137,6 +144,7 @@ export class GiveawayCommands {
           "",
           ...board,
           "",
+          ...(randomLine ? [randomLine, ""] : []),
           mine >= 0
             ? `You are **#${mine + 1}** with \`${all[mine]!.score} pts\` (${GiveawayService.formatBreakdown(all[mine]!.breakdown)})`
             : "You have not scored yet. Voting, wearing the server tag, inviting and boosting all count - none of it needs chatting.",
