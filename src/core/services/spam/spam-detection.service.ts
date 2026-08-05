@@ -139,7 +139,7 @@ export class SpamDetectionService {
       });
 
       if (result.isSpam && result.confidence !== "low") {
-        await DeleteUserMessagesService.jailAndDeleteMessages({
+        await DeleteUserMessagesService.jailMember({
           jail: true,
           memberId: message.author.id,
           user: message.author,

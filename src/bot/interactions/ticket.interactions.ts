@@ -46,7 +46,7 @@ async function enforceTicketCooldown(
   if (cooldown.action === "jail") {
     TicketCooldownService.reset(interaction.user.id);
     if (interaction.guild) {
-      await DeleteUserMessagesService.jailAndDeleteMessages({
+      await DeleteUserMessagesService.jailMember({
         jail: true,
         memberId: interaction.user.id,
         user: interaction.user,

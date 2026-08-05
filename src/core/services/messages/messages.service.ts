@@ -342,7 +342,7 @@ export class MessagesService {
           );
         } catch (error) {}
       } else {
-        await DeleteUserMessagesService.jailAndDeleteMessages({
+        await DeleteUserMessagesService.jailMember({
           jail: true,
           memberId: member.id,
           user: member.user,

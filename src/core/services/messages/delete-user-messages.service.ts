@@ -53,9 +53,16 @@ export class DeleteUserMessagesService {
    * Jail user and start message deletion in background.
    * Returns as soon as the jail is applied.
    */
-  static async jailAndDeleteMessages(params: DeleteUserMessagesParams) {
+  /**
+   * Jail WITHOUT sweeping the member's history.
+   *
+   * Most jails here come from spam or a first-message catch, and wiping the
+   * history destroys the evidence a mod needs to tell a real spammer from a
+   * false positive. The offending message is still handled by whichever path
+   * flagged it; staff can still sweep on purpose with /delete-user-messages.
+   */
+  static async jailMember(params: DeleteUserMessagesParams) {
     await this.jailUser(params);
-    this.deleteUserMessages(params).catch(error);
   }
 
   /**
@@ -214,6 +221,15 @@ export class DeleteUserMessagesService {
     const channelTasks: (() => Promise<void>)[] = [];
 
     for (const channel of params.guild.channels.cache.values()) {
+      // Never sweep the jail channel: it holds the appeal conversation, which is
+      // the one record staff need when reviewing whether a jail was correct.
+      if (
+        JAIL &&
+        "name" in channel &&
+        channel.name.toLowerCase().includes(JAIL.toLowerCase())
+      ) {
+        continue;
+      }
       if (channel.type === ChannelType.GuildForum) {
         channelTasks.push(async () => {
           const threads = await (channel as ForumChannel).threads

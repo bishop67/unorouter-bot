@@ -4,6 +4,7 @@ import { DuplicateSpamService } from "@/core/services/spam/duplicate-spam.servic
 import { SpamDetectionService } from "@/core/services/spam/spam-detection.service";
 import { TicketService } from "@/core/services/tickets/ticket.service";
 import { PURGE_BOT_USER_IDS } from "@/shared/config/features";
+import { JAIL } from "@/shared/config/roles";
 import { Message } from "discord.js";
 
 export async function handleMessageCreate(message: Message): Promise<void> {
@@ -22,6 +23,12 @@ export async function handleMessageCreate(message: Message): Promise<void> {
     await BoostService.handleBoostMessage(message);
     return;
   }
+
+  // The jail channel is where a jailed member appeals, so nothing there is
+  // scanned, scored or acted on: they are already jailed, and re-flagging
+  // someone for what they say while contesting a jail is backwards.
+  const channelName = "name" in message.channel ? message.channel.name : "";
+  if (JAIL && channelName.toLowerCase().includes(JAIL.toLowerCase())) return;
 
   const isSpam =
     await SpamDetectionService.detectSpamFirstMessageWithAi(message);
