@@ -27,7 +27,8 @@ export async function handleMessageCreate(message: Message): Promise<void> {
   // The jail channel is where a jailed member appeals, so nothing there is
   // scanned, scored or acted on: they are already jailed, and re-flagging
   // someone for what they say while contesting a jail is backwards.
-  const channelName = "name" in message.channel ? message.channel.name : "";
+  const channelName =
+    "name" in message.channel ? (message.channel.name ?? "") : "";
   if (JAIL && channelName.toLowerCase().includes(JAIL.toLowerCase())) return;
 
   const isSpam =
