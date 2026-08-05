@@ -381,32 +381,40 @@ export class GiveawayService {
   }
 
   /**
-   * Display names for a set of ids.
+   * Mention plus username for a set of ids, matching the join-events format.
    *
-   * A plain <@id> mention renders as "unknown-user" for anyone the viewing
-   * client has not cached, which was most of the board. Prefer the live guild
-   * member, fall back to the username the bot already stores.
+   * A bare <@id> renders as "unknown-user" for anyone the viewing client has
+   * not cached, and the board is mostly members who vote or wear the tag
+   * without ever posting. Keeping the mention makes them clickable where the
+   * client can resolve it; the username in parens keeps the line readable
+   * where it cannot.
    */
   static async displayNames(
     ids: string[],
     guild?: Guild,
   ): Promise<Map<string, string>> {
-    const names = new Map<string, string>();
-    if (!ids.length) return names;
+    const labels = new Map<string, string>();
+    if (!ids.length) return labels;
+
+    const usernames = new Map<string, string>();
     const rows = await db
       .select({ id: memberTable.memberId, username: memberTable.username })
       .from(memberTable)
       .where(inArray(memberTable.memberId, ids))
       .catch(() => []);
-    for (const row of rows) names.set(row.id, row.username);
+    for (const row of rows) usernames.set(row.id, row.username);
     if (guild) {
       for (const id of ids) {
         const cached = guild.members.cache.get(id);
-        if (cached) names.set(id, cached.displayName || cached.user.username);
+        if (cached) usernames.set(id, cached.user.username);
       }
     }
-    for (const id of ids) if (!names.get(id)) names.set(id, "unknown");
-    return names;
+
+    for (const id of ids) {
+      const name = usernames.get(id);
+      labels.set(id, name ? `<@${id}> (${name})` : `<@${id}>`);
+    }
+    return labels;
   }
 
   static formatBreakdown(breakdown: Breakdown): string {
@@ -488,9 +496,7 @@ export class GiveawayService {
             const tail = w.kind === "ranked" ? "" : " *(random draw)*";
             // Mention the winner (they get pinged) but name them in text too, so
             // the line still reads for viewers who have not cached them.
-            const label = names?.get(w.memberId)
-              ? `<@${w.memberId}> (${names.get(w.memberId)})`
-              : `<@${w.memberId}>`;
+            const label = names?.get(w.memberId) ?? `<@${w.memberId}>`;
             return `${icon} ${label} - **${this.formatPrize(w.dollars)}** - ${w.score} pts${tail}\n> ${this.formatBreakdown(w.breakdown)}`;
           }),
           "",

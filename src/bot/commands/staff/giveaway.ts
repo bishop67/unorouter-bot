@@ -146,6 +146,9 @@ export class GiveawayCommands {
       .setFooter({ text: `Top ${GIVEAWAY_RANKED_COUNT} win by points; the rest are drawn at random` })
       .setTimestamp(new Date());
 
-    await safeEditReply(interaction, { embeds: [embed] });
+    await safeEditReply(interaction, {
+      embeds: [embed],
+      allowedMentions: { users: [], roles: [] },
+    });
   }
 }
