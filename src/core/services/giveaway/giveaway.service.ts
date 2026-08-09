@@ -37,6 +37,7 @@ import { EmbedBuilder, type Client, type Guild, type TextChannel } from "discord
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import { ButtonId } from "@/types/custom-ids";
+import { purgeOwnPanels } from "@/core/utils/command.utils";
 import { BOT_NAME } from "@/shared/config/branding";
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
@@ -618,9 +619,17 @@ export class GiveawayService {
   static async openAndAnnounce(guild: Guild): Promise<void> {
     const next = await this.startRound(guild, null);
     if (!next) return;
+    await this.postPanel(guild, next);
+  }
+
+  /** Repost the panel for a round, clearing the previous one. */
+  static async postPanel(guild: Guild, round: RoundRow): Promise<void> {
     const channel = this.announceChannel(guild);
     if (!channel) return;
-    const panel = this.panelEmbed(next);
+    // Drop the old panel so the channel keeps one live panel, and so the panel
+    // always sits below the results rather than above them.
+    await purgeOwnPanels(channel, ButtonId.GiveawayScore).catch(() => {});
+    const panel = this.panelEmbed(round);
     await channel
       .send({ embeds: [panel.embed], components: [panel.row] })
       .catch((e) => logger.error("Giveaway panel post failed", { error: String(e) }));

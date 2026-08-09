@@ -166,4 +166,26 @@ export class GiveawayCommands {
       allowedMentions: { users: [], roles: [] },
     });
   }
+
+  @Slash({
+    name: "giveaway-panel",
+    description: "Repost the giveaway panel at the bottom of the channel",
+    dmPermission: false,
+    defaultMemberPermissions: PermissionFlagsBits.Administrator,
+  })
+  async panel(interaction: CommandInteraction) {
+    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
+      return;
+    if (!isAdmin(interaction.member as GuildMember)) return;
+    const guild = interaction.guild;
+    if (!guild) return;
+
+    const round = await GiveawayService.openRound(guild.id);
+    if (!round) {
+      await safeEditReply(interaction, "No round is open.");
+      return;
+    }
+    await GiveawayService.postPanel(guild, round);
+    await safeEditReply(interaction, `Panel reposted for round #${round.id}.`);
+  }
 }
