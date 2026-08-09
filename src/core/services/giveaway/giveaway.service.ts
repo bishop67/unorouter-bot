@@ -72,9 +72,11 @@ export class GiveawayService {
     );
   }
 
+  /** `startedByMemberId` is null for cron-opened rounds: it FKs to members, and
+   * a sentinel like "system" has no row to point at. */
   static async startRound(
     guild: Guild,
-    startedByMemberId: string,
+    startedByMemberId: string | null,
   ): Promise<RoundRow | null> {
     if (await this.openRound(guild.id)) return null;
     const rows = await db
@@ -542,11 +544,20 @@ export class GiveawayService {
         .catch((e) => logger.error("Giveaway results post failed", { error: String(e) }));
     }
     logger.info("Giveaway round rolled", { round: round.id, winners: winners.length });
-    if (GIVEAWAY_AUTO_REPEAT) await this.openAndAnnounce(guild);
+    // Opening the next round must not depend on the announcement succeeding:
+    // a channel permission error should not leave the cycle stopped.
+    if (GIVEAWAY_AUTO_REPEAT) {
+      await this.openAndAnnounce(guild).catch((e) =>
+        logger.error("Giveaway next round failed to open", {
+          guild: guild.id,
+          error: String(e),
+        }),
+      );
+    }
   }
 
   static async openAndAnnounce(guild: Guild): Promise<void> {
-    const next = await this.startRound(guild, "system");
+    const next = await this.startRound(guild, null);
     if (!next) return;
     const channel = this.announceChannel(guild);
     if (!channel) return;
