@@ -441,15 +441,28 @@ export class GiveawayService {
     return findTextChannel(guild, GIVEAWAY_ANNOUNCE_CHANNEL);
   }
 
-  static panelEmbed(): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
+  static panelEmbed(
+    round?: RoundRow,
+  ): { embed: EmbedBuilder; row: ActionRowBuilder<ButtonBuilder> } {
     const w = GIVEAWAY_WEIGHTS;
+    // Discord renders these live, so the panel keeps counting down without the
+    // bot editing it. Without an end time nobody knows how long they have.
+    const endsAt = round
+      ? Math.floor(
+          (new Date(round.startedAt).getTime() +
+            GIVEAWAY_ROUND_DAYS * 86_400_000) /
+            1000,
+        )
+      : null;
     const total = GIVEAWAY_PRIZES.reduce((a, b) => a + b, 0);
     const embed = new EmbedBuilder()
       .setTitle(`🎉 ${BOT_NAME} giveaway is live`)
       .setDescription(
         [
           `**${this.formatPrize(total)}** in balance, split across ${GIVEAWAY_PRIZES.length} winners.`,
-          `Runs for **${GIVEAWAY_ROUND_DAYS} days**, then a new round starts automatically.`,
+          endsAt
+            ? `Ends <t:${endsAt}:R> (<t:${endsAt}:f>), then a new round starts automatically.`
+            : `Runs for **${GIVEAWAY_ROUND_DAYS} days**, then a new round starts automatically.`,
           "",
           "**You do NOT have to chat to win.** Everything you already do counts:",
           `- Invite someone who joins - **${w.invite} pts**`,
@@ -537,7 +550,7 @@ export class GiveawayService {
     if (!next) return;
     const channel = this.announceChannel(guild);
     if (!channel) return;
-    const panel = this.panelEmbed();
+    const panel = this.panelEmbed(next);
     await channel
       .send({ embeds: [panel.embed], components: [panel.row] })
       .catch((e) => logger.error("Giveaway panel post failed", { error: String(e) }));

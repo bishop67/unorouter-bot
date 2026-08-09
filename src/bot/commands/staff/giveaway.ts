@@ -7,6 +7,7 @@ import {
 import {
   GIVEAWAY_PRIZES,
   GIVEAWAY_RANKED_COUNT,
+  GIVEAWAY_ROUND_DAYS,
 } from "@/shared/config/giveaway";
 import {
   CommandInteraction,
@@ -136,11 +137,17 @@ export class GiveawayCommands {
       ? `🎲 ${randomPrizes.map((d) => GiveawayService.formatPrize(d)).join(" + ")} drawn at random from **everyone else with points** (${Math.max(all.length - GIVEAWAY_RANKED_COUNT, 0)} in the draw)`
       : "";
     const total = GIVEAWAY_PRIZES.reduce((a, b) => a + b, 0);
+    const endsAt = Math.floor(
+      (new Date(round.startedAt).getTime() +
+        GIVEAWAY_ROUND_DAYS * 86_400_000) /
+        1000,
+    );
     const embed = new EmbedBuilder()
       .setTitle("🏆 Giveaway standings")
       .setDescription(
         [
           `Round #${round.id} - **${all.length}** taking part, ${GiveawayService.formatPrize(total)} on the line.`,
+          `Ends <t:${endsAt}:R> (<t:${endsAt}:f>)`,
           "",
           ...board,
           "",
