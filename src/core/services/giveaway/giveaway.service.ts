@@ -1,6 +1,7 @@
 import {
   dollarsToQuota,
   formatDollars,
+  QUOTA_PER_DOLLAR,
 } from "@/shared/config/rewards";
 import { GrantService } from "@/core/services/grant/grant.service";
 import { db } from "@/lib/db";
@@ -37,7 +38,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import { ButtonId } from "@/types/custom-ids";
 import { BOT_NAME } from "@/shared/config/branding";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 export type Breakdown = Partial<Record<GiveawaySignal, number>>;
 
@@ -525,6 +526,9 @@ export class GiveawayService {
 
   /** Close the round, announce, and immediately open the next one. */
   static async rollRound(guild: Guild): Promise<void> {
+    // Results that never made it out (channel perms, an outage) are retried
+    // before anything else, so a failed post is a delay rather than a loss.
+    await this.retryUnannounced(guild);
     const round = await this.openRound(guild.id);
     if (!round) {
       if (GIVEAWAY_AUTO_REPEAT) await this.openAndAnnounce(guild);
@@ -536,13 +540,7 @@ export class GiveawayService {
 
     await guild.members.fetch().catch(() => null);
     const winners = await this.endRound(round, guild);
-    const channel = this.announceChannel(guild);
-    if (winners.length && channel) {
-      const names = await this.displayNames(winners.map((w) => w.memberId), guild);
-      await channel
-        .send({ embeds: [this.resultsEmbed(round.id, winners, names)], allowedMentions: { users: [] } })
-        .catch((e) => logger.error("Giveaway results post failed", { error: String(e) }));
-    }
+    await this.announceResults(guild, round.id);
     logger.info("Giveaway round rolled", { round: round.id, winners: winners.length });
     // Opening the next round must not depend on the announcement succeeding:
     // a channel permission error should not leave the cycle stopped.
@@ -553,6 +551,67 @@ export class GiveawayService {
           error: String(e),
         }),
       );
+    }
+  }
+
+  /** Post one round's results and mark it announced. */
+  static async announceResults(guild: Guild, roundId: number): Promise<boolean> {
+    const winners = await db.query.giveawayWinner.findMany({
+      where: eq(giveawayWinner.roundId, roundId),
+    });
+    if (!winners.length) return false;
+    const channel = this.announceChannel(guild);
+    if (!channel) return false;
+
+    const entries = await db.query.giveawayEntry.findMany({
+      where: eq(giveawayEntry.roundId, roundId),
+    });
+    const breakdowns = new Map(
+      entries.map((e) => [e.memberId, JSON.parse(e.breakdown) as Breakdown]),
+    );
+    const drawn: DrawnWinner[] = winners
+      .sort((a, b) => a.place - b.place)
+      .map((w) => ({
+        memberId: w.memberId,
+        score: w.score,
+        breakdown: breakdowns.get(w.memberId) ?? {},
+        place: w.place,
+        kind: w.kind,
+        dollars: w.quota / QUOTA_PER_DOLLAR,
+      }));
+
+    const names = await this.displayNames(drawn.map((w) => w.memberId), guild);
+    try {
+      await channel.send({
+        embeds: [this.resultsEmbed(roundId, drawn, names)],
+        allowedMentions: { users: drawn.map((w) => w.memberId) },
+      });
+    } catch (e) {
+      logger.error("Giveaway results post failed", {
+        round: roundId,
+        error: String(e),
+      });
+      return false;
+    }
+    await db
+      .update(giveawayRound)
+      .set({ resultsAnnouncedAt: new Date().toISOString() })
+      .where(eq(giveawayRound.id, roundId));
+    return true;
+  }
+
+  /** Any ended round whose results never posted. */
+  private static async retryUnannounced(guild: Guild): Promise<void> {
+    const pending = await db.query.giveawayRound.findMany({
+      where: and(
+        eq(giveawayRound.guildId, guild.id),
+        isNotNull(giveawayRound.endedAt),
+        isNull(giveawayRound.resultsAnnouncedAt),
+      ),
+    });
+    for (const round of pending) {
+      const ok = await this.announceResults(guild, round.id);
+      if (ok) logger.info("Giveaway results backfilled", { round: round.id });
     }
   }
 

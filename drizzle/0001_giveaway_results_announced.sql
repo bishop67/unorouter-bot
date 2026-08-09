@@ -1,0 +1,1 @@
+ALTER TABLE "giveaway_rounds" ADD COLUMN "results_announced_at" timestamp(3);

@@ -409,6 +409,12 @@ export const giveawayRound = pgTable(
     // Payout snapshot, so retuning the env later never rewrites past results.
     prizePool: text("prize_pool").notNull(),
     announceMessageId: text("announce_message_id"),
+    // Null after a round ends means the results never posted (a channel
+    // permission error, say), so the next tick can retry instead of losing them.
+    resultsAnnouncedAt: timestamp("results_announced_at", {
+      precision: 3,
+      mode: "string",
+    }),
   },
   (table) => [
     uniqueIndex("uq_giveaway_rounds_open")
