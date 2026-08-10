@@ -139,6 +139,10 @@ export class SpamDetectionService {
       });
 
       if (result.isSpam && result.confidence !== "low") {
+        // Jailing the author leaves the advert itself up, which is the whole
+        // point of posting it. The other spam paths drop the trigger message
+        // too; only the member's older history is deliberately preserved.
+        await message.delete().catch(() => {});
         await DeleteUserMessagesService.jailMember({
           jail: true,
           memberId: message.author.id,
