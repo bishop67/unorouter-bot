@@ -7,6 +7,7 @@ metadata:
     # deleting this breaks WAL archiving and PITR for a live cluster; never prune it
     argocd.argoproj.io/sync-options: Prune=false
 spec:
+  retentionPolicy: 30d
   configuration:
     destinationPath: s3://unorouter-pg-backups/
     endpointURL: https://fsn1.your-objectstorage.com
