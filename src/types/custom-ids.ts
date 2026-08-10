@@ -28,6 +28,7 @@ export const ButtonIdPrefix = {
   TicketRedeem: "ticket_redeem",
   BugRedeem: "bug_redeem",
   DmToggle: "dm_toggle",
+  RaffleEnter: "raffle_enter",
 } as const;
 
 export const ButtonIdBuilder = {
@@ -35,12 +36,15 @@ export const ButtonIdBuilder = {
     `${ButtonIdPrefix.TicketRedeem}:${ticketId}`,
   bugRedeem: (bugId: number) => `${ButtonIdPrefix.BugRedeem}:${bugId}`,
   dmToggle: (source: string) => `${ButtonIdPrefix.DmToggle}:${source}`,
+  raffleEnter: (raffleId: number) =>
+    `${ButtonIdPrefix.RaffleEnter}:${raffleId}`,
 } as const;
 
 export const ButtonIdPattern = {
   TicketRedeem: new RegExp(`^${ButtonIdPrefix.TicketRedeem}:\\d+$`),
   BugRedeem: new RegExp(`^${ButtonIdPrefix.BugRedeem}:\\d+$`),
   DmToggle: new RegExp(`^${ButtonIdPrefix.DmToggle}:\\w+$`),
+  RaffleEnter: new RegExp(`^${ButtonIdPrefix.RaffleEnter}:\\d+$`),
 } as const;
 
 // --- Modal ids ---

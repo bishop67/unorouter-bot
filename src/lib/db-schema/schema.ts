@@ -490,6 +490,97 @@ export const giveawayWinner = pgTable(
   ],
 );
 
+// One-off item drops (a promo code, a voucher), separate from the weekly points
+// round. Deliberately NOT a mode on giveaway_rounds: that table allows a single
+// open round per guild, and the weekly cycle holds that slot permanently.
+// Several raffles may run at once, so there is no partial unique index here.
+export const giveawayRaffle = pgTable(
+  "giveaway_raffles",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    channelId: text("channel_id").notNull(),
+    messageId: text("message_id"),
+    prize: text("prize").notNull(),
+    // What gets DMed to the winner. Kept after delivery as the record of what
+    // was actually sent, since nothing else in the system can prove it.
+    code: text("code"),
+    // Per-raffle, not global: a "new subscribers only" code is redeemable only
+    // by members the verified gate would exclude.
+    verifiedOnly: boolean("verified_only").default(false).notNull(),
+    createdByMemberId: text("created_by_member_id").references(
+      () => member.memberId,
+      { onDelete: "set null", onUpdate: "cascade" },
+    ),
+    endsAt: timestamp("ends_at", { precision: 3, mode: "string" }).notNull(),
+    endedAt: timestamp("ended_at", { precision: 3, mode: "string" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("idx_giveaway_raffles_guild_ended").on(table.guildId, table.endedAt),
+  ],
+);
+
+export const giveawayRaffleEntry = pgTable(
+  "giveaway_raffle_entries",
+  {
+    id: serial("id").primaryKey(),
+    raffleId: integer("raffle_id")
+      .notNull()
+      .references(() => giveawayRaffle.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_giveaway_raffle_entries_raffle_member").on(
+      table.raffleId,
+      table.memberId,
+    ),
+    index("idx_giveaway_raffle_entries_raffle").on(table.raffleId),
+  ],
+);
+
+// Multiple rows per raffle once a reroll happens; rerolledFrom chains them so
+// the audit trail shows who was drawn first and what they were sent.
+export const giveawayRaffleWinner = pgTable(
+  "giveaway_raffle_winners",
+  {
+    id: serial("id").primaryKey(),
+    raffleId: integer("raffle_id")
+      .notNull()
+      .references(() => giveawayRaffle.id, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.memberId, {
+        onDelete: "cascade",
+        onUpdate: "cascade",
+      }),
+    code: text("code"),
+    dmSent: boolean("dm_sent").default(false).notNull(),
+    rerolledFrom: integer("rerolled_from"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("idx_giveaway_raffle_winners_raffle").on(table.raffleId),
+  ],
+);
+
 // One row per attributed join. Unique (guild, invitee) blocks rejoin farming.
 // inviter_id is FK-less: the inviter may have left before the bot existed and is
 // never upserted into members.

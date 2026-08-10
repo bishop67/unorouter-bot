@@ -96,6 +96,19 @@ export const GIVEAWAY_CRON_INTERVAL_MS = parseInt(
 export const GIVEAWAY_ANNOUNCE_CHANNEL =
   process.env.GIVEAWAY_ANNOUNCE_CHANNEL?.trim() || "giveaway";
 
+// One-off raffles (a promo code, a voucher), separate from the points round.
+export const RAFFLE_DEFAULT_DURATION_HOURS = parseInt(
+  process.env.RAFFLE_DEFAULT_DURATION_HOURS || "24",
+  10,
+);
+
+// Upper bound on the duration parser, so a typo cannot open a raffle that never
+// ends and blocks nothing but sits in the channel forever.
+export const RAFFLE_MAX_DURATION_DAYS = parseInt(
+  process.env.RAFFLE_MAX_DURATION_DAYS || "30",
+  10,
+);
+
 // Role NAMES barred from scoring. Admins run the draw, so them placing reads as
 // rigged however fair it was. Moderators and below still take part.
 export const GIVEAWAY_EXCLUDED_ROLES = (

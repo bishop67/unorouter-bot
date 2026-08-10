@@ -13,6 +13,9 @@ import {
   rewardClaim,
   rewardGrant,
   giveawayEntry,
+  giveawayRaffle,
+  giveawayRaffleEntry,
+  giveawayRaffleWinner,
   giveawayRound,
   giveawayWinner,
   role,
@@ -210,6 +213,46 @@ export const giveawayWinnerRelations = relations(giveawayWinner, ({ one }) => ({
     references: [member.memberId],
   }),
 }));
+
+export const giveawayRaffleRelations = relations(
+  giveawayRaffle,
+  ({ one, many }) => ({
+    guild: one(guild, {
+      fields: [giveawayRaffle.guildId],
+      references: [guild.guildId],
+    }),
+    entries: many(giveawayRaffleEntry),
+    winners: many(giveawayRaffleWinner),
+  }),
+);
+
+export const giveawayRaffleEntryRelations = relations(
+  giveawayRaffleEntry,
+  ({ one }) => ({
+    raffle: one(giveawayRaffle, {
+      fields: [giveawayRaffleEntry.raffleId],
+      references: [giveawayRaffle.id],
+    }),
+    member: one(member, {
+      fields: [giveawayRaffleEntry.memberId],
+      references: [member.memberId],
+    }),
+  }),
+);
+
+export const giveawayRaffleWinnerRelations = relations(
+  giveawayRaffleWinner,
+  ({ one }) => ({
+    raffle: one(giveawayRaffle, {
+      fields: [giveawayRaffleWinner.raffleId],
+      references: [giveawayRaffle.id],
+    }),
+    member: one(member, {
+      fields: [giveawayRaffleWinner.memberId],
+      references: [member.memberId],
+    }),
+  }),
+);
 
 export const voteRoleHoldRelations = relations(voteRoleHold, ({ one }) => ({
   member: one(member, {

@@ -636,14 +636,22 @@ export class GiveawayService {
   }
 
   static startCron(client: Client): void {
-    if (!GIVEAWAY_ENABLED) {
-      logger.info("Giveaway cron disabled (GIVEAWAY_PRIZES empty)");
-      return;
-    }
     const tick = async () => {
+      // Imported here rather than at module scope: raffle.service imports this
+      // one, and a static import back would close the cycle.
+      const { RaffleService } = await import(
+        "@/core/services/giveaway/raffle.service"
+      );
       for (const guild of client.guilds.cache.values()) {
-        await this.rollRound(guild).catch((e) =>
-          logger.error("Giveaway cron tick failed", { guild: guild.id, error: String(e) }),
+        // Raffles are independent of the points prize pool, so they still
+        // expire when the weekly round is switched off.
+        if (GIVEAWAY_ENABLED) {
+          await this.rollRound(guild).catch((e) =>
+            logger.error("Giveaway cron tick failed", { guild: guild.id, error: String(e) }),
+          );
+        }
+        await RaffleService.sweepExpired(guild).catch((e) =>
+          logger.error("Raffle sweep failed", { guild: guild.id, error: String(e) }),
         );
       }
     };
@@ -653,6 +661,7 @@ export class GiveawayService {
       intervalMs: GIVEAWAY_CRON_INTERVAL_MS,
       roundDays: GIVEAWAY_ROUND_DAYS,
       autoRepeat: GIVEAWAY_AUTO_REPEAT,
+      pointsRounds: GIVEAWAY_ENABLED,
     });
   }
 }
