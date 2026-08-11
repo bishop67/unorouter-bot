@@ -26,6 +26,7 @@ import "./commands/staff/transfer";
 import "./commands/staff/ticket-panel";
 import "./commands/staff/verify-users";
 import "./commands/staff/boost-backfill";
+import "./commands/staff/delete-messages";
 import "./commands/staff/giveaway";
 import "./commands/staff/raffle";
 
