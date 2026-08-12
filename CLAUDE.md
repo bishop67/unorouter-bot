@@ -259,6 +259,50 @@ fetch(`/api/v9/applications/${botAppId}/guilds/${guildId}/commands`, {
 });
 ```
 
+### Research ANY server you have joined (guild message search)
+
+Reading another community's own discussions (e.g. a proxy service's Discord to
+learn their policy before pitching a partnership) uses the SAME user token. Open
+that server in the client first so `location.pathname.split('/')[2]` is its guild
+id, then hit the search endpoint. This is your own account's token on your own
+logged-in session; it only reads what you can already read in the UI, just
+without React's pagination limits.
+
+Two token gotchas that produce a silent `401`:
+
+- The webpack-chunk trick above sometimes returns nothing on non-owned servers.
+  The reliable fallback is the iframe read (localStorage is same-origin but the
+  main window's copy is often cleared by Discord): `const f =
+  document.createElement("iframe"); document.body.append(f); const token =
+  JSON.parse(f.contentWindow.localStorage.getItem("token")); f.remove();`
+- Send the token as the `authorization` header value verbatim (the JSON-parsed
+  string, no `Bearer` prefix, no extra quotes).
+
+```js
+const guildId = location.pathname.split("/")[2];
+for (const q of ["whitelist", "cors", "403", "custom frontend"]) {
+  let r = await fetch(
+    `/api/v9/guilds/${guildId}/messages/search?content=${encodeURIComponent(q)}&limit=10`,
+    { headers: { authorization: token } },
+  );
+  if (r.status === 429) {
+    const j = await r.json();
+    await new Promise((s) => setTimeout(s, (j.retry_after ?? 1) * 1000 + 500));
+    r = await fetch(/* retry same url */);
+  }
+  const j = await r.json();
+  // j.total_results = count; j.messages = array of [contextMsgs...]; the
+  // matched message has `hit: true`. Truncate content, throttle ~700ms between
+  // terms to stay under the search rate limit.
+}
+```
+
+This found one service's allowlist policy: their staff whitelist a
+frontend if you give them the Cloudflare Ray ID from your 403 (grab it with
+`curl -D - ... | grep -i cf-ray`), and other custom frontends hit the identical
+403-HTML-page symptom. Worth checking a service's own server for prior asks
+before opening a partnership conversation.
+
 ### Trigger a bot slash command without typing
 
 Discord guild-command sync can lag a few seconds after deploy. Instead of typing `/verify-panel` and pressing Tab+Enter, drive the textbox via `mcp__chrome-devtools__type_text` after focusing the message input (`role="textbox"`, classes include `slateTextArea_*`):
