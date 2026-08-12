@@ -262,11 +262,16 @@ fetch(`/api/v9/applications/${botAppId}/guilds/${guildId}/commands`, {
 ### Research ANY server you have joined (guild message search)
 
 Reading another community's own discussions (e.g. a proxy service's Discord to
-learn their policy before pitching a partnership) uses the SAME user token. Open
-that server in the client first so `location.pathname.split('/')[2]` is its guild
-id, then hit the search endpoint. This is your own account's token on your own
-logged-in session; it only reads what you can already read in the UI, just
-without React's pagination limits.
+learn their policy before pitching a partnership) uses the SAME user token. This
+is your own account's token on your own logged-in session; it only reads what you
+can already read in the UI, just without React's pagination limits.
+
+DON'T trust `location.pathname.split('/')[2]` for the guild id: on the DMs view it
+is `@me`, and the search then silently returns results from the wrong scope (this
+burned a real investigation - results for another server were actually the UnoRouter guild
+until the id was pinned). Resolve the target guild explicitly first:
+`(await (await fetch('https://discord.com/api/v9/users/@me/guilds',{headers:{authorization:token}})).json()).filter(x=>/NAME/i.test(x.name))`,
+then hardcode that guild id into the search loop.
 
 Two token gotchas that produce a silent `401`:
 
