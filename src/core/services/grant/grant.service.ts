@@ -463,7 +463,7 @@ export class GrantService {
   // Join-log style identifier: mention (username) displayName. Resolves the
   // member, falls back to the user, then to a bare mention if the account is
   // gone - so the log never reads "unknown-user".
-  private static async formatUser(
+  static async formatUser(
     guild: Guild,
     discordId: string
   ): Promise<string> {

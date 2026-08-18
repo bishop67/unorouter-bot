@@ -4,7 +4,9 @@ import { logger } from "@/lib/logger";
 import { getUser, manageUser } from "@/lib/new-api/openapi";
 import { SERVER_TAG_RATE_LIMIT_PCT } from "@/shared/config/rewards";
 import { DmPreferenceService } from "@/core/services/notifications/dm-preference.service";
+import { GrantService } from "@/core/services/grant/grant.service";
 import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
+import { findTextChannel } from "@/shared/utils/channel.utils";
 import { bot } from "@/main";
 import { GrantSource } from "@/types";
 import { desc, eq, isNotNull, and } from "drizzle-orm";
@@ -12,6 +14,7 @@ import { desc, eq, isNotNull, and } from "drizzle-orm";
 const ACTION = "set_free_rate_limit_window_pct";
 const PURPLE = 0x9b59ff;
 const GREY = 0x9aa0a6;
+const GRANT_LOG_CHANNEL = process.env.GRANT_LOG_CHANNEL?.trim() || "grants-log";
 
 /**
  * The free-model rate-limit discount that rides along with the server tag.
@@ -79,6 +82,30 @@ export class TagRateLimitService {
       },
     );
     return Boolean(res);
+  }
+
+  /**
+   * Mirror the change into grants-log. No quota moves, so this cannot go through
+   * GrantService.announce, but staff read that channel to see what the bot did.
+   */
+  private static async log(memberId: string, pct: number): Promise<void> {
+    const guild = bot.guilds.cache.first();
+    if (!guild) return;
+    const channel = findTextChannel(guild, GRANT_LOG_CHANNEL);
+    if (!channel) return;
+    const who = await GrantService.formatUser(guild, memberId);
+    const what =
+      pct > 0
+        ? `free model rate limit **${pct}% shorter** - server tag worn`
+        : "free model rate limit back to normal - server tag removed";
+    await channel
+      .send({
+        content: `\`[server tag]\` ${who} - ${what}`,
+        allowedMentions: { users: [], roles: [] },
+      })
+      .catch((e) =>
+        logger.error("Tag rate-limit announce failed", { error: String(e) }),
+      );
   }
 
   /**
@@ -151,6 +178,7 @@ export class TagRateLimitService {
           user: userId,
           pct: SERVER_TAG_RATE_LIMIT_PCT,
         });
+        await this.log(memberId, SERVER_TAG_RATE_LIMIT_PCT);
         await this.notify(memberId, SERVER_TAG_RATE_LIMIT_PCT);
       }
       return;
@@ -161,6 +189,7 @@ export class TagRateLimitService {
           member: memberId,
           user: userId,
         });
+        await this.log(memberId, 0);
         await this.notify(memberId, 0);
       }
     }
