@@ -88,7 +88,11 @@ export class TagRateLimitService {
    * Mirror the change into grants-log. No quota moves, so this cannot go through
    * GrantService.announce, but staff read that channel to see what the bot did.
    */
-  private static async log(memberId: string, pct: number): Promise<void> {
+  private static async log(
+    memberId: string,
+    pct: number,
+    lost = 0,
+  ): Promise<void> {
     const guild = bot.guilds.cache.first();
     if (!guild) return;
     const channel = findTextChannel(guild, GRANT_LOG_CHANNEL);
@@ -97,7 +101,7 @@ export class TagRateLimitService {
     const what =
       pct > 0
         ? `free model rate limit **${pct}% shorter** - server tag worn`
-        : "free model rate limit back to normal - server tag removed";
+        : `lost the **${lost}% shorter** free model rate limit - server tag removed`;
     await channel
       .send({
         content: `\`[server tag]\` ${who} - ${what}`,
@@ -114,7 +118,11 @@ export class TagRateLimitService {
    * Shares the `servertag` DM toggle rather than adding a new one: someone who
    * muted tag payout DMs does not want a second DM about the same tag.
    */
-  private static async notify(memberId: string, pct: number): Promise<void> {
+  private static async notify(
+    memberId: string,
+    pct: number,
+    lost = 0,
+  ): Promise<void> {
     if (!(await DmPreferenceService.isDmEnabled(memberId, GrantSource.ServerTag)))
       return;
     const user = await bot.users.fetch(memberId).catch(() => null);
@@ -134,9 +142,9 @@ export class TagRateLimitService {
           color: GREY,
           title: "Server tag perk ended",
           description: [
-            `You took the ${BOT_NAME} tag off, so the shorter wait between free model requests is back to normal.`,
+            `You took the ${BOT_NAME} tag off, so you lost the **${lost}% shorter** wait between free model requests.`,
             "",
-            "Put the tag back on to get it again.",
+            `Put the tag back on to get the ${lost}% back.`,
           ].join("\n"),
         };
 
@@ -189,8 +197,8 @@ export class TagRateLimitService {
           member: memberId,
           user: userId,
         });
-        await this.log(memberId, 0);
-        await this.notify(memberId, 0);
+        await this.log(memberId, 0, pct);
+        await this.notify(memberId, 0, pct);
       }
     }
     // wearing && pct > 0 -> already active, leave the admin's number alone.
