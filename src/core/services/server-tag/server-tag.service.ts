@@ -1,4 +1,5 @@
 import { GrantService } from "@/core/services/grant/grant.service";
+import { TagRateLimitService } from "@/core/services/server-tag/tag-rate-limit.service";
 import { REWARDS, dollarsToQuota } from "@/shared/config/rewards";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { db } from "@/lib/db";
@@ -73,6 +74,12 @@ export class ServerTagService {
       member: member.id,
       guild: member.guild.id,
     });
+    await TagRateLimitService.sync(member.id, true).catch((e) =>
+      logger.error("Tag rate-limit apply failed", {
+        member: member.id,
+        error: String(e),
+      }),
+    );
   }
 
   private static async closeWear(
@@ -90,6 +97,12 @@ export class ServerTagService {
         ),
       );
     logger.info("Server tag wear closed", { member: memberId, guild: guildId });
+    await TagRateLimitService.sync(memberId, false).catch((e) =>
+      logger.error("Tag rate-limit clear failed", {
+        member: memberId,
+        error: String(e),
+      }),
+    );
   }
 
   /**
@@ -158,6 +171,14 @@ export class ServerTagService {
       if (member.user.bot) continue;
       const wearing = this.isWearingTag(member.user, guild.id);
       const hasOpen = openBy.has(member.id);
+      // Repair the discount for wearers BEFORE the window check below, which
+      // skips steady-state wearers: their window is fine, but the discount can
+      // still be missing (linked after putting the tag on, or a failed write).
+      // Only wearers are checked - probing every member would cost one new-api
+      // read per member per hour to tell ~1200 non-wearers they still have 0.
+      if (wearing) {
+        await TagRateLimitService.sync(member.id, true).catch(() => {});
+      }
       if (wearing === hasOpen) continue;
       try {
         if (wearing) await this.openWear(member);
