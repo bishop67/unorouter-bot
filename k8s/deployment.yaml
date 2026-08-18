@@ -31,7 +31,7 @@ spec:
           # pinned by this repo's GHCR workflow (deploy job); ArgoCD rolls it out.
           # NEVER set this back to :latest -- a floating tag never changes the manifest, so
           # ArgoCD sees no diff and the deploy silently does not happen.
-          image: ghcr.io/unorouter/unorouter-bot:db5e3fd3d6ca2e89a2ae9e3275af888409dbbc30
+          image: ghcr.io/unorouter/unorouter-bot:44b4bb20789e93c788e50349f5414ca62a049ce4
           resources:
             requests: { memory: 256Mi, cpu: 50m }
             limits: { memory: 768Mi }
