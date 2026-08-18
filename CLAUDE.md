@@ -26,58 +26,6 @@ anymore. To change a value: patch the OpenBao path feeding `bot-env`, then
 `kubectl -n services rollout restart deploy/unorouter-bot`. `NEW_API_URL`/`DATABASE_URL` etc.
 are injected as plain pod env (visible in `kubectl exec ... env`, no `.env` file on disk).
 
-### When GitHub Actions is unavailable: `infra/scripts/build-local.sh`
-
-Builds and pushes the image from this machine, producing the same artifact CI would.
-Works for `unorouter`, `new-api` and `unorouter-bot`.
-
-```bash
-cd ~/MEGA/Projects/ai-api/infra
-./scripts/build-local.sh unorouter-bot --deploy   # build, push, pin, ArgoCD rolls it out
-./scripts/build-local.sh new-api                  # build + push only, no deploy
-```
-
-Without `--deploy` the image is pushed and nothing else. With it, the SHA is pinned in that
-repo's `k8s/deployment.yaml` and pushed, which is what ArgoCD actually reads (~3min to pick up).
-
-- **The working tree must be clean.** It refuses to build a dirty tree, because the image would
-  not match the commit it is tagged with. Untracked files are ignored.
-- **SHA tags only, never `:latest`.** A floating tag never changes the manifest, so ArgoCD sees
-  no diff and nothing deploys.
-- Credentials come from OpenBao (`secret/ghcr-push`, a classic PAT with `write:packages`) via
-  sops + `kubectl exec` into `openbao-0`. Nothing is read from `gh auth` - the gh CLI token
-  deliberately lacks `write:packages`.
-- amd64 only. CI builds multi-arch; the cluster is amd64, so this is enough to deploy.
-
-**Verifying an "Actions disabled" state before reaching for this.** A repo can report
-`enabled: true` while every dispatch fails, because the block is on the ACCOUNT, not the repo.
-The distinguishing symptom is `HTTP 422: Actions has been disabled for this user` plus
-`total_count: 0` runs across every repo including personal ones:
-
-```bash
-gh api repos/unorouter/unorouter-bot/actions/permissions   # says enabled:true, misleading
-gh api repos/unorouter/unorouter-bot/actions/runs --jq .total_count
-gh workflow run ghcr.yml --ref main                        # the real answer
-```
-
-GHCR itself keeps working under that block, which is why local build+push still deploys.
-
-**Order matters when a change spans repos.** Deploy the dependency BEFORE the caller. new-api
-returns `success: true` for an unknown `action` on `/api/user/manage` rather than erroring, so a
-bot that calls a new admin action against the old image logs a successful write that silently
-did nothing. Seen for real: the bot applied the tag rate-limit perk to 116 users two minutes
-before new-api finished rolling out, logged 116 successes, and stored zero. The next reconcile
-repaired it, but the logs were confidently wrong in the meantime. Verify in the DB, not the log.
-
-**The script's own post-deploy check can false-negative.** It reads the pinned SHA back through
-the GitHub contents API, which lags a few seconds behind a push, so
-`!! pin is not visible ... this did NOT deploy` immediately after a successful push may be stale.
-Re-read the file before believing it:
-
-```bash
-gh api /repos/unorouter/<repo>/contents/k8s/deployment.yaml --jq .content | tr -d '\n' | base64 -d | grep 'image: ghcr'
-```
-
 ## Architecture
 
 ```
@@ -146,28 +94,6 @@ active` enforces one open window per member at the DB level.
 - **Discord has NO API for SETTING a user's tag** - it is a profile setting only the user's own
   client can change, and no OAuth scope exposes it. The verify-panel button can only report
   status; do not try to build an "apply the tag" button.
-
-#### Rate-limit perk (`tag-rate-limit.service.ts`)
-
-Wearing the tag also shortens the free-model rate-limit WAIT by `SERVER_TAG_RATE_LIMIT_PCT`
-(default 25), written to new-api's per-user `free_rate_limit_window_pct`. Set from `openWear`,
-cleared from `closeWear`, repaired in `reconcile`.
-
-The window is cut rather than the request count raised because ~75% of free models are configured
-at one request per window, where a percentage off the count rounds back to the same number.
-
-- **The stored value is a FLAG, never a number the bot interprets.** It only asks "is it above 0":
-  wearing + 0 writes the default, wearing + anything above 0 is left alone, not wearing + above 0
-  clears to 0. That is what lets an admin set their own number in the new-api user drawer without
-  the next reconcile stomping it. Removing the tag still clears a hand-set value - tag state owns
-  active/inactive, the admin owns the magnitude while active.
-- A new-api READ failure returns early without writing. Treating an unreadable setting as "0" would
-  revoke the perk from every wearer the moment new-api hiccups.
-- `reconcile` probes WEARERS ONLY. Checking every member would spend one new-api read per member
-  per hour to confirm ~1200 non-wearers still have no discount.
-- The bot has no lookup-by-discord-id endpoint, so the new-api user id is recovered from the newest
-  `reward_grants.new_api_user_id`. Unlinked members are skipped silently and picked up by a later
-  reconcile once they link (116 of 145 wearers resolved at rollout).
 
 ## Changing reward amounts (runbook)
 
