@@ -3,9 +3,15 @@ import { rewardGrant } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { getUser, manageUser } from "@/lib/new-api/openapi";
 import { SERVER_TAG_RATE_LIMIT_PCT } from "@/shared/config/rewards";
+import { DmPreferenceService } from "@/core/services/notifications/dm-preference.service";
+import { BOT_NAME, WEBSITE_URL } from "@/shared/config/branding";
+import { bot } from "@/main";
+import { GrantSource } from "@/types";
 import { desc, eq, isNotNull, and } from "drizzle-orm";
 
 const ACTION = "set_free_rate_limit_window_pct";
+const PURPLE = 0x9b59ff;
+const GREY = 0x9aa0a6;
 
 /**
  * The free-model rate-limit discount that rides along with the server tag.
@@ -76,6 +82,53 @@ export class TagRateLimitService {
   }
 
   /**
+   * Tell the member the perk turned on or off.
+   *
+   * Shares the `servertag` DM toggle rather than adding a new one: someone who
+   * muted tag payout DMs does not want a second DM about the same tag.
+   */
+  private static async notify(memberId: string, pct: number): Promise<void> {
+    if (!(await DmPreferenceService.isDmEnabled(memberId, GrantSource.ServerTag)))
+      return;
+    const user = await bot.users.fetch(memberId).catch(() => null);
+    if (!user) return;
+
+    const embed = pct > 0
+      ? {
+          color: PURPLE,
+          title: "Server tag perk active",
+          description: [
+            `Your wait between free model requests is now **${pct}% shorter** while you wear the ${BOT_NAME} tag.`,
+            "",
+            "It applies on every free model, and stacks with the daily tag reward.",
+          ].join("\n"),
+        }
+      : {
+          color: GREY,
+          title: "Server tag perk ended",
+          description: [
+            `You took the ${BOT_NAME} tag off, so the shorter wait between free model requests is back to normal.`,
+            "",
+            "Put the tag back on to get it again.",
+          ].join("\n"),
+        };
+
+    await user
+      .send({
+        embeds: [
+          {
+            ...embed,
+            timestamp: new Date().toISOString(),
+            footer: {
+              text: `${BOT_NAME} - ${WEBSITE_URL.replace(/^https?:\/\//, "")} - mute these DMs with /notifications`,
+            },
+          },
+        ],
+      })
+      .catch(() => {});
+  }
+
+  /**
    * Bring one member's discount in line with whether they wear the tag.
    *
    * Returns silently for unlinked members: the id only exists once they have been
@@ -98,6 +151,7 @@ export class TagRateLimitService {
           user: userId,
           pct: SERVER_TAG_RATE_LIMIT_PCT,
         });
+        await this.notify(memberId, SERVER_TAG_RATE_LIMIT_PCT);
       }
       return;
     }
@@ -107,6 +161,7 @@ export class TagRateLimitService {
           member: memberId,
           user: userId,
         });
+        await this.notify(memberId, 0);
       }
     }
     // wearing && pct > 0 -> already active, leave the admin's number alone.
