@@ -21,6 +21,13 @@ export function dollarsToQuota(dollars: number): number {
   return Math.round(dollars * QUOTA_PER_DOLLAR);
 }
 
+// Percent shaved off the free-model rate-limit window while the server tag is
+// worn. new-api clamps this at 50; 0 disables the perk.
+export const SERVER_TAG_RATE_LIMIT_PCT = parseInt(
+  process.env.SERVER_TAG_RATE_LIMIT_PCT || "25",
+  10,
+);
+
 // Keeps the cents pair a price is expected to have (0.50, not 0.5) while still
 // showing a third decimal when the amount has one (0.025, not a rounded 0.03).
 export function formatDollars(dollars: number): string {
