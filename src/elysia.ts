@@ -1,3 +1,4 @@
+import { tagRoutes } from "@/api/routes/tag.routes";
 import { voteRoutes } from "@/api/routes/vote.routes";
 import { logger } from "@/lib/logger";
 import { rewardsPayload } from "@/shared/config/rewards";
@@ -25,6 +26,7 @@ export function startWebhookServer(): void {
     // consumer (the website docs) can never advertise a figure the bot no longer
     // pays. Cluster-internal only; the service has no public ingress.
     .get("/rewards", () => rewardsPayload())
+    .use(tagRoutes)
     .use(voteRoutes)
     .listen(WEBHOOK_PORT, () =>
       logger.info("Webhook server started", { port: WEBHOOK_PORT }),
