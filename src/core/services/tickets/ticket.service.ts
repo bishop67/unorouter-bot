@@ -6,6 +6,7 @@ import {
   ticketMessage,
 } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
+import { MemberDataService } from "@/core/services/members/member-data.service";
 import { STAFF_ROLES } from "@/shared/config/roles";
 import { findCategory, findTextChannel } from "@/shared/utils/channel.utils";
 import { ButtonId, ButtonIdBuilder } from "@/types/custom-ids";
@@ -294,13 +295,30 @@ export class TicketService {
       );
   }
 
-  static async close(channel: GuildTextBasedChannel): Promise<boolean> {
+  static async close(
+    channel: GuildTextBasedChannel,
+    closedByMemberId?: string,
+  ): Promise<boolean> {
     const row = await this.getOpenTicket(channel.id);
     if (!row) return false;
 
+    // FK parent: a closer who never triggered a member upsert would fail the
+    // insert and leave the ticket open.
+    if (closedByMemberId) {
+      const closer = await channel.guild.members
+        .fetch(closedByMemberId)
+        .catch(() => null);
+      if (closer) await MemberDataService.upsertMemberOnly(closer);
+      else closedByMemberId = undefined;
+    }
+
     await db
       .update(ticket)
-      .set({ status: TicketStatus.Closed, closedAt: new Date().toISOString() })
+      .set({
+        status: TicketStatus.Closed,
+        closedAt: new Date().toISOString(),
+        closedByMemberId: closedByMemberId ?? null,
+      })
       .where(eq(ticket.id, row.id));
 
     const transcript = await this.buildTranscript(
@@ -311,7 +329,7 @@ export class TicketService {
     const logChannel = findTextChannel(channel.guild, TICKET_LOG_CHANNEL_NAME);
     if (logChannel) {
       await logChannel.send({
-        content: `Ticket #${row.id} (${row.category}) closed - opener <@${row.openerId}>`,
+        content: `Ticket #${row.id} (${row.category}) closed by ${closedByMemberId ? `<@${closedByMemberId}>` : "the bot (opener left)"} - opener <@${row.openerId}>`,
         files: [transcript],
         allowedMentions: { users: [] },
       });
