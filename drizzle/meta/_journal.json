@@ -22,6 +22,13 @@
       "when": 1786356187772,
       "tag": "0002_raffles",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787595948802,
+      "tag": "0003_ticket_closed_by",
+      "breakpoints": true
     }
   ]
 }

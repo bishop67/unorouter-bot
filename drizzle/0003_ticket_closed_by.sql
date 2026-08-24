@@ -1,0 +1,2 @@
+ALTER TABLE "tickets" ADD COLUMN "closed_by_member_id" text;--> statement-breakpoint
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_closed_by_member_id_members_member_id_fk" FOREIGN KEY ("closed_by_member_id") REFERENCES "public"."members"("member_id") ON DELETE set null ON UPDATE cascade;

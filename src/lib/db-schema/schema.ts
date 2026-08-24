@@ -264,6 +264,11 @@ export const ticket = pgTable(
     status: ticketStatusEnum("status").default("open").notNull(),
     createdAt: createdAt(),
     closedAt: timestamp("closed_at", { precision: 3, mode: "string" }),
+    // Null when the bot closed it (opener left the guild), not when unknown.
+    closedByMemberId: text("closed_by_member_id").references(
+      () => member.memberId,
+      { onDelete: "set null", onUpdate: "cascade" },
+    ),
   },
   (table) => [
     uniqueIndex("uq_tickets_channel").on(table.channelId),
