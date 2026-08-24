@@ -159,7 +159,10 @@ export class TicketInteractions {
     }
 
     await interaction.reply({ content: "Closing ticket..." });
-    await TicketService.close(interaction.channel as GuildTextBasedChannel);
+    await TicketService.close(
+      interaction.channel as GuildTextBasedChannel,
+      interaction.user.id,
+    );
   }
 
   @ButtonComponent({ id: ButtonId.TicketReward })
