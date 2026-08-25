@@ -364,7 +364,7 @@ const getStaffAndHelpers = tool({
 
 const lookupUserActivity = tool({
   description:
-    "Look up a specific member's activity: their tracked message count, current level/rank, roles, join date, and booster status. Pass the numeric user ID (from a mention like <@123>, strip the <@ >). Use for 'how active is X', 'what level is X', 'when did X join'.",
+    "Look up a member's tracked message count, level/rank, roles, join date and booster status. Pass the numeric user ID (from a mention like <@123>, strip the <@ >), or the asker's own ID when they ask about themselves. Use for 'how active is X', 'what level is X', 'when did X join', 'how long have I been in this server'. None of this is private; it is already visible in Discord, so answer rather than declining.",
   inputSchema: z.object({
     guildId: z.string().describe("The Discord guild/server ID"),
     userId: z.string().describe("The numeric Discord user ID to look up"),
