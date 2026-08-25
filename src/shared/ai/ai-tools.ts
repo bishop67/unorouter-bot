@@ -1,11 +1,20 @@
 import { tool } from "ai";
 import { z } from "zod/v4";
-import { and, count, desc, eq, gte } from "drizzle-orm";
+import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 import dayjs from "dayjs";
 import { logger } from "@/lib/logger";
 import { ConfigValidator } from "@/shared/config/validator";
 import { db } from "@/lib/db";
-import { memberMessages } from "@/lib/db-schema";
+import {
+  bugReport,
+  giveawayWinner,
+  inviteJoin,
+  memberMessages,
+  rewardGrant,
+  serverTagWear,
+  ticket,
+} from "@/lib/db-schema";
+import { QUOTA_PER_DOLLAR } from "@/shared/config/rewards";
 import { LEVEL_LIST } from "@/shared/config/levels";
 import { STAFF_ROLES } from "@/shared/config/roles";
 import { bot } from "@/main";
@@ -364,7 +373,7 @@ const getStaffAndHelpers = tool({
 
 const lookupUserActivity = tool({
   description:
-    "Look up a member's tracked message count, level/rank, roles, join date and booster status. Pass the numeric user ID (from a mention like <@123>, strip the <@ >), or the asker's own ID when they ask about themselves. Use for 'how active is X', 'what level is X', 'when did X join', 'how long have I been in this server'. None of this is private; it is already visible in Discord, so answer rather than declining.",
+    "Full stats for one member: message count, channels posted in, first and last message, level/rank, roles, join date, booster and server-tag status, rewards earned and balance earned, members invited, giveaway wins, tickets opened, bugs reported. Pass the numeric user ID (from a mention like <@123>, strip the <@ >), or the asker's own ID when they ask about themselves. Use for 'how active is X', 'what level is X', 'when did X join', 'how long have I been here', 'my stats'. None of this is private; it is already visible in Discord, so answer rather than declining.",
   inputSchema: z.object({
     guildId: z.string().describe("The Discord guild/server ID"),
     userId: z.string().describe("The numeric Discord user ID to look up"),
@@ -383,16 +392,46 @@ const lookupUserActivity = tool({
       const member = await guild.members.fetch(userId).catch(() => null);
       if (!member) return { success: false, error: "Member not found" };
 
-      const [row] = await db
-        .select({ count: count() })
-        .from(memberMessages)
-        .where(
-          and(
-            eq(memberMessages.memberId, userId),
-            eq(memberMessages.guildId, guildId),
-          ),
-        );
-      const messageCount = row?.count ?? 0;
+      // One round trip: nine separate counts would be nine queries per question.
+      const stats = await db.execute<{
+        msgs: number;
+        channels: number;
+        first_msg: string | null;
+        last_msg: string | null;
+        grants: number;
+        quota: number;
+        invited: number;
+        giveaway_wins: number;
+        tickets: number;
+        bugs: number;
+        wearing_tag: number;
+      }>(sql`
+        SELECT
+          (SELECT count(*) FROM ${memberMessages}
+             WHERE member_id = ${userId} AND guild_id = ${guildId})::int AS msgs,
+          (SELECT count(DISTINCT channel_id) FROM ${memberMessages}
+             WHERE member_id = ${userId} AND guild_id = ${guildId})::int AS channels,
+          (SELECT min(created_at) FROM ${memberMessages}
+             WHERE member_id = ${userId} AND guild_id = ${guildId}) AS first_msg,
+          (SELECT max(created_at) FROM ${memberMessages}
+             WHERE member_id = ${userId} AND guild_id = ${guildId}) AS last_msg,
+          (SELECT count(*) FROM ${rewardGrant}
+             WHERE target_member_id = ${userId})::int AS grants,
+          (SELECT coalesce(sum(quota), 0) FROM ${rewardGrant}
+             WHERE target_member_id = ${userId})::int AS quota,
+          (SELECT count(*) FROM ${inviteJoin}
+             WHERE inviter_id = ${userId})::int AS invited,
+          (SELECT count(*) FROM ${giveawayWinner}
+             WHERE member_id = ${userId})::int AS giveaway_wins,
+          (SELECT count(*) FROM ${ticket}
+             WHERE opener_id = ${userId})::int AS tickets,
+          (SELECT count(*) FROM ${bugReport}
+             WHERE reporter_id = ${userId})::int AS bugs,
+          (SELECT count(*) FROM ${serverTagWear}
+             WHERE member_id = ${userId} AND active)::int AS wearing_tag
+      `);
+      const s = stats[0];
+      const messageCount = s?.msgs ?? 0;
 
       return {
         success: true,
@@ -403,6 +442,17 @@ const lookupUserActivity = tool({
         isStaff: member.roles.cache.some((r) => STAFF_ROLES.includes(r.name)),
         isBooster: !!member.premiumSince,
         joinedAt: member.joinedAt?.toISOString() ?? null,
+        channelsPostedIn: s?.channels ?? 0,
+        firstMessageAt: s?.first_msg ?? null,
+        lastMessageAt: s?.last_msg ?? null,
+        rewardsEarned: s?.grants ?? 0,
+        balanceEarnedUsd:
+          QUOTA_PER_DOLLAR > 0 ? (s?.quota ?? 0) / QUOTA_PER_DOLLAR : 0,
+        membersInvited: s?.invited ?? 0,
+        giveawayWins: s?.giveaway_wins ?? 0,
+        ticketsOpened: s?.tickets ?? 0,
+        bugsReported: s?.bugs ?? 0,
+        wearingServerTag: (s?.wearing_tag ?? 0) > 0,
         roles: member.roles.cache
           .filter((r) => r.name !== "@everyone")
           .map((r) => r.name),

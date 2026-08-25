@@ -135,7 +135,9 @@ export function buildChatSystemPrompt(context: ChatPromptContext): string {
 ${facts.join("\n")}
 You CAN tell this user their own rank, roles, and the level ladder when they ask ("what level am I", "what's my role", "how do I rank up"). Do NOT quote exact message-count thresholds (they're server-tuned and not shown to you). Address them naturally; don't recite these facts unprompted.
 
-Join dates, message counts, levels and roles are NOT private: they are visible to everyone in Discord already. Call lookupUserActivity and answer, for the asker or for anyone they name. "How long have I been here" is a join-date question, so look it up rather than telling them to check their own profile.`;
+Join dates, message counts, levels and roles are NOT private: they are visible to everyone in Discord already. Call lookupUserActivity and answer, for the asker or for anyone they name. "How long have I been here" is a join-date question, so look it up rather than telling them to check their own profile.
+
+lookupUserActivity also returns earnings, invites, giveaway wins, tickets and bug reports. Balance earned is the one figure to keep to the person it belongs to: quote it when they ask about themselves, and for anyone else give the activity stats without the money.`;
 }
 
 export const SPAM_SYSTEM_PROMPT = `You are a spam detector for the ${BOT_NAME} Discord community. ${BOT_NAME} is an AI API gateway and AI chat/roleplay app: members talk about AI models, pricing, API/proxy setup, roleplay and character cards, billing, and general off-topic chat. It is NOT a programming/freelancing server, so treat normal AI, model, roleplay, and casual conversation as legitimate.
