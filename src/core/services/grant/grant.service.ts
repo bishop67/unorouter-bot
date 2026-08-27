@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { member, rewardGrant, rewardRefusal } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import {
-  getUser,
+  getUserBotView,
   grantDiscordQuota,
   transferDiscordQuota
 } from "@/lib/new-api/openapi";
@@ -29,10 +29,10 @@ import {
 import { type Guild, type GuildMember } from "discord.js";
 import { and, eq } from "drizzle-orm";
 
-// Auth headers (Authorization + New-Api-User) are injected by the orval mutator
-// in src/lib/new-api/custom-fetch.ts; these two only gate isConfigured().
+// The Authorization header is injected by the orval mutator in
+// src/lib/new-api/custom-fetch.ts; these two only gate isConfigured().
 const NEW_API_URL = process.env.NEW_API_URL?.replace(/\/$/, "") || "";
-const NEW_API_ADMIN_TOKEN = process.env.NEW_API_ADMIN_TOKEN || "";
+const NEW_API_BOT_TOKEN = process.env.NEW_API_BOT_TOKEN || "";
 // Channels resolved by NAME (substring) so emoji renames don't break config.
 const GRANT_LOG_CHANNEL_NAME =
   process.env.GRANT_LOG_CHANNEL?.trim() || "grants-log";
@@ -64,7 +64,7 @@ export type ConnectResult =
 
 export class GrantService {
   static isConfigured(): boolean {
-    return Boolean(NEW_API_URL && NEW_API_ADMIN_TOKEN);
+    return Boolean(NEW_API_URL && NEW_API_BOT_TOKEN);
   }
 
   /**
@@ -83,7 +83,7 @@ export class GrantService {
     checkIpUnique?: boolean;
   }): Promise<GrantResult> {
     if (!this.isConfigured()) {
-      logger.warn("Grant skipped: NEW_API_URL / NEW_API_ADMIN_TOKEN missing");
+      logger.warn("Grant skipped: NEW_API_URL / NEW_API_BOT_TOKEN missing");
       return { linked: false, quota: params.quota };
     }
     if (params.quota <= 0) {
@@ -299,7 +299,7 @@ export class GrantService {
     userId: number | null | undefined
   ): Promise<number | null> {
     if (userId == null) return null;
-    const res = await getUser(String(userId)).catch(() => null);
+    const res = await getUserBotView(String(userId)).catch(() => null);
     const quota = res?.data?.data?.quota;
     if (typeof quota !== "number" || QUOTA_PER_DOLLAR <= 0) return null;
     return quota / QUOTA_PER_DOLLAR;

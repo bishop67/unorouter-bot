@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { rewardGrant } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import { getUser, manageUser } from "@/lib/new-api/openapi";
+import { getUserBotView, manageUser } from "@/lib/new-api/openapi";
 import { SERVER_TAG_RATE_LIMIT_PCT } from "@/shared/config/rewards";
 import { DmPreferenceService } from "@/core/services/notifications/dm-preference.service";
 import { GrantService } from "@/core/services/grant/grant.service";
@@ -49,7 +49,7 @@ export class TagRateLimitService {
   }
 
   private static async currentPct(userId: number): Promise<number | null> {
-    const res = await getUser(String(userId)).catch(() => null);
+    const res = await getUserBotView(String(userId)).catch(() => null);
     const raw = res?.data?.data?.setting;
     if (typeof raw !== "string" || !raw) return 0;
     try {

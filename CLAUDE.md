@@ -69,7 +69,7 @@ Member overview: Users/Bots count, 30d/7d/24h memberflow, and a growth-chart PNG
 - Brand strings env-driven: `BOT_NAME`, `WEBSITE_URL`. No hardcoded "unorouter".
 - All grant amounts ENV-DRIVEN IN DOLLARS. `src/shared/config/rewards.ts` is the ONE place the reward env vars are read (`REWARDS`), plus `dollarsToQuota()` (`QUOTA_PER_DOLLAR`, default `500000` = $1) and `formatDollars()`. Services and panels import from there; never `parseFloat(process.env.*_GRANT_DOLLARS)` in a service again.
 - Money for display ALWAYS goes through `formatDollars()`. It keeps the cents pair ($0.50, not $0.5) and a third decimal only when it carries meaning ($0.025, not a rounded $0.03). A bare `toFixed(2)` silently misstates any sub-cent payout.
-- new-api auth: requires BOTH `Authorization: <NEW_API_ADMIN_TOKEN>` AND `New-Api-User: <NEW_API_USER_ID>` headers. Token = admin user's access_token from new-api `users` table.
+- new-api auth: `Authorization: <NEW_API_BOT_TOKEN>` only, no `New-Api-User` header. It is a SERVICE token (new-api `BOT_SERVICE_TOKEN`), not a user account, and upstream `BotAuth` accepts it on only four routes: `discord_grant`, `discord_transfer`, `manage` (restricted to `set_free_rate_limit_window_pct`), and `:id/bot_view`. Anything else 401s, so reaching for a new admin endpoint here means widening that allowlist in new-api first. Read user fields via `bot_view` (returns `quota` + `setting`), never `/api/user/:id`.
 - Crash-guard in `main.ts` — `unhandledRejection` + `uncaughtException` only log, never exit.
 - discordx classes look "unused" to knip — they're loaded via decorator side-effects in `src/bot/index.ts`. Ignore those flags.
 - No barrel files when splitting modules. Move symbol, update all importers via `grep`/`rg`.
@@ -367,7 +367,7 @@ For an app-user connection instead of superuser, the `-rw` service (`bot-pg-rw` 
 - No bloated comments. Comment only non-obvious WHY, one terse line. No restating code.
 - No barrel re-export files when splitting modules. Rewrite each importer.
 - Don't manually deploy. GHCR image build + ArgoCD/kubectl rollout only (don is gone).
-- Don't reset/regenerate new-api `SYSTEM_ACCESS_TOKEN` casually — every secret consumer (`NEW_API_ADMIN_TOKEN` here) breaks until re-set.
+- Don't give the bot new-api's root access token again. It now holds its own scoped `NEW_API_BOT_TOKEN`; rotating it means patching BOTH `secret/newapi-env` (`BOT_SERVICE_TOKEN`) and `secret/bot-env` (`NEW_API_BOT_TOKEN`) to the SAME value, or the bot silently falls through to admin auth and 401s.
 
 ## Server channels (UnoRouter, guild 1498300365001588746)
 
