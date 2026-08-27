@@ -1,11 +1,10 @@
 const NEW_API_URL = process.env.NEW_API_URL?.replace(/\/$/, "") || "";
-const NEW_API_ADMIN_TOKEN = process.env.NEW_API_ADMIN_TOKEN || "";
-// new-api admin auth needs BOTH the access token and its user id. System token
-// belongs to user id 1.
-const NEW_API_USER_ID = process.env.NEW_API_USER_ID?.trim() || "1";
+// Service token scoped upstream to the handful of routes this bot needs. It is
+// not a user account, so it carries no New-Api-User header.
+const NEW_API_BOT_TOKEN = process.env.NEW_API_BOT_TOKEN || "";
 
-// Orval mutator for the new-api upstream. Injects admin auth, returns the
-// { status, data, headers } shape the generated fetch client expects.
+// Orval mutator for the new-api upstream. Injects the bot credential, returns
+// the { status, data, headers } shape the generated fetch client expects.
 export const customFetch = async <T>(
   url: string,
   options: RequestInit,
@@ -14,8 +13,7 @@ export const customFetch = async <T>(
     ...options,
     signal: AbortSignal.timeout(30_000),
     headers: {
-      Authorization: NEW_API_ADMIN_TOKEN,
-      "New-Api-User": NEW_API_USER_ID,
+      Authorization: NEW_API_BOT_TOKEN,
       ...options.headers,
     },
   });

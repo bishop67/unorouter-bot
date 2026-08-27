@@ -50,7 +50,7 @@ export class ConfigValidator {
       feature: "Balance Grants (new-api)",
     },
     {
-      key: "NEW_API_ADMIN_TOKEN",
+      key: "NEW_API_BOT_TOKEN",
       required: false,
       feature: "Balance Grants (new-api)",
     },
