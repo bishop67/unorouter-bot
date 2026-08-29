@@ -61,35 +61,44 @@ export class BoostService {
 
   /**
    * Handle a Discord PREMIUM_GUILD_SUBSCRIPTION system message. One row per
-   * subscription slot. Discord posts one message per individual boost
-   * transaction so multi-boost users get multiple rows naturally.
+   * subscription slot. Boosting N times in one transaction produces ONE message
+   * whose content carries the count ("2" in "just boosted the server 2 times!"),
+   * so the count must be parsed or every boost past the first goes unpaid.
    */
   static async handleBoostMessage(message: Message): Promise<void> {
     if (!message.guild) return;
     if (BOOST_GRANT_DOLLARS <= 0) return;
 
     const memberId = message.author.id;
+    const parsed = parseInt(message.content, 10);
+    const boostCount = Number.isFinite(parsed)
+      ? Math.min(Math.max(parsed, 1), 24)
+      : 1;
     const now = new Date();
     const nextPayoutAt = plusDays(now, PAYOUT_INTERVAL_DAYS).toISOString();
 
     try {
-      await db.insert(boostSlot).values({
-        guildId: message.guild.id,
-        memberId,
-        sourceMessageId: message.id,
-        nextPayoutAt,
-      });
+      await db.insert(boostSlot).values(
+        Array.from({ length: boostCount }, () => ({
+          guildId: message.guild!.id,
+          memberId,
+          sourceMessageId: message.id,
+          nextPayoutAt,
+        })),
+      );
     } catch (err) {
       logger.error("Boost slot insert failed", { error: String(err) });
       return;
     }
 
-    // Instant first-month payout.
+    const totalDollars = BOOST_GRANT_DOLLARS * boostCount;
+
+    // Instant first-month payout, one grant covering every slot in the message.
     try {
       const result = await GrantService.grantQuota({
         targetDiscordId: memberId,
-        quota: dollarsToQuota(BOOST_GRANT_DOLLARS),
-        reason: "server boost",
+        quota: dollarsToQuota(totalDollars),
+        reason: boostCount > 1 ? `server boost x${boostCount}` : "server boost",
         sourceType: "boost",
         sourceId: message.id,
         grantedByDiscordId: "system",
@@ -101,13 +110,13 @@ export class BoostService {
       if (result.linked) {
         await member?.user
           .send(
-            `Thanks for boosting! You earned **$${formatDollars(BOOST_GRANT_DOLLARS)}** balance, and every $${formatDollars(BOOST_GRANT_DOLLARS)}/month while you keep boosting lands automatically. 💜`,
+            `Thanks for boosting! You earned **$${formatDollars(totalDollars)}** balance, and every $${formatDollars(totalDollars)}/month while you keep boosting lands automatically. 💜`,
           )
           .catch(() => {});
       } else {
         await member?.user
           .send(
-            `Thanks for boosting! ${GrantService.linkPrompt()} Once linked, your boost reward (and every $${formatDollars(BOOST_GRANT_DOLLARS)}/month while you keep boosting) lands automatically.`,
+            `Thanks for boosting! ${GrantService.linkPrompt()} Once linked, your boost reward (and every $${formatDollars(totalDollars)}/month while you keep boosting) lands automatically.`,
           )
           .catch(() => {});
       }
