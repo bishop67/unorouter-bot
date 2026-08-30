@@ -1,5 +1,10 @@
 import { createHash } from "crypto";
-import { ChannelType, type Guild, type GuildBasedChannel } from "discord.js";
+import {
+  ChannelType,
+  type Guild,
+  type GuildBasedChannel,
+  type TextBasedChannel,
+} from "discord.js";
 import { logger } from "@/lib/logger";
 
 export interface FoundExpression {
@@ -64,16 +69,41 @@ export class ExpressionHarvestService {
     let channelsScanned = 0;
 
     const me = guild.members.me;
-    const readable = guild.channels.cache.filter(
+    const canRead = (c: GuildBasedChannel) =>
+      !!me &&
+      c.permissionsFor(me).has("ViewChannel") &&
+      c.permissionsFor(me).has("ReadMessageHistory");
+
+    // Voice channels carry text too, and forums hold their messages ONLY in
+    // threads, so a container-type filter would silently skip both.
+    const containers = guild.channels.cache.filter(
       (c): c is GuildBasedChannel =>
-        (c.type === ChannelType.GuildText ||
-          c.type === ChannelType.GuildAnnouncement) &&
-        !!me &&
-        c.permissionsFor(me).has("ViewChannel") &&
-        c.permissionsFor(me).has("ReadMessageHistory"),
+        [
+          ChannelType.GuildText,
+          ChannelType.GuildAnnouncement,
+          ChannelType.GuildVoice,
+          ChannelType.GuildStageVoice,
+          ChannelType.GuildForum,
+          ChannelType.GuildMedia,
+        ].includes(c.type) && canRead(c),
     );
 
-    for (const channel of readable.values()) {
+    const targets: TextBasedChannel[] = [];
+    for (const channel of containers.values()) {
+      if (channel.isTextBased()) targets.push(channel);
+      if (!("threads" in channel)) continue;
+      // Archived threads hold the old reactions; a forum post leaves "active"
+      // within days, and a forum keeps its messages ONLY in threads.
+      const active = await channel.threads.fetchActive().catch(() => null);
+      const archived = await channel.threads
+        .fetchArchived({ limit: 100 })
+        .catch(() => null);
+      for (const collection of [active?.threads, archived?.threads]) {
+        for (const thread of collection?.values() ?? []) targets.push(thread);
+      }
+    }
+
+    for (const channel of targets) {
       if (!channel.isTextBased()) continue;
       channelsScanned++;
       let before: string | undefined;
