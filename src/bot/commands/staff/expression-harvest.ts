@@ -1,4 +1,5 @@
 import { ExpressionHarvestService } from "@/core/services/expressions/expression-harvest.service";
+import { ExpressionUsageService } from "@/core/services/expressions/expression-usage.service";
 import { isStaff } from "@/core/utils/command.utils";
 import { ChannelType, type GuildMember, type Message } from "discord.js";
 import type { SimpleCommandMessage } from "discordx";
@@ -57,11 +58,16 @@ export class ExpressionHarvest {
         ),
     );
     const room = ExpressionHarvestService.capacity(message.guild);
+    const backfilled = await ExpressionUsageService.backfill(
+      message.guild,
+      scan.owned,
+    );
 
     const header = [
       `Scanned **${scan.messagesScanned}** messages in **${scan.channelsScanned}** channels.`,
       `Found **${scan.emojis.length}** external emoji and **${scan.stickers.length}** stickers not owned here.`,
       `Room for **${room.emoji}** emoji and **${room.sticker}** stickers.`,
+      `Backfilled usage counts for **${backfilled}** owned expressions.`,
     ].join("\n");
 
     if (!scan.emojis.length && !scan.stickers.length) {
