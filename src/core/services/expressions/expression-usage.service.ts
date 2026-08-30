@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { expressionUsage } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { MemberDataService } from "@/core/services/members/member-data.service";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Guild, Message, MessageReaction } from "discord.js";
 
 const EMOJI_PATTERN = /<a?:(\w+):(\d+)>/g;
@@ -84,6 +84,58 @@ export class ExpressionUsageService {
   }
 
   /**
+   * Replace counts from a full history scan. Absolute, not additive: a second
+   * harvest re-counts the same messages, so adding would double every number.
+   */
+  static async backfill(
+    guild: Guild,
+    rows: {
+      id: string;
+      name: string;
+      kind: "emoji" | "sticker";
+      messageUses: number;
+      reactionUses: number;
+    }[],
+  ): Promise<number> {
+    if (!rows.length) return 0;
+    await MemberDataService.upsertGuild(guild);
+    const now = new Date().toISOString();
+    let written = 0;
+
+    for (const row of rows) {
+      const ok = await db
+        .insert(expressionUsage)
+        .values({
+          guildId: guild.id,
+          expressionId: row.id,
+          kind: row.kind,
+          name: row.name,
+          messageUses: row.messageUses,
+          reactionUses: row.reactionUses,
+          lastUsedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [expressionUsage.guildId, expressionUsage.expressionId],
+          set: {
+            messageUses: row.messageUses,
+            reactionUses: row.reactionUses,
+            name: row.name,
+          },
+        })
+        .then(() => true)
+        .catch((e) => {
+          logger.error("Expression usage backfill failed", {
+            expression: row.id,
+            error: String(e),
+          });
+          return false;
+        });
+      if (ok) written++;
+    }
+    return written;
+  }
+
+  /**
    * Every owned expression with its counts, unused ones first. Reports live
    * emoji, not stored rows, so something deleted in Discord disappears here.
    */
@@ -113,15 +165,5 @@ export class ExpressionUsageService {
     ];
     all.sort((a, b) => a.total - b.total || a.name.localeCompare(b.name));
     return all;
-  }
-
-  static async trackedSince(guildId: string): Promise<string | null> {
-    const [row] = await db
-      .select({ createdAt: expressionUsage.createdAt })
-      .from(expressionUsage)
-      .where(and(eq(expressionUsage.guildId, guildId)))
-      .orderBy(expressionUsage.createdAt)
-      .limit(1);
-    return row?.createdAt ?? null;
   }
 }

@@ -25,7 +25,6 @@ export class ExpressionUsage {
         .find((n) => Number.isFinite(n) && n > 0) ?? 30;
 
     const all = await ExpressionUsageService.report(message.guild);
-    const since = await ExpressionUsageService.trackedSince(message.guild.id);
     const unused = all.filter((e) => e.total === 0);
 
     const line = (e: (typeof all)[number]) =>
@@ -34,13 +33,12 @@ export class ExpressionUsage {
 
     await message.reply(
       [
-        `**${all.length}** expressions tracked, **${unused.length}** unused since ` +
-          (since ? `<t:${Math.floor(new Date(since).getTime() / 1000)}:R>` : "tracking began"),
+        `**${all.length}** expressions, **${unused.length}** with no recorded use.`,
         "",
         `Least used (${Math.min(limit, all.length)}):`,
         all.slice(0, limit).map(line).join("\n"),
         "",
-        "Counts start from when tracking shipped, so a zero means unused since then, not never.",
+        "Run `!emoji-harvest` to recount from full history; live usage adds to it after that.",
       ]
         .join("\n")
         .slice(0, 1900),
