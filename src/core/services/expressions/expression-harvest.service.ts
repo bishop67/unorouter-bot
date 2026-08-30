@@ -153,7 +153,8 @@ export class ExpressionHarvestService {
           // backfills real usage instead of starting every counter at zero.
           for (const reaction of message.reactions.cache.values()) {
             const rid = reaction.emoji.id;
-            if (rid && ownedEmoji.has(rid))
+            if (!rid) continue;
+            if (ownedEmoji.has(rid)) {
               bumpOwned(
                 rid,
                 reaction.emoji.name ?? rid,
@@ -161,6 +162,19 @@ export class ExpressionHarvestService {
                 "reactionUses",
                 reaction.count,
               );
+              continue;
+            }
+            // An external emoji reacted with but never typed is still in use
+            // here, and reactions are the more common way people reach for one.
+            const prev = emojis.get(rid);
+            if (prev) prev.uses += reaction.count;
+            else
+              emojis.set(rid, {
+                id: rid,
+                name: reaction.emoji.name ?? rid,
+                animated: reaction.emoji.animated ?? false,
+                uses: reaction.count,
+              });
           }
           for (const match of message.content.matchAll(EMOJI_PATTERN)) {
             const id = match[3]!;
