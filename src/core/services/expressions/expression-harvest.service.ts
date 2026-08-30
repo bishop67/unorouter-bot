@@ -60,7 +60,11 @@ export class ExpressionHarvestService {
    * thousands of requests, and the useful expressions cluster in recent
    * activity anyway.
    */
-  static async scan(guild: Guild, perChannel: number): Promise<HarvestScan> {
+  static async scan(
+    guild: Guild,
+    perChannel: number,
+    onProgress?: (done: number, total: number, messages: number) => void,
+  ): Promise<HarvestScan> {
     const ownedEmoji = new Set(guild.emojis.cache.map((e) => e.id));
     const ownedSticker = new Set(guild.stickers.cache.map((s) => s.id));
     const emojis = new Map<string, FoundExpression>();
@@ -106,6 +110,7 @@ export class ExpressionHarvestService {
     for (const channel of targets) {
       if (!channel.isTextBased()) continue;
       channelsScanned++;
+      onProgress?.(channelsScanned, targets.length, messagesScanned);
       let before: string | undefined;
       let fetched = 0;
 
@@ -190,6 +195,7 @@ export class ExpressionHarvestService {
   static async upload(
     guild: Guild,
     scan: HarvestScan,
+    onProgress?: (done: number, total: number, label: string) => void,
   ): Promise<HarvestResult> {
     const result: HarvestResult = {
       uploadedEmojis: [],
@@ -238,6 +244,11 @@ export class ExpressionHarvestService {
       if (created) {
         owned.add(hash);
         result.uploadedEmojis.push(created.name ?? emoji.name);
+        onProgress?.(
+          result.uploadedEmojis.length,
+          Math.min(scan.emojis.length, room.emoji),
+          created.name ?? emoji.name,
+        );
       } else {
         result.skipped.push({ name: emoji.name, reason: "upload rejected" });
       }

@@ -1,19 +1,35 @@
 import { ExpressionHarvestService } from "@/core/services/expressions/expression-harvest.service";
 import { isStaff } from "@/core/utils/command.utils";
-import { ChannelType, type GuildMember } from "discord.js";
+import { ChannelType, type GuildMember, type Message } from "discord.js";
 import type { SimpleCommandMessage } from "discordx";
 import { Discord, SimpleCommand } from "discordx";
 
 const DEFAULT_PER_CHANNEL = 2000;
+// Discord rate-limits message edits; anything faster just gets queued.
+const EDIT_INTERVAL_MS = 3000;
+
+function throttledEditor(notice: Message) {
+  let last = 0;
+  let pending: string | null = null;
+  return {
+    push(text: string) {
+      pending = text;
+      const now = Date.now();
+      if (now - last < EDIT_INTERVAL_MS) return;
+      last = now;
+      void notice.edit(text).catch(() => {});
+    },
+    async flush() {
+      if (pending) await notice.edit(pending).catch(() => {});
+    },
+  };
+}
 
 @Discord()
 export class ExpressionHarvest {
   /**
    * Adopt custom emoji and stickers members use here but the server does not
-   * own. Dry run unless "confirm" is passed, because uploads consume finite
-   * slots and each one has to be deleted by hand to undo.
-   *
-   * `!emoji-harvest [confirm] [perChannel]`
+   * own. `!emoji-harvest [perChannel]`
    */
   @SimpleCommand({ aliases: ["emoji-harvest"], prefix: "!" })
   async harvest(command: SimpleCommandMessage) {
@@ -21,44 +37,45 @@ export class ExpressionHarvest {
     if (!message.guild || !isStaff(message.member as GuildMember | null)) return;
     if (message.channel.type !== ChannelType.GuildText) return;
 
-    const args = message.content.trim().split(/\s+/).slice(1);
-    const confirm = args.includes("confirm");
     const perChannel =
-      args.map(Number).find((n) => Number.isFinite(n) && n > 0) ??
-      DEFAULT_PER_CHANNEL;
+      message.content
+        .trim()
+        .split(/\s+/)
+        .slice(1)
+        .map(Number)
+        .find((n) => Number.isFinite(n) && n > 0) ?? DEFAULT_PER_CHANNEL;
 
-    const notice = await message.reply(
-      `Scanning up to ${perChannel} messages per channel...`,
+    const notice = await message.reply("Scanning...");
+    const editor = throttledEditor(notice);
+
+    const scan = await ExpressionHarvestService.scan(
+      message.guild,
+      perChannel,
+      (done, total, messages) =>
+        editor.push(
+          `Scanning **${done}/${total}** channels, **${messages}** messages read...`,
+        ),
     );
-
-    const scan = await ExpressionHarvestService.scan(message.guild, perChannel);
     const room = ExpressionHarvestService.capacity(message.guild);
-    const top = (list: { name: string; uses: number }[]) =>
-      list
-        .slice(0, 15)
-        .map((e) => `${e.name} (${e.uses})`)
-        .join(", ") || "none";
 
-    const summary = [
+    const header = [
       `Scanned **${scan.messagesScanned}** messages in **${scan.channelsScanned}** channels.`,
       `Found **${scan.emojis.length}** external emoji and **${scan.stickers.length}** stickers not owned here.`,
       `Room for **${room.emoji}** emoji and **${room.sticker}** stickers.`,
-      "",
-      `Emoji: ${top(scan.emojis)}`,
-      `Stickers: ${top(scan.stickers)}`,
-    ];
+    ].join("\n");
 
-    if (!confirm) {
-      summary.push(
-        "",
-        "Dry run. Re-run with `!emoji-harvest confirm` to upload.",
-      );
-      await notice.edit(summary.join("\n"));
+    if (!scan.emojis.length && !scan.stickers.length) {
+      await notice.edit(`${header}\n\nNothing new to adopt.`);
       return;
     }
 
-    await notice.edit([...summary, "", "Uploading..."].join("\n"));
-    const result = await ExpressionHarvestService.upload(message.guild, scan);
+    const result = await ExpressionHarvestService.upload(
+      message.guild,
+      scan,
+      (done, total, label) =>
+        editor.push(`${header}\n\nUploading **${done}/${total}**: ${label}`),
+    );
+    await editor.flush();
 
     const reasons = new Map<string, number>();
     for (const s of result.skipped)
@@ -66,11 +83,14 @@ export class ExpressionHarvest {
 
     await notice.edit(
       [
-        ...summary,
+        header,
         "",
-        `Uploaded **${result.uploadedEmojis.length}** emoji and **${result.uploadedStickers.length}** stickers.`,
+        `Added **${result.uploadedEmojis.length}** emoji and **${result.uploadedStickers.length}** stickers.`,
         result.uploadedEmojis.length
-          ? `Added: ${result.uploadedEmojis.join(", ")}`
+          ? `Emoji: ${result.uploadedEmojis.join(", ")}`
+          : "",
+        result.uploadedStickers.length
+          ? `Stickers: ${result.uploadedStickers.join(", ")}`
           : "",
         reasons.size
           ? `Skipped: ${[...reasons].map(([r, n]) => `${n} ${r}`).join(", ")}`
