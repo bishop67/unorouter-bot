@@ -21,11 +21,20 @@ export interface FoundSticker {
   uses: number;
 }
 
+export interface OwnedUsage {
+  id: string;
+  name: string;
+  kind: "emoji" | "sticker";
+  messageUses: number;
+  reactionUses: number;
+}
+
 export interface HarvestScan {
   messagesScanned: number;
   channelsScanned: number;
   emojis: FoundExpression[];
   stickers: FoundSticker[];
+  owned: OwnedUsage[];
 }
 
 export interface HarvestResult {
@@ -69,6 +78,20 @@ export class ExpressionHarvestService {
     const ownedSticker = new Set(guild.stickers.cache.map((s) => s.id));
     const emojis = new Map<string, FoundExpression>();
     const stickers = new Map<string, FoundSticker>();
+    const owned = new Map<string, OwnedUsage>();
+    const bumpOwned = (
+      id: string,
+      name: string,
+      kind: "emoji" | "sticker",
+      field: "messageUses" | "reactionUses",
+      by: number,
+    ) => {
+      const row =
+        owned.get(id) ?? { id, name, kind, messageUses: 0, reactionUses: 0 };
+      row[field] += by;
+      row.name = name;
+      owned.set(id, row);
+    };
     let messagesScanned = 0;
     let channelsScanned = 0;
 
@@ -122,9 +145,25 @@ export class ExpressionHarvestService {
 
         for (const message of batch.values()) {
           messagesScanned++;
+          // Reaction counts come back on fetched history, so one pass
+          // backfills real usage instead of starting every counter at zero.
+          for (const reaction of message.reactions.cache.values()) {
+            const rid = reaction.emoji.id;
+            if (rid && ownedEmoji.has(rid))
+              bumpOwned(
+                rid,
+                reaction.emoji.name ?? rid,
+                "emoji",
+                "reactionUses",
+                reaction.count,
+              );
+          }
           for (const match of message.content.matchAll(EMOJI_PATTERN)) {
             const id = match[3]!;
-            if (ownedEmoji.has(id)) continue;
+            if (ownedEmoji.has(id)) {
+              bumpOwned(id, match[2]!, "emoji", "messageUses", 1);
+              continue;
+            }
             const prev = emojis.get(id);
             if (prev) prev.uses++;
             else
@@ -136,7 +175,10 @@ export class ExpressionHarvestService {
               });
           }
           for (const sticker of message.stickers.values()) {
-            if (ownedSticker.has(sticker.id)) continue;
+            if (ownedSticker.has(sticker.id)) {
+              bumpOwned(sticker.id, sticker.name, "sticker", "messageUses", 1);
+              continue;
+            }
             const prev = stickers.get(sticker.id);
             if (prev) prev.uses++;
             else
@@ -161,6 +203,7 @@ export class ExpressionHarvestService {
       channelsScanned,
       emojis: [...emojis.values()].sort(byUses),
       stickers: [...stickers.values()].sort(byUses),
+      owned: [...owned.values()],
     };
   }
 
