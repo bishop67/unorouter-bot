@@ -49,6 +49,10 @@ const EMOJI_CAP = [50, 100, 150, 250];
 const STICKER_CAP = [5, 15, 30, 60];
 
 const EMOJI_PATTERN = /<(a?):(\w+):(\d+)>/g;
+// Emoji creates are rate limited hard. discord.js queues rather than failing,
+// so an unpaced loop just stalls with no error; pacing keeps progress visible.
+const UPLOAD_DELAY_MS = 1500;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Lottie stickers are vector JSON; the upload endpoint only takes PNG/APNG/GIF.
 const STICKER_FORMAT_LOTTIE = 3;
 
@@ -226,7 +230,16 @@ export class ExpressionHarvestService {
   }
 
   private static uniqueName(guild: Guild, name: string): string {
-    const clean = name.replace(/[^\w]/g, "_").slice(0, 30) || "emoji";
+    // Discord allows letters, digits and underscore. Stripping by [^\w] alone
+    // reduces a fully non-ASCII name to nothing and every one collides on the
+    // same generic fallback.
+    const clean =
+      name
+        .normalize("NFKD")
+        .replace(/[^\p{L}\p{N}_]/gu, "_")
+        .replace(/_{2,}/g, "_")
+        .replace(/^_|_$/g, "")
+        .slice(0, 30) || `e${Date.now().toString(36).slice(-6)}`;
     if (!guild.emojis.cache.some((e) => e.name === clean)) return clean;
     for (let i = 2; i < 100; i++) {
       const candidate = `${clean.slice(0, 27)}_${i}`;
@@ -249,7 +262,9 @@ export class ExpressionHarvestService {
     const owned = await this.ownedHashes(guild);
 
     for (const emoji of scan.emojis) {
-      if (result.uploadedEmojis.length >= room.emoji) {
+      // Re-read: the cache grows with each create, so a snapshot taken before
+      // the loop stops short of the real cap.
+      if (this.capacity(guild).emoji <= 0) {
         result.skipped.push({ name: emoji.name, reason: "no emoji slots left" });
         break;
       }
@@ -287,6 +302,7 @@ export class ExpressionHarvestService {
       if (created) {
         owned.add(hash);
         result.uploadedEmojis.push(created.name ?? emoji.name);
+        await sleep(UPLOAD_DELAY_MS);
         onProgress?.(
           result.uploadedEmojis.length,
           Math.min(scan.emojis.length, room.emoji),
@@ -298,7 +314,7 @@ export class ExpressionHarvestService {
     }
 
     for (const sticker of scan.stickers) {
-      if (result.uploadedStickers.length >= room.sticker) {
+      if (this.capacity(guild).sticker <= 0) {
         result.skipped.push({ name: sticker.name, reason: "no sticker slots left" });
         break;
       }
