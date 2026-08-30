@@ -218,11 +218,20 @@ export class ExpressionHarvestService {
   }
 
   /** sha256 of every owned emoji, so a re-upload under a new name is caught. */
+  private static cdnUrl(id: string, animated: boolean): string {
+    return `https://cdn.discordapp.com/emojis/${id}.${animated ? "gif" : "png"}?size=128&quality=lossless`;
+  }
+
+  /**
+   * Hash owned emoji through the SAME url the candidates use. imageURL()
+   * serves an animated emoji as webp while the harvest downloads gif, so the
+   * bytes never matched and every animated emoji was re-uploaded as name_2.
+   */
   private static async ownedHashes(guild: Guild): Promise<Set<string>> {
     const hashes = new Set<string>();
     await Promise.all(
       guild.emojis.cache.map(async (e) => {
-        const buf = await this.download(e.imageURL({ size: 128 }));
+        const buf = await this.download(this.cdnUrl(e.id, e.animated ?? false));
         if (buf) hashes.add(createHash("sha256").update(buf).digest("hex"));
       }),
     );
@@ -268,10 +277,7 @@ export class ExpressionHarvestService {
         result.skipped.push({ name: emoji.name, reason: "no emoji slots left" });
         break;
       }
-      const ext = emoji.animated ? "gif" : "png";
-      const buf = await this.download(
-        `https://cdn.discordapp.com/emojis/${emoji.id}.${ext}?size=128&quality=lossless`,
-      );
+      const buf = await this.download(this.cdnUrl(emoji.id, emoji.animated));
       if (!buf) {
         result.skipped.push({ name: emoji.name, reason: "download failed" });
         continue;
