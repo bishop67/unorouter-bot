@@ -6,6 +6,7 @@ import {
   CHANNEL_SPAM_WINDOW_MS,
   CHANNEL_WARNING_THRESHOLD,
   DUPLICATE_JAIL_THRESHOLD,
+  DUPLICATE_SPAM_WINDOW_MS,
   DUPLICATE_WARNING_THRESHOLD,
 } from "@/shared/config/spam";
 import type { UserSpamState } from "@/types";
@@ -30,12 +31,16 @@ export class DuplicateSpamService {
     const now = Date.now();
     const channelId = message.channel.id;
 
+    // Repeats spread over hours are not spam, and nothing else expires `count`.
+    const withinWindow = state
+      ? now - state.lastMessageAt < DUPLICATE_SPAM_WINDOW_MS
+      : false;
     const textMatches = state ? content === state.lastContent : false;
     const attachmentsMatch = state
       ? this.areAttachmentsSimilar(attachmentHashes, state.lastAttachmentHashes)
       : false;
 
-    const isDuplicate = textMatches && attachmentsMatch;
+    const isDuplicate = withinWindow && textMatches && attachmentsMatch;
 
     let count = 1;
     if (isDuplicate && state) {
@@ -56,6 +61,7 @@ export class DuplicateSpamService {
 
     this.userStates.set(userId, {
       count,
+      lastMessageAt: now,
       lastContent: content,
       lastAttachmentHashes: attachmentHashes,
       recentChannels,
@@ -186,9 +192,10 @@ export class DuplicateSpamService {
         .digest("hex")
         .slice(0, 32);
     } catch {
-      const baseUrl = attachment.proxyURL.split("?")[0];
+      // No URL in the fallback: Discord mints a fresh one per upload, so the
+      // same file re-posted would hash differently and slip past the check.
       return createHash("sha256")
-        .update(`${attachment.size}|${attachment.name}|${baseUrl}`)
+        .update(`${attachment.size}|${attachment.name}`)
         .digest("hex")
         .slice(0, 32);
     }

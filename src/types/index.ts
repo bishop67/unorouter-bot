@@ -58,6 +58,7 @@ export type UpdateDbRolesArgs = {
 // Spam detection
 export interface UserSpamState {
   count: number;
+  lastMessageAt: number;
   lastContent: string;
   lastAttachmentHashes: string[];
   recentChannels: Array<{ channelId: string; timestamp: number }>;
