@@ -3,6 +3,7 @@ import { MessagesService } from "@/core/services/messages/messages.service";
 import { DuplicateSpamService } from "@/core/services/spam/duplicate-spam.service";
 import { SpamDetectionService } from "@/core/services/spam/spam-detection.service";
 import { TicketService } from "@/core/services/tickets/ticket.service";
+import { ExpressionUsageService } from "@/core/services/expressions/expression-usage.service";
 import { PURGE_BOT_USER_IDS } from "@/shared/config/features";
 import { JAIL } from "@/shared/config/roles";
 import { Message } from "discord.js";
@@ -44,4 +45,6 @@ export async function handleMessageCreate(message: Message): Promise<void> {
   await MessagesService.levelUpMessage(message);
 
   await TicketService.logTicketMessage(message);
+
+  await ExpressionUsageService.trackMessage(message);
 }

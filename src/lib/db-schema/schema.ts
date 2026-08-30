@@ -68,6 +68,10 @@ export const voteSiteEnum = pgEnum("vote_site", [
   "discadia",
   "discordservers",
 ]);
+export const expressionKindEnum = pgEnum("expression_kind", [
+  "emoji",
+  "sticker",
+]);
 export const ticketStatusEnum = pgEnum("ticket_status", ["open", "closed"]);
 export const ticketCategoryEnum = pgEnum("ticket_category", ["support", "bug"]);
 export const bugStatusEnum = pgEnum("bug_status", [
@@ -583,6 +587,33 @@ export const giveawayRaffleWinner = pgTable(
   },
   (table) => [
     index("idx_giveaway_raffle_winners_raffle").on(table.raffleId),
+  ],
+);
+
+// Usage counters for the guild's own emoji and stickers, so dead ones can be
+// retired. Keyed by the expression id: a rename must not reset the count.
+export const expressionUsage = pgTable(
+  "expression_usage",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id")
+      .notNull()
+      .references(() => guild.guildId, {
+        onDelete: "restrict",
+        onUpdate: "cascade",
+      }),
+    expressionId: text("expression_id").notNull(),
+    kind: expressionKindEnum("kind").notNull(),
+    // Snapshot for reporting; the emoji may be deleted before anyone reads this.
+    name: text("name").notNull(),
+    messageUses: integer("message_uses").default(0).notNull(),
+    reactionUses: integer("reaction_uses").default(0).notNull(),
+    lastUsedAt: timestamp("last_used_at", { precision: 3, mode: "string" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_expression_usage").on(table.guildId, table.expressionId),
+    index("idx_expression_usage_last").on(table.guildId, table.lastUsedAt),
   ],
 );
 
