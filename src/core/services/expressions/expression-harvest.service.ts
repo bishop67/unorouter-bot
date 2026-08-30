@@ -355,8 +355,12 @@ export class ExpressionHarvestService {
           });
           return null;
         });
-      if (created) result.uploadedStickers.push(created.name);
-      else result.skipped.push({ name: sticker.name, reason: "upload rejected" });
+      if (created) {
+        result.uploadedStickers.push(created.name);
+        await sleep(UPLOAD_DELAY_MS);
+      } else {
+        result.skipped.push({ name: sticker.name, reason: "upload rejected" });
+      }
     }
 
     return result;
