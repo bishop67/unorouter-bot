@@ -27,6 +27,7 @@ const INTERNAL_ROLES = new Set(
 );
 
 const channelMessages = new LRUCache<string, ModelMessage[]>({ max: 1000 });
+const HISTORY_TURNS = 40;
 
 export class AiChatService {
   static async generateResponse(
@@ -106,7 +107,7 @@ export class AiChatService {
     });
 
     messages.push({ role: "assistant", content: responseText });
-    channelMessages.set(message.channel.id, messages);
+    channelMessages.set(message.channel.id, messages.slice(-HISTORY_TURNS));
 
     return {
       text: responseText,

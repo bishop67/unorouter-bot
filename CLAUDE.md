@@ -13,13 +13,11 @@ Discord bot for unorouter.com. discordx (decorators), drizzle + postgres-js, Goo
 
 ## Deploy
 
-k3s + ArgoCD. `.github/workflows/ghcr.yml` (push to main, or `gh workflow run ghcr.yml`)
-builds the multi-arch image to `ghcr.io/unorouter/unorouter-bot:latest`. The k8s manifest
-(`infra/infra/services/bot.yaml`, image `:latest`) then needs a
-`kubectl -n services rollout restart deploy/unorouter-bot` to pull the new image (no image
-updater wired yet). ArgoCD owns the manifest itself. The old `docker.yml` (don self-hosted
-runner + `docker compose`) is DEAD - its push trigger was removed after the zombie-respawn
-incident; do not re-enable. Local `docker build` fine for verifying compile only.
+k3s + ArgoCD. GitHub Actions does not run for this org; `ghcr.yml` never fires. Build and ship
+locally: `cd ~/MEGA/Projects/ai-api/infra && ./scripts/build-local.sh unorouter-bot --deploy`
+(amd64 image tagged by SHA, pinned into `k8s/deployment.yaml`, committed and pushed; ArgoCD
+rolls out in about three minutes). Never push `:latest`, never ship an image any other way.
+Local `docker build` is fine for verifying compile only.
 
 Runtime config comes from the k8s secret (OpenBao -> ESO), NOT GitHub secrets/dotenvx `.env`
 anymore. To change a value: patch the OpenBao path feeding `bot-env`, then
@@ -51,7 +49,7 @@ Kept lean. `bootGuild(g)` runs per guild in parallel, in order: upsert guild row
 
 ### Member-count voice channels
 
-Locked voice channels named like `📊│members:` auto-update to the live non-bot count. Config `MEMBERS_COUNT_CHANNELS` (comma-separated NAME substrings, GitHub secret + rendered in `docker.yml`). `MemberDataService.updateMemberCount(guild)` renames each matching channel to `<name> <count>` on guildMemberAdd/Remove + on boot + hourly. Discord caps channel renames at 2/10min per channel.
+Locked voice channels named like `📊│members:` auto-update to the live non-bot count. Config `MEMBERS_COUNT_CHANNELS` (comma-separated NAME substrings, from the `bot-env` secret). `MemberDataService.updateMemberCount(guild)` renames each matching channel to `<name> <count>` on guildMemberAdd/Remove + on boot + hourly. Discord caps channel renames at 2/10min per channel.
 
 GOTCHA: for the bot to rename a locked channel it needs VIEW + MANAGE_CHANNELS on it. The bot's server role has MANAGE_CHANNELS globally, but a locked channel (deny CONNECT for @everyone) still blocked it until a **role overwrite** was added. Add the overwrite against the bot's GUILD ROLE id (type 0), NOT the app/client id as a member overwrite (type 1) - the app id is not the bot's member and the overwrite silently does nothing. After changing channel perms, RESTART the bot so discord.js re-caches the channel with the new overwrites, or it computes perms from the stale cache and keeps failing with `50001 Missing Access`.
 
@@ -103,11 +101,12 @@ no site deploy and no translation edits.
 
 ```bash
 # 1. patch OpenBao (kv v2 at mount `secret`, path `bot-env`). USE patch, NOT put:
-#    put replaces the whole secret and would drop the other ~46 keys.
-TOKEN=$(sops -d secrets/openbao-init.sops.yaml | grep -i root_token | awk '{print $2}')   # in infra repo
-kubectl -n openbao exec openbao-0 -- sh -c "BAO_TOKEN='$TOKEN' bao kv patch secret/bot-env \
+#    put replaces the whole secret. Token over stdin, never in the exec argv.
+cd ~/MEGA/Projects/ai-api/infra
+BT=$(sops -d secrets/openbao-init.sops.yaml | grep -oP 'root_token:\s*\K\S+')
+printf '%s\n' "$BT" | kubectl -n openbao exec -i openbao-0 -- sh -c 'read -r BAO_TOKEN && export BAO_TOKEN && bao kv patch secret/bot-env \
   CONNECT_GRANT_DOLLARS=0.50 VOTE_GRANT_DOLLARS=0.025 BOOST_GRANT_DOLLARS=0.50 \
-  LEVEL_GRANT_DOLLARS=0.03,0.05,0.13,0.25,0.50,1,2.50,5,12.50"
+  LEVEL_GRANT_DOLLARS=0.03,0.05,0.13,0.25,0.50,1,2.50,5,12.50'
 
 # 2. ESO refresh is 1h; force it, then restart so the pod picks up new env
 kubectl -n services annotate externalsecret bot-env force-sync=$(date +%s) --overwrite
@@ -320,7 +319,7 @@ Discord guild-command sync can lag a few seconds after deploy. Instead of typing
 
 ### Markdown that works in Discord messages
 
-- `[text](url)` IS supported in regular messages (so URLs can be hidden). Earlier note that "plain messages don't render markdown links" was wrong.
+- `[text](url)` is supported in regular messages, so URLs can be hidden.
 - `<url>` brackets suppress link embed preview.
 - Channel mentions: `<#1510752428440555704>` (no name required, channel resolves to its current name).
 - Role mentions: `<@&roleId>`. User mentions: `<@userId>`.
@@ -343,9 +342,9 @@ kubectl -n services exec deploy/unorouter-bot -- env | grep -E 'NEW_API|BOT_NAME
 Env is now plain pod env (k8s secret via OpenBao/ESO); there is NO `.env` file on disk and
 no dotenvx wrapper in prod. `kubectl exec ... env` IS the source of truth.
 
-Databases — two CloudNativePG clusters in namespace `databases`, reach via `kubectl exec`
-into the primary pod (`-pg-1` = current primary; confirm with `kubectl get cluster -n
-databases`). Bot DB is named `unorouter-bot-db`; new-api DB is `newapi`:
+Databases: two CloudNativePG clusters in namespace `databases`, reach via `kubectl exec`
+into the current primary (`kubectl -n databases get cluster <name> -o jsonpath='{.status.currentPrimary}'`;
+the primary drifts on failover). Bot DB is named `unorouter-bot-db`; new-api DB is `newapi`:
 
 ```bash
 # bot DB
@@ -366,7 +365,7 @@ For an app-user connection instead of superuser, the `-rw` service (`bot-pg-rw` 
 - No tests unless explicitly requested.
 - No bloated comments. Comment only non-obvious WHY, one terse line. No restating code.
 - No barrel re-export files when splitting modules. Rewrite each importer.
-- Don't manually deploy. GHCR image build + ArgoCD/kubectl rollout only (don is gone).
+- Deploy only through `infra/scripts/build-local.sh unorouter-bot --deploy`.
 - Don't give the bot new-api's root access token again. It now holds its own scoped `NEW_API_BOT_TOKEN`; rotating it means patching BOTH `secret/newapi-env` (`BOT_SERVICE_TOKEN`) and `secret/bot-env` (`NEW_API_BOT_TOKEN`) to the SAME value, or the bot silently falls through to admin auth and 401s.
 
 ## Server channels (UnoRouter, guild 1498300365001588746)

@@ -209,7 +209,7 @@ const sendServerSticker = tool({
 
 const searchMemeGifs = tool({
   description:
-    "Search for and send a meme GIF to enhance your response with visual humor.",
+    "Search Klipy for a meme GIF and attach it to this reply. This is the only way a GIF can reach the user: a GIF URL typed into the reply text is stripped before sending. Use it rarely, for a moment that genuinely lands (a celebration, an epic fail, or when asked); custom server emojis are the default flavor. The GIF accompanies a text answer, never replaces it, and a reply carries at most one of GIF or sticker. Returns { success, gifUrl } or { success: false, error }.",
   inputSchema: z.object({
     query: z.string().describe("Search query for the GIF"),
   }),
@@ -373,7 +373,7 @@ const getStaffAndHelpers = tool({
 
 const lookupUserActivity = tool({
   description:
-    "Full stats for one member: message count, channels posted in, first and last message, level/rank, roles, join date, booster and server-tag status, rewards earned and balance earned, members invited, giveaway wins, tickets opened, bugs reported. Pass the numeric user ID (from a mention like <@123>, strip the <@ >), or the asker's own ID when they ask about themselves. Use for 'how active is X', 'what level is X', 'when did X join', 'how long have I been here', 'my stats'. None of this is private; it is already visible in Discord, so answer rather than declining.",
+    "Full stats for one member: message count, channels posted in, first and last message, level/rank, roles, join date, booster and server-tag status, rewards earned and balance earned, members invited, giveaway wins, tickets opened, bugs reported. Pass the numeric user ID (from a mention like <@123>, strip the <@ >), or the asker's own ID when they ask about themselves. Use for 'how active is X', 'what level is X', 'when did X join', 'how long have I been here', 'my stats'. None of this is private; it is already visible in Discord, so answer rather than declining. The one exception is balance earned: quote it only to the person it belongs to; for anyone else give the activity stats without the money.",
   inputSchema: z.object({
     guildId: z.string().describe("The Discord guild/server ID"),
     userId: z.string().describe("The numeric Discord user ID to look up"),

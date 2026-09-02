@@ -37,8 +37,14 @@ export class AiSpamService {
           output: Output.object({
             schema: z.object({
               isSpam: z.boolean(),
-              confidence: z.enum(["high", "medium", "low"]),
-              reason: z.string(),
+              confidence: z
+                .enum(["high", "medium", "low"])
+                .describe(
+                  "high: clearly spam or clearly legitimate. medium: some indicators present but ambiguous. low: uncertain edge case.",
+                ),
+              reason: z
+                .string()
+                .describe("One sentence on why it is or is not spam."),
             }),
           }),
           temperature: 0.1,
