@@ -26,6 +26,8 @@ spec:
     metadata:
       labels: { app: unorouter-bot }
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull
       containers:
         - name: bot
           # pinned by this repo's GHCR workflow (deploy job); ArgoCD rolls it out.
