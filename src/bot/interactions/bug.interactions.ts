@@ -217,6 +217,13 @@ export class BugInteractions {
         targetId: parsed.targetId,
       });
 
+      if (result.ipDuplicate) {
+        await interaction.editReply(
+          `No quota moved: <@${parsed.targetId}> shares a register IP with another account, so the grant was refused. Clear the duplicate, then approve again.`,
+        );
+        return;
+      }
+
       if (result.linked) {
         await BugReportService.markApproved(
           row.forumThreadId,
@@ -291,6 +298,12 @@ export class BugInteractions {
       if (!result.linked) {
         await interaction.editReply(
           `Still not linked. ${GrantService.linkPrompt()}`,
+        );
+        return;
+      }
+      if (result.ipDuplicate) {
+        await interaction.editReply(
+          "Your account shares a register IP with another account, so the reward was refused. Open a ticket and staff can sort it out.",
         );
         return;
       }
