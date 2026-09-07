@@ -330,7 +330,7 @@ Don't hardcode. Each session, refetch via the `guilds/${guildId}/channels` endpo
 
 ## Cluster access (logs, env, DB) — k3s, not don
 
-Kubeconfig lives at `infra/kubeconfig` (`export KUBECONFIG=.../infra/kubeconfig`).
+Kubeconfig is the Teleport local proxy file `~/.kube/teleport-unorouter.yaml` (`systemctl --user status tsh-kube`; after a `tsh login`, restart that unit). No cert kubeconfig is kept on disk; `infra/scripts/dr.sh kubeconfig` fetches one for DR and every request with it pages.
 
 Logs + env (bot runs in namespace `services`, deploy/pod `unorouter-bot`):
 
