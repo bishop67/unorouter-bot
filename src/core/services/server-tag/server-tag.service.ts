@@ -28,6 +28,10 @@ const CRON_INTERVAL_MS = parseInt(
 // long unlinked stretch is owed many payouts at once. Drain them a few per tick
 // rather than firing one new-api call per owed day in a single pass.
 const MAX_CATCHUP_PAYOUTS = 5;
+// Cap so a small roster still finishes quickly instead of trickling for an hour.
+const MAX_PAYOUT_SPACING_MS = 20_000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class ServerTagService {
   /**
@@ -238,6 +242,14 @@ export class ServerTagService {
     if (due.length === 0) return;
     logger.info("Server tag cron: paying due wears", { count: due.length });
 
+    // Every wear falls due on the same tick, so paying them back to back posts
+    // dozens of log lines in one second and hammers the grant endpoint. Spread
+    // them over the interval instead, leaving headroom before the next tick.
+    const spacingMs = Math.min(
+      MAX_PAYOUT_SPACING_MS,
+      Math.floor((CRON_INTERVAL_MS * 0.5) / due.length),
+    );
+
     for (const wear of due) {
       try {
         await this.payWear(wear.id, wear.memberId, wear.nextPayoutAt);
@@ -247,6 +259,7 @@ export class ServerTagService {
           error: String(err),
         });
       }
+      if (spacingMs > 0) await sleep(spacingMs);
     }
   }
 
