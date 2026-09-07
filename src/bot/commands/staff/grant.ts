@@ -90,6 +90,14 @@ export class GrantCommand {
         return;
       }
 
+      if (result.ipDuplicate) {
+        await safeEditReply(
+          interaction,
+          `Nothing credited: <@${user.id}> shares a register IP with another account and the grant was refused.`,
+        );
+        return;
+      }
+
       await safeEditReply(
         interaction,
         `Granted **$${amount}** to <@${user.id}>. Reason: ${reason}`,

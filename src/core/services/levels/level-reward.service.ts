@@ -82,9 +82,10 @@ export class LevelRewardService {
       return null;
     });
 
-    // Unlinked (or failed): release the claim so a later run retries after the
-    // member links. Only a real credit keeps the claim.
-    if (!result || !result.linked) {
+    // Unlinked, refused or failed: release the claim so a later run retries
+    // once the cause clears. Only a real credit keeps the claim; an IP-duplicate
+    // refusal moves no quota, so keeping it would strand the reward as paid.
+    if (!result || !result.linked || result.ipDuplicate) {
       await db
         .delete(rewardClaim)
         .where(eq(rewardClaim.id, claimed[0]!.id))
