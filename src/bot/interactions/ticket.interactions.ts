@@ -238,6 +238,13 @@ export class TicketInteractions {
         grantedBy: interaction.user.id,
       });
 
+      if (result.ipDuplicate) {
+        await interaction.editReply(
+          `No quota moved: <@${parsed.targetId}> shares a register IP with another account, so the grant was refused. Clear the duplicate, then grant again.`,
+        );
+        return;
+      }
+
       if (result.linked) {
         await TicketService.markRedeemed(ticketId, quota);
         await interaction.editReply(
@@ -301,6 +308,12 @@ export class TicketInteractions {
       if (!result.linked) {
         await interaction.editReply(
           `Still not linked. ${GrantService.linkPrompt()}`,
+        );
+        return;
+      }
+      if (result.ipDuplicate) {
+        await interaction.editReply(
+          "Your account shares a register IP with another account, so the reward was refused. Open a ticket and staff can sort it out.",
         );
         return;
       }

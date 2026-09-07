@@ -260,10 +260,10 @@ export const InviteService = {
       return null;
     });
 
-    // Grant failed or inviter not linked: roll the units back so a later run
-    // (after they link) retries. Guard the rollback on the value we set, so a
-    // concurrent advance isn't clobbered.
-    if (!result || !result.linked) {
+    // Grant failed, inviter not linked, or refused for a duplicate register IP:
+    // roll the units back so a later run retries once the cause clears. Guard the
+    // rollback on the value we set, so a concurrent advance isn't clobbered.
+    if (!result || !result.linked || result.ipDuplicate) {
       await db
         .update(rewardClaim)
         .set({ earnedUnits: paidUnits, updatedAt: new Date().toISOString() })

@@ -43,6 +43,8 @@ function systemToNull(grantedBy: string): string | null {
   return grantedBy === "system" ? null : grantedBy;
 }
 
+const REFUSAL_ANNOUNCE_MUTE_MS = 60 * 60 * 1000;
+
 const CONNECT_GRANT_DOLLARS = REWARDS.connect;
 const CONNECT_GRANT_QUOTA = dollarsToQuota(CONNECT_GRANT_DOLLARS);
 // Role given when a user proves their Discord is linked to the platform.
@@ -115,6 +117,12 @@ export class GrantService {
         sourceId: params.sourceId ?? null
       });
       await this.recordRefusal(params, json.data.user_id, "ip_duplicate");
+      await this.announceRefusal(
+        params.targetDiscordId,
+        params.quota,
+        params.sourceType,
+        json.data.user_id
+      );
       return {
         linked: true,
         userId: json.data.user_id,
@@ -424,6 +432,42 @@ export class GrantService {
       })
     );
     await RolesService.reconcileAdultRole(member);
+  }
+
+  // A refused grant moves no quota and the member is told nothing, so without
+  // this the only trace is a log line nobody reads: they retry, assume the bot
+  // is broken, and it surfaces as a support question days later. Repeats are
+  // muted for an hour because vote sites retry on their own schedule.
+  private static readonly refusalAnnouncedAt = new Map<string, number>();
+
+  private static async announceRefusal(
+    targetDiscordId: string,
+    quota: number,
+    sourceType: GrantSourceType,
+    userId?: number | null
+  ): Promise<void> {
+    const key = `${targetDiscordId}:${sourceType}`;
+    const now = Date.now();
+    const last = this.refusalAnnouncedAt.get(key) ?? 0;
+    if (now - last < REFUSAL_ANNOUNCE_MUTE_MS) return;
+    this.refusalAnnouncedAt.set(key, now);
+
+    const guild = bot.guilds.cache.first();
+    if (!guild) return;
+    const channel = findTextChannel(guild, GRANT_LOG_CHANNEL_NAME);
+    if (!channel) return;
+    const dollars = QUOTA_PER_DOLLAR > 0 ? quota / QUOTA_PER_DOLLAR : 0;
+    const tag = GRANT_SOURCE_LABEL[sourceType] ?? sourceType;
+    const who = await this.formatUser(guild, targetDiscordId);
+    const account = userId == null ? "" : ` (uno id \`${userId}\`)`;
+    await channel
+      .send({
+        content: `\`[${tag}]\` **Refused** $${formatDollars(dollars)} to ${who}${account}: register IP shared with another account. Nothing was credited.`,
+        allowedMentions: { users: [], roles: [] }
+      })
+      .catch((e) =>
+        logger.error("Refusal announce failed", { error: String(e) })
+      );
   }
 
   private static async announce(
