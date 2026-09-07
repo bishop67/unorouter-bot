@@ -43,7 +43,9 @@ function systemToNull(grantedBy: string): string | null {
   return grantedBy === "system" ? null : grantedBy;
 }
 
-const REFUSAL_ANNOUNCE_MUTE_MS = 60 * 60 * 1000;
+// A shared register IP does not clear on its own, so the same wearer is refused
+// on every hourly server-tag tick. Report each one daily, not every tick.
+const REFUSAL_ANNOUNCE_MUTE_MS = 24 * 60 * 60 * 1000;
 
 const CONNECT_GRANT_DOLLARS = REWARDS.connect;
 const CONNECT_GRANT_QUOTA = dollarsToQuota(CONNECT_GRANT_DOLLARS);
@@ -450,6 +452,9 @@ export class GrantService {
     const now = Date.now();
     const last = this.refusalAnnouncedAt.get(key) ?? 0;
     if (now - last < REFUSAL_ANNOUNCE_MUTE_MS) return;
+    for (const [k, at] of this.refusalAnnouncedAt) {
+      if (now - at >= REFUSAL_ANNOUNCE_MUTE_MS) this.refusalAnnouncedAt.delete(k);
+    }
     this.refusalAnnouncedAt.set(key, now);
 
     const guild = bot.guilds.cache.first();
