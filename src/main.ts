@@ -1,6 +1,7 @@
 import "@dotenvx/dotenvx/config";
 
 import { logger } from "@/lib/logger";
+import { recordDiscordEvidence } from "@/lib/discord-evidence";
 import { BoostService } from "@/core/services/boost/boost.service";
 import { ServerTagService } from "@/core/services/server-tag/server-tag.service";
 import { GiveawayService } from "@/core/services/giveaway/giveaway.service";
@@ -48,6 +49,20 @@ export const bot = new Client({
 // fallback reply on interactions. discordx has no built-in error middleware
 // so this is the idiomatic boundary.
 bot.guards = [ErrorBoundary];
+const discordEvidence = recordDiscordEvidence(bot.rest);
+bot.on("shardDisconnect", () => discordEvidence.coverageChanged());
+bot.on("shardReady", () => discordEvidence.coverageChanged());
+bot.on("shardResume", () => discordEvidence.coverageChanged());
+bot.on("messageCreate", (message) => {
+  if (message.author.id !== bot.user?.id) return;
+  discordEvidence.observe(message.id, message.channelId);
+  logger.info("Bot account message observed", {
+    event: "security.discord_observed",
+    message_id: message.id,
+    channel_id: message.channelId,
+    pod_uid: process.env.POD_UID,
+  });
+});
 
 // Per-guild boot sequence. Order matters: the guild row is the FK parent for
 // member/role writes, and vote reconcile + member-count both need a warm member
