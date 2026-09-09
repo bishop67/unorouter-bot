@@ -5,7 +5,10 @@ import { logger } from "@/lib/logger";
 // request bodies, webhook URLs, interaction tokens, or message content.
 export function recordDiscordEvidence(rest: REST) {
   const sent = new Map<string, number>();
-  const observed = new Map<string, { channelId: string; at: number; generation: number }>();
+  const observed = new Map<
+    string,
+    { channelId: string; at: number; generation: number }
+  >();
   let generation = 0;
   let readySince = Date.now();
   const timer = setInterval(() => {
@@ -15,13 +18,18 @@ export function recordDiscordEvidence(rest: REST) {
       const entry = item[1];
       if (now - entry.at < 120_000) continue;
       const matched = sent.has(id);
-      const complete = entry.generation === generation && entry.at - readySince >= 120_000;
+      const complete =
+        entry.generation === generation && entry.at - readySince >= 120_000;
       logger.info("Bot message correlation", {
         event: "security.discord_correlation",
         message_id: id,
         channel_id: entry.channelId,
         pod_uid: process.env.POD_UID,
-        outcome: matched ? "matched_local_request" : complete ? "unmatched_in_this_process" : "coverage_gap",
+        outcome: matched
+          ? "matched_local_request"
+          : complete
+            ? "unmatched_in_this_process"
+            : "coverage_gap",
         // A second replica or a response without a message ID can explain a miss.
         // This is a review lead, never proof of an external caller.
         scope: "process",
@@ -33,7 +41,9 @@ export function recordDiscordEvidence(rest: REST) {
   timer.unref();
   const request = rest.request.bind(rest);
   rest.request = async (options) => {
-    const channel = options.fullRoute.match(/^\/channels\/(\d+)\/messages(?:\/|$)/);
+    const channel = options.fullRoute.match(
+      /^\/channels\/(\d+)\/messages(?:\/|$)/,
+    );
     const webhook = options.fullRoute.startsWith("/webhooks/");
     const interaction = options.fullRoute.startsWith("/interactions/");
     if (!channel && !webhook && !interaction) return request(options);
@@ -42,7 +52,11 @@ export function recordDiscordEvidence(rest: REST) {
       event: "security.discord_request",
       attempt_id: attempt,
       method: options.method,
-      route_kind: channel ? "channel_message" : webhook ? "webhook" : "interaction",
+      route_kind: channel
+        ? "channel_message"
+        : webhook
+          ? "webhook"
+          : "interaction",
       channel_id: channel?.[1],
       pod_uid: process.env.POD_UID,
       build: process.env.GIT_SHA,
@@ -51,7 +65,12 @@ export function recordDiscordEvidence(rest: REST) {
     try {
       const result = await request(options);
       const message = result as { id?: unknown; channel_id?: unknown } | null;
-      if (options.method === "POST" && typeof message?.id === "string" && typeof message?.channel_id === "string") {
+      // Any method: a deferred interaction reply is created by a 204 callback and
+      // its id first shows up on the PATCH of @original, which is our only proof.
+      if (
+        typeof message?.id === "string" &&
+        typeof message?.channel_id === "string"
+      ) {
         if (sent.size >= 10_000) {
           sent.clear();
           generation++;
@@ -63,7 +82,10 @@ export function recordDiscordEvidence(rest: REST) {
         event: "security.discord_result",
         outcome: "success",
         message_id: typeof message?.id === "string" ? message.id : undefined,
-        channel_id: typeof message?.channel_id === "string" ? message.channel_id : metadata.channel_id,
+        channel_id:
+          typeof message?.channel_id === "string"
+            ? message.channel_id
+            : metadata.channel_id,
       });
       return result;
     } catch (error) {
@@ -82,7 +104,10 @@ export function recordDiscordEvidence(rest: REST) {
     },
     observe(messageId: string, channelId: string) {
       if (observed.size >= 10_000) {
-        logger.warn("Discord evidence capacity reached", { event: "security.discord_coverage_gap", pod_uid: process.env.POD_UID });
+        logger.warn("Discord evidence capacity reached", {
+          event: "security.discord_coverage_gap",
+          pod_uid: process.env.POD_UID,
+        });
         observed.clear();
         generation++;
       }
