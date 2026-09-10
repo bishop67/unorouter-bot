@@ -7,6 +7,7 @@ import {
 } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { MemberDataService } from "@/core/services/members/member-data.service";
+import { ticketPromptEmbed } from "@/core/embeds/ticket-prompt.embed";
 import { STAFF_ROLES } from "@/shared/config/roles";
 import { findCategory, findTextChannel } from "@/shared/utils/channel.utils";
 import { ButtonId, ButtonIdBuilder } from "@/types/custom-ids";
@@ -192,6 +193,21 @@ export class TicketService {
       components: [this.buildControls()],
       allowedMentions: { users: [opener.id], roles: staffRoleIds },
     });
+
+    // Separate message so the ping above stays a clean notification and this
+    // stays readable when staff scroll back.
+    await channel
+      .send({
+        content: `${opener}`,
+        embeds: [ticketPromptEmbed(category)],
+        allowedMentions: { users: [opener.id] },
+      })
+      .catch((e) =>
+        logger.error("Ticket prompt send failed", {
+          channel: channel.id,
+          error: String(e),
+        }),
+      );
 
     return { status: TicketOpenStatus.Ok, channel };
   }
