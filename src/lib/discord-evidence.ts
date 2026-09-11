@@ -47,6 +47,12 @@ export function recordDiscordEvidence(rest: REST) {
     const webhook = options.fullRoute.startsWith("/webhooks/");
     const interaction = options.fullRoute.startsWith("/interactions/");
     if (!channel && !webhook && !interaction) return request(options);
+    // A callback answers 204 with no body, so the reply it creates carries no id
+    // here and every interaction reply reads as a message we never sent.
+    // with_response upgrades it to 200 and returns the message itself.
+    const callback = /^\/interactions\/\d+\/[^/]+\/callback$/.test(
+      options.fullRoute,
+    );
     const attempt = crypto.randomUUID();
     const metadata = {
       event: "security.discord_request",
@@ -63,10 +69,30 @@ export function recordDiscordEvidence(rest: REST) {
     };
     logger.info("Discord request attempt", metadata);
     try {
-      const result = await request(options);
-      const message = result as { id?: unknown; channel_id?: unknown } | null;
-      // Any method: a deferred interaction reply is created by a 204 callback and
-      // its id first shows up on the PATCH of @original, which is our only proof.
+      const result = await request(
+        callback
+          ? {
+              ...options,
+              query: new URLSearchParams([
+                ...new URLSearchParams(options.query),
+                ["with_response", "true"],
+              ]),
+            }
+          : options,
+      );
+      const body = result as
+        | {
+            id?: unknown;
+            channel_id?: unknown;
+            resource?: {
+              message?: { id?: unknown; channel_id?: unknown } | null;
+            } | null;
+          }
+        | null
+        | undefined;
+      const message = callback ? body?.resource?.message : body;
+      // Any method: a deferred reply has no message until the PATCH of @original,
+      // so that PATCH stays the proof for the deferred path.
       if (
         typeof message?.id === "string" &&
         typeof message?.channel_id === "string"
