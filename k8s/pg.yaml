@@ -63,6 +63,14 @@ spec:
   bootstrap:
     recovery:
       source: bot-pg-origin
+  # Distributed topology (k3s to Talos migration, 2026-09-12). Both sites are named by their
+  # archive: bot-pg-origin is the v7 lineage (this cluster), bot-pg-talos the v8 lineage. While
+  # primary equals self this block is inert; the switchover flips primary on both sites, and
+  # this cluster then follows the v8 archive as a replica (source).
+  replica:
+    self: bot-pg-origin
+    primary: bot-pg-origin
+    source: bot-pg-talos
   externalClusters:
     - name: bot-pg-origin
       plugin:
@@ -72,6 +80,14 @@ spec:
         parameters:
           barmanObjectName: bot-pg-hz
           serverName: bot-pg-v7 # RESTORE-FROM lineage: only read at bootstrap; on a DR create bump ARCHIVE-TO to v8 (the pair must differ)
+    - name: bot-pg-talos
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        enabled: true
+        isWALArchiver: false
+        parameters:
+          barmanObjectName: bot-pg-hz
+          serverName: bot-pg-v8
 
   # The webhook defaults below (enabled, isWALArchiver) are written out because these are atomic lists: ArgoCD compares the
   # whole item and reports the app OutOfSync forever when the live object carries them.
