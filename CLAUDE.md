@@ -1,6 +1,6 @@
 # CLAUDE.md — unorouter-bot
 
-Discord bot for unorouter.com. discordx (decorators), drizzle + postgres-js, Google Gemini for AI chat. Runs on the k3s cluster (namespace `services`, deploy `unorouter-bot`); ships via GHCR image + ArgoCD, never manual binaries.
+Discord bot for unorouter.com. discordx (decorators), drizzle + postgres-js, Google Gemini for AI chat. Runs on the Talos cluster (namespace `services`, deploy `unorouter-bot`); ships via GHCR image + ArgoCD, never manual binaries.
 
 ## Stack
 
@@ -13,11 +13,11 @@ Discord bot for unorouter.com. discordx (decorators), drizzle + postgres-js, Goo
 
 ## Deploy
 
-k3s + ArgoCD. GitHub Actions does not run for this org; `ghcr.yml` never fires. Build and ship
-locally: `cd ~/MEGA/Projects/ai-api/infra && ./scripts/build-local.sh unorouter-bot --deploy`
-(amd64 image tagged by SHA, pinned into `k8s/deployment.yaml`, committed and pushed; ArgoCD
-rolls out in about three minutes). Never push `:latest`, never ship an image any other way.
-Local `docker build` is fine for verifying compile only.
+Talos + ArgoCD. Push to `main`: the `GHCR Image` workflow builds the amd64 image tagged by
+SHA, `unorouter-ci` commits the pin into `k8s/deployment.yaml`, ArgoCD rolls it (10 to 20
+minutes). A deploy is done when ArgoCD shows the new image. `build-local.sh` is retired: never
+docker build or push an image by hand, never push `:latest`. Local `docker build` is fine for
+verifying compile only.
 
 Runtime config comes from the k8s secret (OpenBao -> ESO), NOT GitHub secrets/dotenvx `.env`
 anymore. To change a value: patch the OpenBao path feeding `bot-env`, then
@@ -328,9 +328,9 @@ Discord guild-command sync can lag a few seconds after deploy. Instead of typing
 
 Don't hardcode. Each session, refetch via the `guilds/${guildId}/channels` endpoint above. The bot doesn't need IDs at all (NAME substring resolution).
 
-## Cluster access (logs, env, DB) — k3s, not don
+## Cluster access (logs, env, DB): Talos, not don
 
-Kubeconfig is the Teleport local proxy file `~/.kube/teleport-unorouter.yaml` (`systemctl --user status tsh-kube`; after a `tsh login`, restart that unit). No cert kubeconfig is kept on disk; `infra/scripts/dr.sh kubeconfig` fetches one for DR and every request with it pages.
+Kubeconfig is the Teleport local proxy file `~/.kube/teleport-unorouter.yaml` (`systemctl --user status tsh-kube`; after a `tsh login`, restart that unit). No cert kubeconfig is kept on disk; `infra/scripts/dr.sh kubeconfig` fetches one over the Talos API for DR and every request with it pages. Nodes have no SSH (Talos): `talosctl`, never `ssh`.
 
 Logs + env (bot runs in namespace `services`, deploy/pod `unorouter-bot`):
 
