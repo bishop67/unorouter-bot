@@ -64,13 +64,13 @@ spec:
     recovery:
       source: bot-pg-origin
   # Distributed topology (k3s to Talos migration, 2026-09-12). Both sites are named by their
-  # archive: bot-pg-origin is the v7 lineage (this cluster), bot-pg-talos the v8 lineage. While
+  # archive: bot-pg-origin is the v7 lineage (the k3s cluster), bot-pg-talos the v8 lineage (this cluster). While
   # primary equals self this block is inert; the switchover flips primary on both sites, and
   # this cluster then follows the v8 archive as a replica (source).
   replica:
-    self: bot-pg-origin
-    primary: bot-pg-origin
-    source: bot-pg-talos
+    self: bot-pg-talos
+    primary: bot-pg-talos
+    source: bot-pg-origin
   externalClusters:
     - name: bot-pg-origin
       plugin:
@@ -97,7 +97,7 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: bot-pg-hz
-        serverName: bot-pg-v7 # ARCHIVE-TO lineage: crypt gateway from 2026-09-09; v5 and v6 are SSE-C era, unreadable through it
+        serverName: bot-pg-v8 # ARCHIVE-TO lineage: crypt gateway from 2026-09-09; v5 and v6 are SSE-C era, unreadable through it
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
