@@ -55,6 +55,9 @@ spec:
       value: when_required
   imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-bookworm
   instances: 2
+  # requests only (7 day median 930Mi, 525m), no limits
+  resources:
+    requests: { cpu: 500m, memory: 1Gi }
   storage:
     size: 10Gi
     storageClass: local-path
