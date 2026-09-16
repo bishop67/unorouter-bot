@@ -36,6 +36,13 @@
       "when": 1788113086728,
       "tag": "0004_expression_usage",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789592287849,
+      "tag": "0005_sudden_molten_man",
+      "breakpoints": true
     }
   ]
 }
