@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { rewardGrant, voteRoleHold } from "@/lib/db-schema";
+import { memberGuild, rewardGrant, voteRoleHold } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
 import { GrantService } from "@/core/services/grant/grant.service";
 import { REWARDS, dollarsToQuota } from "@/shared/config/rewards";
@@ -35,8 +35,6 @@ const DEDUPE_MS: Record<VoteSite, number> = {
   [VoteSite.DiscordServers]: 11 * HOUR_MS,
 };
 
-const VOTE_GRANT_DOLLARS = REWARDS.vote;
-
 // Mid-session stuck-role sweep cadence. Default 10min: frequent enough that a
 // missed vote role clears fast, cheap enough (in-memory role check per member,
 // DB hit only on a hold/role mismatch).
@@ -65,7 +63,15 @@ export class VoteService {
   ): Promise<VoteRewardResult> {
     if (!GrantService.isConfigured()) return { ok: false, reason: "not_configured" };
 
-    const quota = dollarsToQuota(VOTE_GRANT_DOLLARS);
+    // Members present at the reward cut were stamped legacy and keep the old
+    // rate; a voter with no row (uncached webhook vote) takes the current rate.
+    const membership = await db.query.memberGuild.findFirst({
+      where: eq(memberGuild.memberId, voterDiscordId),
+      columns: { legacyRewards: true },
+    });
+    const quota = dollarsToQuota(
+      membership?.legacyRewards ? REWARDS.voteLegacy : REWARDS.vote,
+    );
     if (quota <= 0) return { ok: false, reason: "no_reward" };
 
     // createdAt is a mode "string" timestamp: a raw Date here makes postgres-js
