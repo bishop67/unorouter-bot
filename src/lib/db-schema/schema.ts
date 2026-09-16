@@ -163,6 +163,9 @@ export const memberGuild = pgTable(
     warnings: integer("warnings").default(0).notNull(),
     joinedAt: timestamp("joined_at", { precision: 3, mode: "string" }),
     premiumSince: timestamp("premium_since", { precision: 3, mode: "string" }),
+    // Set once by migration for every row present at the reward cut; new joins
+    // default false. Absent from the join upsert, so a rejoin never resets it.
+    legacyRewards: boolean("legacy_rewards").default(false).notNull(),
     updatedAt: updatedAt(),
   },
   (table) => [

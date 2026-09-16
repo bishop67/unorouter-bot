@@ -6,6 +6,11 @@ import { LEVEL_LIST } from "./levels";
 export const REWARDS = {
   connect: parseFloat(process.env.CONNECT_GRANT_DOLLARS || "0"),
   vote: parseFloat(process.env.VOTE_GRANT_DOLLARS || "0"),
+  // Members stamped legacy_rewards keep the pre-cut vote rate. Falls back to the
+  // current rate so a missing key can never pay them zero.
+  voteLegacy: parseFloat(
+    process.env.VOTE_GRANT_DOLLARS_LEGACY || process.env.VOTE_GRANT_DOLLARS || "0",
+  ),
   boost: parseFloat(process.env.BOOST_GRANT_DOLLARS || "0"),
   invite: parseFloat(process.env.INVITE_GRANT_DOLLARS || "0.01"),
   serverTag: parseFloat(process.env.SERVER_TAG_GRANT_DOLLARS || "0"),
@@ -48,7 +53,8 @@ export function rewardsPayload() {
   }));
   return {
     quotaPerDollar: QUOTA_PER_DOLLAR,
-    amounts: { ...REWARDS },
+    // voteLegacy is an internal tier; the site advertises the current rate only.
+    amounts: { ...REWARDS, voteLegacy: undefined },
     levels,
     levelTotal: levels.reduce((sum, level) => sum + level.dollars, 0),
   };
