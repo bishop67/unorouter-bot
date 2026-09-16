@@ -34,11 +34,12 @@ export const SERVER_TAG_RATE_LIMIT_PCT = parseInt(
 );
 
 // Keeps the cents pair a price is expected to have (0.50, not 0.5) while still
-// showing a third decimal when the amount has one (0.025, not a rounded 0.03).
+// showing the extra decimals a sub-cent amount carries (0.0125, not a rounded
+// 0.013): a panel must state exactly what the grant pays.
 export function formatDollars(dollars: number): string {
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: Number.isInteger(dollars) ? 0 : 2,
-    maximumFractionDigits: 3,
+    maximumFractionDigits: 4,
   }).format(dollars);
 }
 
