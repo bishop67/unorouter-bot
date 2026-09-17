@@ -55,6 +55,13 @@ spec:
       value: when_required
   imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-bookworm
   instances: 2
+  # required, not the default preferred: a replacement replica landed next to another
+  # instance twice during the node rolls (2026-09-17). Pending until its node is back beats
+  # two instances on one node.
+  affinity:
+    enablePodAntiAffinity: true
+    topologyKey: kubernetes.io/hostname
+    podAntiAffinityType: required
   # requests only (7 day median 930Mi, 525m), no limits
   resources:
     requests: { cpu: 500m, memory: 1Gi }
