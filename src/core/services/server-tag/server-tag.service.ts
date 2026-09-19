@@ -207,7 +207,12 @@ export class ServerTagService {
       logger.info("Server tag cron disabled (SERVER_TAG_GRANT_DOLLARS=0)");
       return;
     }
+    let inFlight = false;
     const tick = async () => {
+      // A slow tick (many due wears, catch-up spacing) must not overlap the next
+      // one: both would read the same due rows and pay them twice.
+      if (inFlight) return;
+      inFlight = true;
       try {
         await this.payDueWears();
         for (const guild of client.guilds.cache.values()) {
@@ -220,6 +225,8 @@ export class ServerTagService {
         }
       } catch (err) {
         logger.error("Server tag cron tick failed", { error: String(err) });
+      } finally {
+        inFlight = false;
       }
     };
     void tick();
