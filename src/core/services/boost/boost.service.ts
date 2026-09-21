@@ -1,5 +1,6 @@
 import { GrantService } from "@/core/services/grant/grant.service";
 import { REWARDS, dollarsToQuota, formatDollars } from "@/shared/config/rewards";
+import { BOT_NAME } from "@/shared/config/branding";
 import { db } from "@/lib/db";
 import { boostSlot } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
@@ -108,9 +109,13 @@ export class BoostService {
         .fetch(memberId)
         .catch(() => null);
       if (result.linked) {
+        const account = await GrantService.accountView(result.userId);
+        const accountLine = account.username
+          ? `\n**${BOT_NAME} account:** \`${account.username}\``
+          : "";
         await member?.user
           .send(
-            `Thanks for boosting! You earned **$${formatDollars(totalDollars)}** balance, and every $${formatDollars(totalDollars)}/month while you keep boosting lands automatically. 💜`,
+            `Thanks for boosting! You earned **$${formatDollars(totalDollars)}** balance, and every $${formatDollars(totalDollars)}/month while you keep boosting lands automatically. 💜${accountLine}`,
           )
           .catch(() => {});
       } else {
