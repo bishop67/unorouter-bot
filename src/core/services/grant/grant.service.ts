@@ -305,7 +305,7 @@ export class GrantService {
 
   // Balance in dollars and account name for the DM. Best-effort: nulls if the
   // lookup fails so the DM still sends with just the +amount.
-  private static async accountView(
+  static async accountView(
     userId: number | null | undefined
   ): Promise<{ totalDollars: number | null; username: string | null }> {
     if (userId == null) return { totalDollars: null, username: null };
