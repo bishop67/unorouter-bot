@@ -32,6 +32,7 @@ export function grantRewardEmbed(params: {
   sourceType: GrantSourceType;
   addedDollars: number;
   totalDollars: number | null;
+  accountName?: string | null;
   voteAgainHours?: number;
   voteSiteLabel?: string;
   actorId?: string | null;
@@ -58,6 +59,9 @@ export function grantRewardEmbed(params: {
     "",
     `**+${fmt(params.addedDollars)}** added to your balance.`,
   );
+  if (params.accountName) {
+    lines.push(`**${BOT_NAME} account:** \`${params.accountName}\``);
+  }
   if (params.totalDollars !== null) {
     lines.push(`**Total balance:** ${fmt(params.totalDollars)}`);
   }

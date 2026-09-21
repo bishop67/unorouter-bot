@@ -3848,6 +3848,7 @@ export interface ResponseDtoUpdateNameResponse {
 export interface UserBotViewData {
   quota: number;
   setting: string;
+  username: string;
 }
 
 /**

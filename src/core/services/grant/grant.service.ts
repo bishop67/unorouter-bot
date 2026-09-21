@@ -303,16 +303,21 @@ export class GrantService {
     return { ok: true, fromBalanceQuota: data.from_balance };
   }
 
-  // Current balance in dollars for the DM "Total" line. Best-effort: returns null
-  // if the lookup fails so the DM still sends with just the +amount.
-  private static async quotaToBalanceDollars(
+  // Balance in dollars and account name for the DM. Best-effort: nulls if the
+  // lookup fails so the DM still sends with just the +amount.
+  private static async accountView(
     userId: number | null | undefined
-  ): Promise<number | null> {
-    if (userId == null) return null;
+  ): Promise<{ totalDollars: number | null; username: string | null }> {
+    if (userId == null) return { totalDollars: null, username: null };
     const res = await getUserBotView(String(userId)).catch(() => null);
     const quota = res?.data?.data?.quota;
-    if (typeof quota !== "number" || QUOTA_PER_DOLLAR <= 0) return null;
-    return quota / QUOTA_PER_DOLLAR;
+    return {
+      totalDollars:
+        typeof quota === "number" && QUOTA_PER_DOLLAR > 0
+          ? quota / QUOTA_PER_DOLLAR
+          : null,
+      username: res?.data?.data?.username || null
+    };
   }
 
   // DM the recipient a reward embed (Top.gg-style). Best-effort: a closed DM or a
@@ -332,7 +337,7 @@ export class GrantService {
     // still lands + logs in grants-log; only the DM is suppressed.
     if (!(await DmPreferenceService.isDmEnabled(targetDiscordId, sourceType)))
       return;
-    const totalDollars = await this.quotaToBalanceDollars(userId);
+    const account = await this.accountView(userId);
     // For votes, sourceId is the VoteSite; resolve its human label so the DM names
     // the real site instead of a hardcoded one.
     const voteSiteLabel =
@@ -342,7 +347,8 @@ export class GrantService {
     const embed = grantRewardEmbed({
       sourceType,
       addedDollars,
-      totalDollars,
+      totalDollars: account.totalDollars,
+      accountName: account.username,
       voteAgainHours: sourceType === "vote" ? 12 : undefined,
       voteSiteLabel,
       actorId,
@@ -494,7 +500,7 @@ export class GrantService {
     const invitee = inviteeDiscordId
       ? `: ${await this.formatUser(guild, inviteeDiscordId)}`
       : "";
-    const balance = await this.quotaToBalanceDollars(userId);
+    const balance = (await this.accountView(userId)).totalDollars;
     const balanceLabel =
       balance == null
         ? ""
