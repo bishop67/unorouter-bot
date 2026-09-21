@@ -120,6 +120,7 @@ export class TagRateLimitService {
    */
   private static async notify(
     memberId: string,
+    userId: number,
     pct: number,
     lost = 0,
   ): Promise<void> {
@@ -127,6 +128,10 @@ export class TagRateLimitService {
       return;
     const user = await bot.users.fetch(memberId).catch(() => null);
     if (!user) return;
+    const account = await GrantService.accountView(userId);
+    const accountLine = account.username
+      ? [`**${BOT_NAME} account:** \`${account.username}\``]
+      : [];
 
     const embed = pct > 0
       ? {
@@ -134,6 +139,7 @@ export class TagRateLimitService {
           title: "Server tag perk active",
           description: [
             `Your wait between free model requests is now **${pct}% shorter** while you wear the ${BOT_NAME} tag.`,
+            ...accountLine,
             "",
             "It applies on every free model, and stacks with the daily tag reward.",
           ].join("\n"),
@@ -143,6 +149,7 @@ export class TagRateLimitService {
           title: "Server tag perk ended",
           description: [
             `You took the ${BOT_NAME} tag off, so you lost the **${lost}% shorter** wait between free model requests.`,
+            ...accountLine,
             "",
             `Put the tag back on to get the ${lost}% back.`,
           ].join("\n"),
@@ -187,7 +194,7 @@ export class TagRateLimitService {
           pct: SERVER_TAG_RATE_LIMIT_PCT,
         });
         await this.log(memberId, SERVER_TAG_RATE_LIMIT_PCT);
-        await this.notify(memberId, SERVER_TAG_RATE_LIMIT_PCT);
+        await this.notify(memberId, userId, SERVER_TAG_RATE_LIMIT_PCT);
       }
       return;
     }
@@ -198,7 +205,7 @@ export class TagRateLimitService {
           user: userId,
         });
         await this.log(memberId, 0, pct);
-        await this.notify(memberId, 0, pct);
+        await this.notify(memberId, userId, 0, pct);
       }
     }
     // wearing && pct > 0 -> already active, leave the admin's number alone.
