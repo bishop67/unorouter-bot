@@ -11,6 +11,15 @@ export const ADMIN_ROLES = process.env.ADMIN_ROLES?.split(",").map((s) =>
     ? [process.env.STAFF_ROLES.split(",")[0]!.trim()]
     : []);
 
+// Moderation tiers for the bot's own commands: mods jail, helpers time out.
+export const MOD_ROLES = process.env.MOD_ROLES?.split(",").map((s) =>
+  s.trim(),
+) || ["Admin", "Moderator"];
+
+export const HELPER_ROLES = process.env.HELPER_ROLES?.split(",").map((s) =>
+  s.trim(),
+) || [...MOD_ROLES, "Helper"];
+
 export const STATUS_ROLES =
   process.env.STATUS_ROLES?.split(",").map((s) => s.trim()) || [];
 

@@ -1,6 +1,8 @@
 import {
   ADMIN_ROLES,
   CONNECTED_ROLE,
+  HELPER_ROLES,
+  MOD_ROLES,
   STAFF_ROLES,
   TRANSFER_ROLES,
 } from "@/shared/config/roles";
@@ -103,6 +105,16 @@ export function isStaff(member: GuildMember | null | undefined): boolean {
   if (!member) return false;
   if (STAFF_ROLES.length === 0) return false;
   return member.roles.cache.some((role) => STAFF_ROLES.includes(role.name));
+}
+
+export function isModerator(member: GuildMember | null | undefined): boolean {
+  if (!member) return false;
+  return member.roles.cache.some((role) => MOD_ROLES.includes(role.name));
+}
+
+export function isHelper(member: GuildMember | null | undefined): boolean {
+  if (!member) return false;
+  return member.roles.cache.some((role) => HELPER_ROLES.includes(role.name));
 }
 
 export function isAdmin(member: GuildMember | null | undefined): boolean {
