@@ -74,7 +74,7 @@ spec:
   probes:
     liveness:
       isolationCheck:
-        enabled: false
+        enabled: true
 
   # DR MODE: create-time-only recovery from S3 (see newapi-pg for the lineage mechanics).
   bootstrap:
@@ -92,7 +92,7 @@ spec:
     - name: bot-pg-origin
       plugin:
         name: barman-cloud.cloudnative-pg.io
-        enabled: false
+        enabled: true
         isWALArchiver: false
         parameters:
           barmanObjectName: bot-pg-hz
@@ -100,7 +100,7 @@ spec:
     - name: bot-pg-talos
       plugin:
         name: barman-cloud.cloudnative-pg.io
-        enabled: false
+        enabled: true
         isWALArchiver: false
         parameters:
           barmanObjectName: bot-pg-hz
