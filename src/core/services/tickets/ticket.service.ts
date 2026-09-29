@@ -8,7 +8,6 @@ import {
 import { logger } from "@/lib/logger";
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { ticketPromptEmbed } from "@/core/embeds/ticket-prompt.embed";
-import { STAFF_ROLES } from "@/shared/config/roles";
 import { findCategory, findTextChannel } from "@/shared/utils/channel.utils";
 import { ButtonId, ButtonIdBuilder } from "@/types/custom-ids";
 import { and, eq, sql } from "drizzle-orm";
@@ -108,9 +107,25 @@ export class TicketService {
       return { status: TicketOpenStatus.NoCategory };
     }
 
-    const staffRoleIds = STAFF_ROLES.map(
-      (name) => guild.roles.cache.find((r) => r.name === name)?.id,
-    ).filter((id): id is string => Boolean(id));
+    // Who else sees a ticket is set on the category, so staff tiers change in
+    // one place. The category leaves @everyone alone, so each ticket hides it.
+    const categoryOverwrites = ticketsCategory.permissionOverwrites.cache
+      .filter((o) => o.id !== guild.roles.everyone.id)
+      .map((o) => ({
+        id: o.id,
+        type: o.type,
+        allow: o.allow.bitfield,
+        deny: o.deny.bitfield,
+      }));
+
+    const staffRoleIds = ticketsCategory.permissionOverwrites.cache
+      .filter(
+        (o) =>
+          o.type === OverwriteType.Role &&
+          o.allow.has(PermissionFlagsBits.ViewChannel) &&
+          !guild.roles.cache.get(o.id)?.managed,
+      )
+      .map((o) => o.id);
 
     // Bot's own member must be allowed to view + manage the new channel;
     // without an explicit allow the @everyone deny below wins for the bot too,
@@ -118,6 +133,7 @@ export class TicketService {
     const botMemberId = guild.members.me?.id;
 
     const overwrites = [
+      ...categoryOverwrites,
       {
         id: guild.roles.everyone.id,
         type: OverwriteType.Role,
@@ -146,15 +162,6 @@ export class TicketService {
           PermissionFlagsBits.ReadMessageHistory |
           PermissionFlagsBits.AttachFiles,
       },
-      ...staffRoleIds.map((id) => ({
-        id,
-        type: OverwriteType.Role,
-        allow:
-          PermissionFlagsBits.ViewChannel |
-          PermissionFlagsBits.SendMessages |
-          PermissionFlagsBits.ReadMessageHistory |
-          PermissionFlagsBits.AttachFiles,
-      })),
     ];
 
     let channel: TextChannel;
@@ -384,8 +391,7 @@ export class TicketService {
     let closed = 0;
     for (const row of rows) {
       const channel = guild.channels.cache.get(row.channelId) as
-        | GuildTextBasedChannel
-        | undefined;
+        GuildTextBasedChannel | undefined;
       if (channel) {
         if (await this.close(channel)) closed++;
         continue;
