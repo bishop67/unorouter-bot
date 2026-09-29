@@ -131,7 +131,7 @@ export class DeleteUserMessagesService {
     const jailRole = params.guild.roles.cache.get(jailRoleId);
     if (discordMember && jailRole?.editable) {
       await discordMember.roles
-        .set([jailRoleId], "Jailed: spam detected")
+        .set([jailRoleId], params.reason?.slice(0, 500) || "Jailed")
         .catch(() => discordMember.roles.add(jailRoleId).catch(error));
     }
 
