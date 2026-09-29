@@ -3,13 +3,13 @@ import {
   isStaff,
   safeDeferReply,
   safeEditReply,
+  STAFF_COMMAND_PERMISSION,
 } from "@/core/utils/command.utils";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
   GuildMember,
   MessageFlags,
-  PermissionFlagsBits,
   User,
 } from "discord.js";
 import { Discord, Slash, SlashOption } from "discordx";
@@ -20,7 +20,7 @@ export class DeleteUserMessages {
     name: "delete-user-messages",
     description: "Delete a user's messages across all channels (last 14 days)",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ManageMessages,
+    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
   })
   async deleteUserMessages(
     @SlashOption({
