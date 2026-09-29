@@ -5,6 +5,7 @@ import {
   isLinked,
   safeDeferReply,
   safeEditReply,
+  STAFF_COMMAND_PERMISSION,
 } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import {
@@ -12,7 +13,6 @@ import {
   CommandInteraction,
   GuildMember,
   MessageFlags,
-  PermissionFlagsBits,
   User,
 } from "discord.js";
 import { Discord, Slash, SlashOption } from "discordx";
@@ -27,7 +27,7 @@ export class TransferCommand {
     name: "transfer",
     description: "Send some of your own balance to another linked member",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ManageMessages,
+    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
   })
   async transfer(
     @SlashOption({

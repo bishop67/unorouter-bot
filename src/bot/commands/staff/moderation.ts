@@ -5,6 +5,7 @@ import {
   isModerator,
   safeDeferReply,
   safeEditReply,
+  STAFF_COMMAND_PERMISSION,
 } from "@/core/utils/command.utils";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import {
@@ -12,7 +13,6 @@ import {
   CommandInteraction,
   GuildMember,
   MessageFlags,
-  PermissionFlagsBits,
   User,
 } from "discord.js";
 import { Discord, Slash, SlashChoice, SlashOption } from "discordx";
@@ -73,7 +73,7 @@ export class ModerationCommands {
     name: "jail",
     description: "Jail a member (moderators)",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ModerateMembers,
+    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
   })
   async jail(
     @SlashOption({
@@ -110,7 +110,7 @@ export class ModerationCommands {
     name: "unjail",
     description: "Release a member from jail (moderators)",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ModerateMembers,
+    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
   })
   async unjail(
     @SlashOption({
@@ -144,7 +144,7 @@ export class ModerationCommands {
     name: "timeout",
     description: "Time out a member (helpers and moderators)",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ModerateMembers,
+    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
   })
   async timeout(
     @SlashOption({
@@ -194,7 +194,7 @@ export class ModerationCommands {
     name: "untimeout",
     description: "Remove a member's timeout (helpers and moderators)",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ModerateMembers,
+    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
   })
   async untimeout(
     @SlashOption({

@@ -6,7 +6,7 @@ import {
   STAFF_ROLES,
   TRANSFER_ROLES,
 } from "@/shared/config/roles";
-import { GuildMember, type TextChannel } from "discord.js";
+import { GuildMember, PermissionFlagsBits, type TextChannel } from "discord.js";
 import type {
   CommandInteraction,
   InteractionDeferReplyOptions,
@@ -100,6 +100,11 @@ export async function safeEditReply(
     throw error;
   }
 }
+
+// Picker visibility for staff commands. Moderate Members and Manage Messages are
+// dropped for accounts without 2FA on this server, which hid these from staff;
+// the role check inside each command is what actually authorizes.
+export const STAFF_COMMAND_PERMISSION = PermissionFlagsBits.ViewAuditLog;
 
 export function isStaff(member: GuildMember | null | undefined): boolean {
   if (!member) return false;
