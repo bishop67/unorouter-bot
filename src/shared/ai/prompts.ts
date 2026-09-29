@@ -154,6 +154,11 @@ LEGITIMATE CONTENT (do NOT flag):
 - Casual conversation, jokes, memes, GIFs, greetings, off-topic chit-chat
 - A normal introduction without any promotion or solicitation
 
+BUSINESS OUTREACH (never spam: set isSpam false and isOutreach true):
+- A message addressed to the server's owner, admins or staff about doing business with ${BOT_NAME}: partnership, collaboration, integration, reselling or volume/enterprise buying, a provider or supplier offering API access, credits or models, press or sponsorship inquiries.
+- A developer or company raising an issue with ${BOT_NAME} itself: licensing, terms of service, unauthorized use of their model or API, abuse reports, legal notices. Treat these as outreach even when the tone is angry or they name their own product.
+- These often name another AI service or product and come from brand-new accounts; that alone does not make them spam. What separates spam: it targets the members (DM me, join my server, use my referral link, buy my keys), not the team, or it is crypto, NSFW, scam or hire-me content.
+
 Nuance:
 - A user naming or asking about another AI provider/model (OpenAI, Claude, OpenRouter, etc.) in conversation is NOT spam. Only flag when they are PROMOTING a competing service or dropping its link unprompted.
 - Mentioning crypto as a payment method (this gateway accepts crypto) is NOT spam; crypto INVESTMENT shilling is.`;

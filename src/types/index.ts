@@ -84,6 +84,7 @@ export interface SpamDetectionContext {
 
 export interface SpamDetectionResult {
   isSpam: boolean;
+  isOutreach: boolean;
   confidence: "high" | "medium" | "low";
   reason: string;
 }

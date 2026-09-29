@@ -8,7 +8,8 @@ import { ConfigValidator } from "@/shared/config/validator";
 import { logger } from "@/lib/logger";
 import type { SpamDetectionContext } from "@/types";
 import dayjs from "dayjs";
-import { Message, ThreadChannel } from "discord.js";
+import { findTextChannel } from "@/shared/utils/channel.utils";
+import { ChannelType, Message, ThreadChannel } from "discord.js";
 
 export class SpamDetectionService {
   private static _spamDetectionWarningLogged = false;
@@ -52,6 +53,34 @@ export class SpamDetectionService {
         collectibles: null,
       };
     }
+  }
+
+  private static async routeOutreach(message: Message, reason: string) {
+    const guild = message.guild;
+    if (!guild) return;
+    const ticketChannel = guild.channels.cache.find(
+      (ch) =>
+        ch.type === ChannelType.GuildText &&
+        ch.name.toLowerCase().includes("ticket") &&
+        !ch.name.toLowerCase().includes("log"),
+    );
+    const where = ticketChannel ? `<#${ticketChannel.id}>` : "the tickets channel";
+    await message
+      .reply(
+        `This looks like a message for the team, so I passed it on to staff. The fastest way to reach them is a ticket in ${where}.`,
+      )
+      .catch(() => {});
+
+    const logChannel = findTextChannel(
+      guild,
+      process.env.TICKET_LOG_CHANNEL?.trim() || "ticket-logs",
+    );
+    await logChannel
+      ?.send({
+        content: `Outreach from <@${message.author.id}> (${message.author.username}) in <#${message.channelId}>: ${reason}\n${message.url}\n>>> ${message.content.slice(0, 1500)}`,
+        allowedMentions: { parse: [] },
+      })
+      .catch(() => {});
   }
 
   public static async detectSpamFirstMessageWithAi(
@@ -134,9 +163,16 @@ export class SpamDetectionService {
         user: message.author.username,
         displayName: message.author.globalName,
         isSpam: result.isSpam,
+        isOutreach: result.isOutreach,
         confidence: result.confidence,
         reason: result.reason,
       });
+
+      // Partnership pitches and company complaints read like promotion and used to get jailed.
+      if (result.isOutreach && !result.isSpam) {
+        await this.routeOutreach(message, result.reason);
+        return false;
+      }
 
       if (result.isSpam && result.confidence !== "low") {
         // Jailing the author leaves the advert itself up, which is the whole
