@@ -114,7 +114,8 @@ export class TicketService {
       .map((o) => ({
         id: o.id,
         type: o.type,
-        allow: o.allow.bitfield,
+        // Only an administrator may write Manage Permissions into an overwrite.
+        allow: o.allow.bitfield & ~PermissionFlagsBits.ManageRoles,
         deny: o.deny.bitfield,
       }));
 
