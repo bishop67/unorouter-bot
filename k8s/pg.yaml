@@ -68,6 +68,13 @@ spec:
   storage:
     size: 10Gi
     storageClass: local-path
+  # The isolation check stops the primary when it reaches neither the API server nor every
+  # replica (one unhealthy replica is enough, cloudnative-pg#10287); off while the kube API
+  # is down on purpose, such as an etcd CA rotation.
+  probes:
+    liveness:
+      isolationCheck:
+        enabled: false
 
   # DR MODE: create-time-only recovery from S3 (see newapi-pg for the lineage mechanics).
   bootstrap:
