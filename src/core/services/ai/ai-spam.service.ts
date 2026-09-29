@@ -37,6 +37,11 @@ export class AiSpamService {
           output: Output.object({
             schema: z.object({
               isSpam: z.boolean(),
+              isOutreach: z
+                .boolean()
+                .describe(
+                  "true when the message is business outreach addressed to the server's owner or staff (see BUSINESS OUTREACH); such a message is never spam.",
+                ),
               confidence: z
                 .enum(["high", "medium", "low"])
                 .describe(
