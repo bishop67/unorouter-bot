@@ -3,6 +3,7 @@ import {
   isStaff,
   safeDeferReply,
   safeEditReply,
+  STAFF_COMMAND_PERMISSION,
 } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import {
@@ -10,7 +11,6 @@ import {
   CommandInteraction,
   GuildMember,
   MessageFlags,
-  PermissionFlagsBits,
   type GuildTextBasedChannel,
 } from "discord.js";
 import { Discord, Slash, SlashOption } from "discordx";
@@ -23,7 +23,7 @@ export class DeleteMessagesCommand {
     name: "delete-messages",
     description: "Delete the most recent messages in this channel",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ManageMessages,
+    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
   })
   async deleteMessages(
     @SlashOption({
