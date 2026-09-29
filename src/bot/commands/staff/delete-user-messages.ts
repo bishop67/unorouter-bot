@@ -20,7 +20,7 @@ export class DeleteUserMessages {
     name: "delete-user-messages",
     description: "Delete a user's messages across all channels (last 14 days)",
     dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.ManageRoles,
+    defaultMemberPermissions: PermissionFlagsBits.ManageMessages,
   })
   async deleteUserMessages(
     @SlashOption({
