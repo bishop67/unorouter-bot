@@ -21,6 +21,7 @@ import "./commands/user/top";
 
 // Commands - Staff
 import "./commands/staff/delete-user-messages";
+import "./commands/staff/moderation";
 import "./commands/staff/verify-panel";
 import "./commands/staff/vote-panel";
 import "./commands/staff/grant";
