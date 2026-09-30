@@ -5,6 +5,7 @@ CREATE TABLE "mod_logs" (
 	"target_id" text NOT NULL,
 	"moderator_id" text,
 	"reason" text,
+	"expires_at" timestamp(3),
 	"created_at" timestamp(3) DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 --> statement-breakpoint
