@@ -1,4 +1,5 @@
 import { userJailedEmbed } from "@/core/embeds/user-jailed.embed";
+import { ModLogService } from "@/core/services/moderation/modlog.service";
 import { RolesService } from "@/core/services/roles/roles.service";
 import { TicketService } from "@/core/services/tickets/ticket.service";
 import { db } from "@/lib/db";
@@ -137,6 +138,12 @@ export class DeleteUserMessagesService {
 
     if (!alreadyJailed) {
       await this.sendJailNotification(params);
+      await ModLogService.record(params.guild, {
+        action: "User Jailed",
+        targetId: params.memberId,
+        moderatorId: params.moderatorId ?? params.guild.client.user.id,
+        reason: params.reason,
+      });
     }
 
     // Close any support tickets the jailed member had open so they can't keep
@@ -278,6 +285,7 @@ export class DeleteUserMessagesService {
     user: User | null;
     memberId: string;
     reason?: string;
+    moderatorId?: string;
   }) {
     const jailChannel = params.guild.channels.cache.find(
       (ch) =>
@@ -309,6 +317,7 @@ export class DeleteUserMessagesService {
       displayName,
       username,
       reason: params.reason,
+      moderatorId: params.moderatorId,
     });
 
     await jailChannel.send({ embeds: [embed] }).catch(error);

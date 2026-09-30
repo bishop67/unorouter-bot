@@ -23,6 +23,7 @@ interface FeatureBotEnvironment {
   // Tickets + bug reports (channel NAMES / slugs, matched by substring)
   TICKET_CATEGORY: string;
   TICKET_LOG_CHANNEL: string;
+  MOD_LOG_CHANNEL: string;
   BUG_REPORT_FORUM_CHANNEL: string;
 
   // Grants (new-api integration)

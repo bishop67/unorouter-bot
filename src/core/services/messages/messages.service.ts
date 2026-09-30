@@ -1,5 +1,6 @@
 import { MemberDataService } from "@/core/services/members/member-data.service";
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
+import { ModLogService } from "@/core/services/moderation/modlog.service";
 import { db } from "@/lib/db";
 import { channel, memberGuild, memberMessages } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
@@ -336,6 +337,13 @@ export class MessagesService {
         .where(eq(memberGuild.id, memberGuildData.id));
 
       if (currentWarnings < 4) {
+        await ModLogService.record(message.guild, {
+          action: "User Warned",
+          targetId: member.id,
+          moderatorId: message.client.user.id,
+          reason: `Posted a Discord invite link (warning ${currentWarnings})`,
+        });
+
         try {
           await member.send(
             `Stop posting invites, you have been warned. Warnings: ${currentWarnings}, you will be muted at 3 warnings.`,

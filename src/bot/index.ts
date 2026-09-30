@@ -1,6 +1,7 @@
 // Events
 import "./events/ai-chat";
 import "./events/channel-delete";
+import "./events/guild-audit-log-entry-create";
 import "./events/guild-member-add";
 import "./events/guild-member-remove";
 import "./events/guild-member-update";
@@ -22,6 +23,7 @@ import "./commands/user/top";
 // Commands - Staff
 import "./commands/staff/delete-user-messages";
 import "./commands/staff/moderation";
+import "./commands/staff/modlog";
 import "./commands/staff/verify-panel";
 import "./commands/staff/vote-panel";
 import "./commands/staff/grant";

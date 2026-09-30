@@ -74,9 +74,8 @@ export class DeleteUserMessages {
       memberId,
       jail,
       user: user ?? null,
-      reason: reason
-        ? `${reason} (triggered by <@${interaction.user.id}>)`
-        : `Manual moderation (triggered by <@${interaction.user.id}>)`,
+      reason: reason || "Manual moderation",
+      moderatorId: interaction.user.id,
     };
 
     if (jail) {
