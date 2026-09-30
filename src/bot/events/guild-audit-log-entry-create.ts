@@ -25,11 +25,16 @@ export class GuildAuditLogEntryCreate {
         ? await outrankingSetter(guild, entry.targetId, entry.executorId)
         : null;
 
+    const until = entry.changes.find(
+      (c) => c.key === "communication_disabled_until",
+    )?.new;
+
     await ModLogService.record(guild, {
       action,
       targetId: entry.targetId,
       moderatorId: entry.executorId,
       reason: entry.reason,
+      expiresAt: typeof until === "string" ? new Date(until) : null,
       note: outranked
         ? `Overrode a timeout set by <@${outranked.id}>, who outranks them.`
         : undefined,
