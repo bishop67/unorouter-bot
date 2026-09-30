@@ -3,11 +3,10 @@ import { isAdmin, isHelper, isModerator } from "@/core/utils/command.utils";
 import type { Guild, GuildMember } from "discord.js";
 
 // Rank follows the staff tier the role names put someone in, not the role
-// order, so a cosmetic role sitting above Helper changes nothing. The owner
-// outranks everyone.
+// order, so a cosmetic role sitting above Helper changes nothing. Admin is the
+// top rank; the server owner counts as an admin.
 function tier(member: GuildMember): number {
-  if (member.id === member.guild.ownerId) return 4;
-  if (isAdmin(member)) return 3;
+  if (member.id === member.guild.ownerId || isAdmin(member)) return 3;
   if (isModerator(member)) return 2;
   if (isHelper(member)) return 1;
   return 0;
