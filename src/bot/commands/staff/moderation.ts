@@ -1,4 +1,5 @@
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
+import { ModLogService } from "@/core/services/moderation/modlog.service";
 import { RolesService } from "@/core/services/roles/roles.service";
 import {
   isHelper,
@@ -96,12 +97,28 @@ export class ModerationCommands {
     const target = await fetchTarget(interaction, user);
     if (!target) return;
 
+    const jailRole = JAIL
+      ? RolesService.getGuildStatusRoles(interaction.guild!)[JAIL]
+      : undefined;
+    if (!jailRole?.editable) {
+      await safeEditReply(
+        interaction,
+        "Jail failed, the jail role is missing or above the bot's role.",
+      );
+      return;
+    }
+    if (target.roles.cache.has(jailRole.id)) {
+      await safeEditReply(interaction, `<@${user.id}> is already jailed.`);
+      return;
+    }
+
     await DeleteUserMessagesService.jailMember({
       guild: interaction.guild!,
       user,
       memberId: user.id,
       jail: true,
-      reason: `${reason} (jailed by <@${interaction.user.id}>)`,
+      reason,
+      moderatorId: interaction.user.id,
     });
     await safeEditReply(interaction, `Jailed <@${user.id}>.`);
   }
@@ -135,8 +152,24 @@ export class ModerationCommands {
     }
 
     const audit = `Unjailed by ${interaction.user.username}`;
-    await target.roles.remove(jailRole, audit);
-    if (verifiedRole) await target.roles.add(verifiedRole, audit);
+    const ok = await target.roles
+      .remove(jailRole, audit)
+      .then(() => true)
+      .catch(() => false);
+    if (!ok) {
+      await safeEditReply(
+        interaction,
+        "Unjail failed, check the bot's role position.",
+      );
+      return;
+    }
+    if (verifiedRole) await target.roles.add(verifiedRole, audit).catch(() => {});
+
+    await ModLogService.record(interaction.guild!, {
+      action: "User Unjailed",
+      targetId: user.id,
+      moderatorId: interaction.user.id,
+    });
     await safeEditReply(interaction, `Released <@${user.id}> from jail.`);
   }
 
@@ -182,6 +215,14 @@ export class ModerationCommands {
     const label =
       TIMEOUT_CHOICES.find((c) => c.value === minutes)?.name ??
       `${minutes} minutes`;
+    if (ok) {
+      await ModLogService.record(interaction.guild!, {
+        action: "User Timed Out",
+        targetId: user.id,
+        moderatorId: interaction.user.id,
+        reason: `${reason} (${label})`,
+      });
+    }
     await safeEditReply(
       interaction,
       ok
@@ -210,9 +251,28 @@ export class ModerationCommands {
     const target = await fetchTarget(interaction, user);
     if (!target) return;
 
-    await target
+    if (!target.isCommunicationDisabled()) {
+      await safeEditReply(interaction, `<@${user.id}> is not timed out.`);
+      return;
+    }
+
+    const ok = await target
       .timeout(null, `Timeout removed by ${interaction.user.username}`)
-      .catch(() => {});
+      .then(() => true)
+      .catch(() => false);
+    if (!ok) {
+      await safeEditReply(
+        interaction,
+        "Removing the timeout failed, check the bot's role position.",
+      );
+      return;
+    }
+
+    await ModLogService.record(interaction.guild!, {
+      action: "User Untimed Out",
+      targetId: user.id,
+      moderatorId: interaction.user.id,
+    });
     await safeEditReply(interaction, `Removed the timeout from <@${user.id}>.`);
   }
 }

@@ -9,7 +9,7 @@ import { logger } from "@/lib/logger";
 import type { SpamDetectionContext } from "@/types";
 import dayjs from "dayjs";
 import { findTextChannel } from "@/shared/utils/channel.utils";
-import { ChannelType, Message, ThreadChannel } from "discord.js";
+import { Message, ThreadChannel } from "discord.js";
 
 export class SpamDetectionService {
   private static _spamDetectionWarningLogged = false;
@@ -58,12 +58,7 @@ export class SpamDetectionService {
   private static async routeOutreach(message: Message, reason: string) {
     const guild = message.guild;
     if (!guild) return;
-    const ticketChannel = guild.channels.cache.find(
-      (ch) =>
-        ch.type === ChannelType.GuildText &&
-        ch.name.toLowerCase().includes("ticket") &&
-        !ch.name.toLowerCase().includes("log"),
-    );
+    const ticketChannel = findTextChannel(guild, "create-ticket");
     const where = ticketChannel ? `<#${ticketChannel.id}>` : "the tickets channel";
     await message
       .reply(
@@ -77,7 +72,8 @@ export class SpamDetectionService {
     );
     await logChannel
       ?.send({
-        content: `Outreach from <@${message.author.id}> (${message.author.username}) in <#${message.channelId}>: ${reason}\n${message.url}\n>>> ${message.content.slice(0, 1500)}`,
+        // Bounded so the post stays under Discord's 2000 char cap.
+        content: `Outreach from <@${message.author.id}> (${message.author.username}) in <#${message.channelId}>: ${reason.slice(0, 200)}\n${message.url}\n>>> ${message.content.slice(0, 1500)}`,
         allowedMentions: { parse: [] },
       })
       .catch(() => {});
