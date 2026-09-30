@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { modLog } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import { RED_COLOR } from "@/shared/config/branding";
+import { logEmbed, type LogTone } from "@/core/embeds/log.embed";
 import { JAIL } from "@/shared/config/roles";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import {
@@ -10,7 +10,7 @@ import {
   type GuildAuditLogsEntry,
   type GuildMember,
 } from "discord.js";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 export type ModAction =
   | "User Warned"
@@ -28,7 +28,22 @@ interface ModLogEntry {
   targetId: string;
   moderatorId: string | null;
   reason?: string | null;
+  /** Shown on its own line, even for actions that carry no reason. */
+  note?: string;
 }
+
+// Colour by severity, so a ban and an unban read differently at a glance.
+const ACTION_TONES: Record<ModAction, LogTone> = {
+  "User Warned": "caution",
+  "User Jailed": "negative",
+  "User Unjailed": "positive",
+  "User Kicked": "negative",
+  "User Banned": "negative",
+  "User Unbanned": "positive",
+  "User Timed Out": "caution",
+  "User Untimed Out": "positive",
+  "Messages Deleted": "negative",
+};
 
 // Only who acted is shown for these: lifts need no justification, and kicks and
 // bans come from Discord's own dialog, which has no reason to rely on.
@@ -96,27 +111,51 @@ export class ModLogService {
     );
     if (!channel) return;
 
-    const lines = [
-      `**Member:** <@${entry.targetId}> (${entry.targetId})`,
-      `**By:** ${entry.moderatorId ? `<@${entry.moderatorId}>` : "unknown"}`,
-    ];
-    if (!NO_REASON.includes(entry.action))
-      lines.push(`**Reason:** ${reason?.slice(0, 1000) ?? "No reason provided"}`);
+    const user = await guild.client.users
+      .fetch(entry.targetId)
+      .catch(() => null);
+
+    const embed = logEmbed({
+      tone: ACTION_TONES[entry.action],
+      title: entry.action,
+      user,
+      lines: [
+        `<@${entry.targetId}> (${user?.username ?? "unknown"})`,
+        `**By:** ${entry.moderatorId ? `<@${entry.moderatorId}>` : "unknown"}`,
+        NO_REASON.includes(entry.action)
+          ? null
+          : `**Reason:** ${reason?.slice(0, 1000) ?? "No reason provided"}`,
+        entry.note ? `**Note:** ${entry.note}` : null,
+        `-# ${entry.targetId}`,
+      ],
+      footer: "Mod Log",
+    });
 
     await channel
-      .send({
-        embeds: [
-          {
-            color: RED_COLOR,
-            title: entry.action,
-            description: lines.join("\n"),
-            timestamp: new Date().toISOString(),
-            footer: { text: "Mod Log" },
-          },
-        ],
-        allowedMentions: { parse: [] },
-      })
+      .send({ embeds: [embed], allowedMentions: { parse: [] } })
       .catch((err) => logger.error("modlog post failed", { err }));
+  }
+
+  // Who set the member's standing timeout: the newest timeout entry, unless a
+  // later untimeout entry lifted it. Callers check the member is timed out, so
+  // a timeout that simply expired is never read as standing.
+  static async timeoutSetter(
+    guildId: string,
+    targetId: string,
+  ): Promise<string | null> {
+    const [latest] = await db
+      .select()
+      .from(modLog)
+      .where(
+        and(
+          eq(modLog.guildId, guildId),
+          eq(modLog.targetId, targetId),
+          inArray(modLog.action, ["User Timed Out", "User Untimed Out"]),
+        ),
+      )
+      .orderBy(desc(modLog.createdAt), desc(modLog.id))
+      .limit(1);
+    return latest?.action === "User Timed Out" ? latest.moderatorId : null;
   }
 
   // Staff often unjail by giving a status role (Verified); the bot then strips
