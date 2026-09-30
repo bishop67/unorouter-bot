@@ -239,6 +239,7 @@ export class ModerationCommands {
         targetId: user.id,
         moderatorId: interaction.user.id,
         reason: `${reason} (${label})`,
+        expiresAt: new Date(Date.now() + minutes * 60_000),
       });
     }
     await safeEditReply(
