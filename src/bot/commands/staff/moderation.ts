@@ -1,5 +1,6 @@
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { ModLogService } from "@/core/services/moderation/modlog.service";
+import { timeoutChangeBlocked } from "@/core/services/moderation/timeout-rank";
 import { RolesService } from "@/core/services/roles/roles.service";
 import {
   isHelper,
@@ -66,6 +67,22 @@ async function fetchTarget(
     return null;
   }
   return target;
+}
+
+// Replies and returns true when a standing timeout outranks whoever ran the command.
+async function blockedByRank(
+  interaction: CommandInteraction,
+  target: GuildMember,
+): Promise<boolean> {
+  const actor = await interaction
+    .guild!.members.fetch(interaction.user.id)
+    .catch(() => null);
+  const blocked = actor
+    ? await timeoutChangeBlocked(target, actor)
+    : "Could not resolve your member record.";
+  if (!blocked) return false;
+  await safeEditReply(interaction, blocked);
+  return true;
 }
 
 @Discord()
@@ -207,6 +224,7 @@ export class ModerationCommands {
     if (!(await start(interaction, isHelper))) return;
     const target = await fetchTarget(interaction, user);
     if (!target) return;
+    if (await blockedByRank(interaction, target)) return;
 
     const ok = await target
       .timeout(minutes * 60_000, `${reason} (by ${interaction.user.username})`)
@@ -255,6 +273,7 @@ export class ModerationCommands {
       await safeEditReply(interaction, `<@${user.id}> is not timed out.`);
       return;
     }
+    if (await blockedByRank(interaction, target)) return;
 
     const ok = await target
       .timeout(null, `Timeout removed by ${interaction.user.username}`)
