@@ -30,8 +30,15 @@ interface ModLogEntry {
   reason?: string | null;
 }
 
-// Lifting a punishment needs no justification, so these carry no reason.
-const LIFTS: ModAction[] = ["User Unjailed", "User Untimed Out"];
+// Only who acted is shown for these: lifts need no justification, and kicks and
+// bans come from Discord's own dialog, which has no reason to rely on.
+const NO_REASON: ModAction[] = [
+  "User Unjailed",
+  "User Untimed Out",
+  "User Kicked",
+  "User Banned",
+  "User Unbanned",
+];
 
 const changesJail = (entry: GuildAuditLogsEntry, key: "$add" | "$remove") =>
   entry.changes.some(
@@ -68,7 +75,7 @@ export class ModLogService {
   }
 
   static async record(guild: Guild, entry: ModLogEntry) {
-    const reason = LIFTS.includes(entry.action)
+    const reason = NO_REASON.includes(entry.action)
       ? null
       : entry.reason?.trim() || null;
 
@@ -93,7 +100,7 @@ export class ModLogService {
       `**Member:** <@${entry.targetId}> (${entry.targetId})`,
       `**By:** ${entry.moderatorId ? `<@${entry.moderatorId}>` : "unknown"}`,
     ];
-    if (!LIFTS.includes(entry.action))
+    if (!NO_REASON.includes(entry.action))
       lines.push(`**Reason:** ${reason?.slice(0, 1000) ?? "No reason provided"}`);
 
     await channel
