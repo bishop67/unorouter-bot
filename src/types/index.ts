@@ -34,6 +34,7 @@ export interface UserJailedEmbedParams {
   displayName: string;
   username: string;
   reason?: string;
+  moderatorId?: string;
 }
 
 // Jail / message deletion
@@ -43,6 +44,8 @@ export interface DeleteUserMessagesParams {
   memberId: string;
   jail: string | number | boolean;
   reason?: string;
+  // Staff member behind a command jail; unset means the bot acted on its own.
+  moderatorId?: string;
 }
 
 // Roles service

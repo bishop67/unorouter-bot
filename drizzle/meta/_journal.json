@@ -43,6 +43,13 @@
       "when": 1789592287849,
       "tag": "0005_sudden_molten_man",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790754680236,
+      "tag": "0006_mod_logs",
+      "breakpoints": true
     }
   ]
 }
