@@ -1,5 +1,5 @@
 import { ModLogService } from "@/core/services/moderation/modlog.service";
-import { outrankingSetter } from "@/core/services/moderation/timeout-rank";
+import { outrankingSetter } from "@/core/services/moderation/rank";
 import type { ArgsOf } from "discordx";
 import { Discord, On } from "discordx";
 
@@ -17,13 +17,23 @@ export class GuildAuditLogEntryCreate {
     const action = ModLogService.actionFromAudit(entry);
     if (!action || !entry.targetId) return;
 
-    // A timeout changed in Discord's member menu skips /timeout's rank check.
-    // Checked before recording, since the new entry becomes the standing one.
-    const outranked =
-      entry.executorId &&
-      (action === "User Timed Out" || action === "User Untimed Out")
-        ? await outrankingSetter(guild, entry.targetId, entry.executorId)
-        : null;
+    // A timeout or jail changed in Discord's own menus skips the commands' rank
+    // checks. Checked before recording, since the new entry becomes the standing one.
+    const kind =
+      action === "User Timed Out" || action === "User Untimed Out"
+        ? "timeout"
+        : action === "User Unjailed"
+          ? "jail"
+          : null;
+    const setterId =
+      kind === "timeout"
+        ? await ModLogService.timeoutSetter(guild.id, entry.targetId)
+        : kind === "jail"
+          ? await ModLogService.jailSetter(guild.id, entry.targetId)
+          : null;
+    const outranked = entry.executorId
+      ? await outrankingSetter(guild, setterId, entry.executorId)
+      : null;
 
     const until = entry.changes.find(
       (c) => c.key === "communication_disabled_until",
@@ -36,7 +46,7 @@ export class GuildAuditLogEntryCreate {
       reason: entry.reason,
       expiresAt: typeof until === "string" ? new Date(until) : null,
       note: outranked
-        ? `Overrode a timeout set by <@${outranked.id}>, who outranks them.`
+        ? `Overrode a ${kind} set by <@${outranked.id}>, who outranks them.`
         : undefined,
     });
   }

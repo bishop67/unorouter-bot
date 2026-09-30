@@ -124,26 +124,51 @@ export class ModLogService {
       .catch((err) => logger.error("modlog post failed", { err }));
   }
 
-  // Discord logs nothing when a timeout runs out and AutoMod timeouts are not
-  // recorded here, so only an unexpired row counts as the standing timeout.
-  static async timeoutSetter(
+  // The newest of a set/lift pair, i.e. the row describing the standing state.
+  private static async latest(
     guildId: string,
     targetId: string,
-  ): Promise<string | null> {
-    const [latest] = await db
+    actions: [ModAction, ModAction],
+  ) {
+    const [row] = await db
       .select()
       .from(modLog)
       .where(
         and(
           eq(modLog.guildId, guildId),
           eq(modLog.targetId, targetId),
-          inArray(modLog.action, ["User Timed Out", "User Untimed Out"]),
+          inArray(modLog.action, actions),
         ),
       )
       .orderBy(desc(modLog.createdAt), desc(modLog.id))
       .limit(1);
+    return row;
+  }
+
+  // Discord logs nothing when a timeout runs out and AutoMod timeouts are not
+  // recorded here, so only an unexpired row counts as the standing timeout.
+  static async timeoutSetter(
+    guildId: string,
+    targetId: string,
+  ): Promise<string | null> {
+    const latest = await this.latest(guildId, targetId, [
+      "User Timed Out",
+      "User Untimed Out",
+    ]);
     if (latest?.action !== "User Timed Out" || !latest.expiresAt) return null;
     return utcMs(latest.expiresAt) > Date.now() ? latest.moderatorId : null;
+  }
+
+  // Who put `targetId` in jail, while that jail still stands.
+  static async jailSetter(
+    guildId: string,
+    targetId: string,
+  ): Promise<string | null> {
+    const latest = await this.latest(guildId, targetId, [
+      "User Jailed",
+      "User Unjailed",
+    ]);
+    return latest?.action === "User Jailed" ? latest.moderatorId : null;
   }
 
   // Staff often unjail by giving a status role (Verified); the bot then strips

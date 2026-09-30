@@ -1,6 +1,9 @@
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { ModLogService } from "@/core/services/moderation/modlog.service";
-import { timeoutChangeBlocked } from "@/core/services/moderation/timeout-rank";
+import {
+  timeoutChangeBlocked,
+  unjailBlocked,
+} from "@/core/services/moderation/rank";
 import { RolesService } from "@/core/services/roles/roles.service";
 import {
   isHelper,
@@ -69,16 +72,18 @@ async function fetchTarget(
   return target;
 }
 
-// Replies and returns true when a standing timeout outranks whoever ran the command.
+// Replies and returns true when a standing timeout or jail outranks whoever
+// ran the command.
 async function blockedByRank(
   interaction: CommandInteraction,
   target: GuildMember,
+  check: typeof timeoutChangeBlocked = timeoutChangeBlocked,
 ): Promise<boolean> {
   const actor = await interaction
     .guild!.members.fetch(interaction.user.id)
     .catch(() => null);
   const blocked = actor
-    ? await timeoutChangeBlocked(target, actor)
+    ? await check(target, actor)
     : "Could not resolve your member record.";
   if (!blocked) return false;
   await safeEditReply(interaction, blocked);
@@ -167,6 +172,7 @@ export class ModerationCommands {
       await safeEditReply(interaction, `<@${user.id}> is not jailed.`);
       return;
     }
+    if (await blockedByRank(interaction, target, unjailBlocked)) return;
 
     const audit = `Unjailed by ${interaction.user.username}`;
     const ok = await target.roles
