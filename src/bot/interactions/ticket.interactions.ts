@@ -7,7 +7,7 @@ import {
 } from "@/core/services/tickets/ticket.service";
 import { TicketCooldownService } from "@/core/services/tickets/ticket-cooldown.service";
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
-import { isStaff } from "@/core/utils/command.utils";
+import { isHelper, isStaff } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import { ButtonId, ButtonIdPattern, ModalIdPattern } from "@/types/custom-ids";
 import {
@@ -132,9 +132,9 @@ export class TicketInteractions {
       return;
     }
 
-    // Support: opener or staff can close. Bug: staff only (reward decision pending).
+    // Support: opener or helpers and up can close. Bug: helpers and up only.
     const isOpener = member?.id === row.openerId;
-    const staff = isStaff(member);
+    const staff = isHelper(member);
     const allowed =
       staff || (isOpener && row.category === TicketCategory.Support);
 
