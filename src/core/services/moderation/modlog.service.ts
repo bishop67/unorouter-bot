@@ -20,7 +20,8 @@ export type ModAction =
   | "User Banned"
   | "User Unbanned"
   | "User Timed Out"
-  | "User Untimed Out";
+  | "User Untimed Out"
+  | "Messages Deleted";
 
 interface ModLogEntry {
   action: ModAction;
