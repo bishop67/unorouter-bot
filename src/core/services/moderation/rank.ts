@@ -1,20 +1,13 @@
 import { ModLogService } from "@/core/services/moderation/modlog.service";
-import { isAdmin, isHelper, isModerator } from "@/core/utils/command.utils";
+import { isModerator } from "@/core/utils/command.utils";
 import type { Guild, GuildMember } from "discord.js";
 
-// Rank follows the staff tier the role names put someone in, not the role
-// order, so a cosmetic role sitting above Helper changes nothing. Admin is the
-// top rank; the server owner counts as an admin.
-function tier(member: GuildMember): number {
-  if (member.id === member.guild.ownerId || isAdmin(member)) return 3;
-  if (isModerator(member)) return 2;
-  if (isHelper(member)) return 1;
-  return 0;
-}
+// Rank follows the server's role order.
+const rank = (member: GuildMember) => member.roles.highest.position;
 
 /**
- * The member behind a standing timeout or jail, when they sit in a higher tier
- * than `actorId`. Peers may undo each other. Null when the change is allowed,
+ * The member behind a standing timeout or jail, when they rank strictly above
+ * `actorId`. Peers may undo each other. Null when the change is allowed,
  * including when the setter left.
  */
 export async function outrankingSetter(
@@ -29,7 +22,7 @@ export async function outrankingSetter(
     guild.members.fetch(actorId).catch(() => null),
   ]);
   if (!setter || !actor || setter.user.bot) return null;
-  return tier(setter) > tier(actor) ? setter : null;
+  return rank(setter) > rank(actor) ? setter : null;
 }
 
 const outranked = (setter: GuildMember, what: string) =>
