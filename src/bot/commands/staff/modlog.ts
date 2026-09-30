@@ -1,6 +1,6 @@
 import { ModLogService, utcMs } from "@/core/services/moderation/modlog.service";
 import {
-  isHelper,
+  isModerator,
   safeDeferReply,
   safeEditReply,
   STAFF_COMMAND_PERMISSION,
@@ -36,7 +36,7 @@ export class ModLogCommand {
       return;
     if (
       !interaction.guild ||
-      !isHelper(interaction.member as GuildMember | null)
+      !isModerator(interaction.member as GuildMember | null)
     ) {
       await safeEditReply(interaction, "You are not allowed to use this command.");
       return;
@@ -55,7 +55,6 @@ export class ModLogCommand {
       return `<t:${when}:R> **${row.action}** <@${row.targetId}>${by}${reason}`;
     });
 
-    // Drop whole lines at the 2000 char cap so no mention is cut in half.
     let content = "";
     for (const line of lines) {
       if (content.length + line.length + 1 > 2000) break;

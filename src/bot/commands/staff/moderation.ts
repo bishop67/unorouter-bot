@@ -72,8 +72,6 @@ async function fetchTarget(
   return target;
 }
 
-// Replies and returns true when a standing timeout or jail outranks whoever
-// ran the command.
 async function blockedByRank(
   interaction: CommandInteraction,
   target: GuildMember,

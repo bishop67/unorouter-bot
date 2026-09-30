@@ -11,7 +11,6 @@ import {
 } from "discord.js";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
-// Discord's own palette: green lifts, yellow warns and timeouts, red removals.
 const ACTION_COLORS = {
   "User Warned": 0xfee75c,
   "User Jailed": 0xed4245,
@@ -35,7 +34,6 @@ interface ModLogEntry {
   expiresAt?: Date | null;
 }
 
-// created_at and expires_at are UTC timestamps without a zone, read as strings.
 export const utcMs = (value: string) =>
   Date.parse(`${value.replace(" ", "T")}Z`);
 
@@ -124,7 +122,6 @@ export class ModLogService {
       .catch((err) => logger.error("modlog post failed", { err }));
   }
 
-  // The newest of a set/lift pair, i.e. the row describing the standing state.
   private static async latest(
     guildId: string,
     targetId: string,
@@ -145,8 +142,6 @@ export class ModLogService {
     return row;
   }
 
-  // Discord logs nothing when a timeout runs out and AutoMod timeouts are not
-  // recorded here, so only an unexpired row counts as the standing timeout.
   static async timeoutSetter(
     guildId: string,
     targetId: string,
@@ -159,7 +154,6 @@ export class ModLogService {
     return utcMs(latest.expiresAt) > Date.now() ? latest.moderatorId : null;
   }
 
-  // Who put `targetId` in jail, while that jail still stands.
   static async jailSetter(
     guildId: string,
     targetId: string,
@@ -171,9 +165,6 @@ export class ModLogService {
     return latest?.action === "User Jailed" ? latest.moderatorId : null;
   }
 
-  // Staff often unjail by giving a status role (Verified); the bot then strips
-  // Jail itself, so that removal's audit entry names the bot. Credit whoever
-  // added the status role instead.
   static async recordStatusRoleUnjail(
     target: Pick<GuildMember, "id" | "guild">,
     addedRole: string,
@@ -195,7 +186,6 @@ export class ModLogService {
       );
     };
 
-    // The audit entry can land a moment after the member update event.
     let entry = await findAdder();
     if (!entry) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
