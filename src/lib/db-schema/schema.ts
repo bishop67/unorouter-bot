@@ -836,3 +836,21 @@ export const voteRoleHold = pgTable(
     uniqueIndex("uq_vote_role_holds_member_site").on(table.memberId, table.site),
   ],
 );
+
+// Moderation history for /modlog. Plain ids, no FKs: the target of a ban may
+// never have been a member row.
+export const modLog = pgTable(
+  "mod_logs",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    action: text("action").notNull(),
+    targetId: text("target_id").notNull(),
+    moderatorId: text("moderator_id"),
+    reason: text("reason"),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("idx_mod_logs_guild_target").on(table.guildId, table.targetId),
+  ],
+);
