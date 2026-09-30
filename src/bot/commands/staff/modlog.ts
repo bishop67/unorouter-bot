@@ -1,4 +1,4 @@
-import { ModLogService } from "@/core/services/moderation/modlog.service";
+import { ModLogService, utcMs } from "@/core/services/moderation/modlog.service";
 import {
   isHelper,
   safeDeferReply,
@@ -49,10 +49,7 @@ export class ModLogCommand {
     }
 
     const lines = rows.map((row) => {
-      // created_at is a UTC timestamp without zone, returned as a plain string.
-      const when = Math.floor(
-        Date.parse(`${row.createdAt.replace(" ", "T")}Z`) / 1000,
-      );
+      const when = Math.floor(utcMs(row.createdAt) / 1000);
       const by = row.moderatorId ? ` by <@${row.moderatorId}>` : "";
       const reason = row.reason ? `: ${row.reason.slice(0, 80)}` : "";
       return `<t:${when}:R> **${row.action}** <@${row.targetId}>${by}${reason}`;
