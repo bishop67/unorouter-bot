@@ -1,4 +1,5 @@
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
+import { ModLogService } from "@/core/services/moderation/modlog.service";
 import {
   isStaff,
   safeDeferReply,
@@ -77,6 +78,13 @@ export class DeleteUserMessages {
       reason: reason || "Manual moderation",
       moderatorId: interaction.user.id,
     };
+
+    await ModLogService.record(interaction.guild, {
+      action: "Messages Deleted",
+      targetId: memberId,
+      moderatorId: interaction.user.id,
+      reason: params.reason,
+    });
 
     if (jail) {
       await DeleteUserMessagesService.jailUser(params);
