@@ -3,15 +3,10 @@ import { watchlist } from "@/lib/db-schema";
 import { and, desc, eq } from "drizzle-orm";
 
 export class WatchlistService {
-  static async add(
-    guildId: string,
-    memberId: string,
-    username: string,
-    addedBy: string,
-  ) {
+  static async add(guildId: string, memberId: string, addedBy: string) {
     const [added] = await db
       .insert(watchlist)
-      .values({ guildId, memberId, username, addedBy })
+      .values({ guildId, memberId, addedBy })
       .onConflictDoNothing()
       .returning();
     if (added) return { added: true, entry: added };
