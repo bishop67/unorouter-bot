@@ -1,6 +1,8 @@
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { ModLogService } from "@/core/services/moderation/modlog.service";
 import {
+  isHelper,
+  isModerator,
   isStaff,
   safeDeferReply,
   safeEditReply,
@@ -68,6 +70,23 @@ export class DeleteUserMessages {
     if (!memberId || !interaction.guild) {
       await safeEditReply(interaction, "Provide a user or user-id.");
       return;
+    }
+
+    if (jail) {
+      if (!isModerator(interaction.member as GuildMember)) {
+        await safeEditReply(interaction, "Only moderators can jail.");
+        return;
+      }
+      const target = await interaction.guild.members
+        .fetch(memberId)
+        .catch(() => null);
+      if (target && (target.user.bot || isHelper(target))) {
+        await safeEditReply(
+          interaction,
+          "Staff and bots cannot be jailed with this command.",
+        );
+        return;
+      }
     }
 
     const params = {

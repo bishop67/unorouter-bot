@@ -837,8 +837,6 @@ export const voteRoleHold = pgTable(
   ],
 );
 
-// Moderation history for /modlog. Plain ids, no FKs: the target of a ban may
-// never have been a member row.
 export const modLog = pgTable(
   "mod_logs",
   {
