@@ -15,14 +15,14 @@ import {
 import { Discord, Slash, SlashOption } from "discordx";
 
 @Discord()
-export class ModLogCommand {
+export class LogsCommand {
   @Slash({
-    name: "modlog",
+    name: "logs",
     description: "Recent moderation actions, optionally for one member",
     dmPermission: false,
     defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
   })
-  async modlog(
+  async logs(
     @SlashOption({
       name: "user",
       description: "Only show actions against this member",
