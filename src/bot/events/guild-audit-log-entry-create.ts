@@ -12,7 +12,7 @@ export class GuildAuditLogEntryCreate {
   ]: ArgsOf<"guildAuditLogEntryCreate">): Promise<void> {
     if (entry.executorId === guild.client.user.id) return;
 
-    const action = ModLogService.actionFromAudit(entry);
+    const action = await ModLogService.actionFromAudit(guild, entry);
     if (!action || !entry.targetId) return;
 
     const outranked =
