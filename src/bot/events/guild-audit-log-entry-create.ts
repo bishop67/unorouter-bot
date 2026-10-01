@@ -15,21 +15,15 @@ export class GuildAuditLogEntryCreate {
     const action = ModLogService.actionFromAudit(entry);
     if (!action || !entry.targetId) return;
 
-    const kind =
-      action === "User Timed Out" || action === "User Untimed Out"
-        ? "timeout"
-        : action === "User Unjailed"
-          ? "jail"
-          : null;
-    const setterId =
-      kind === "timeout"
-        ? await ModLogService.timeoutSetter(guild.id, entry.targetId)
-        : kind === "jail"
-          ? await ModLogService.jailSetter(guild.id, entry.targetId)
-          : null;
-    const outranked = entry.executorId
-      ? await outrankingSetter(guild, setterId, entry.executorId)
-      : null;
+    const outranked =
+      entry.executorId &&
+      (action === "User Timed Out" || action === "User Untimed Out")
+        ? await outrankingSetter(
+            guild,
+            await ModLogService.timeoutSetter(guild.id, entry.targetId),
+            entry.executorId,
+          )
+        : null;
 
     const until = entry.changes.find(
       (c) => c.key === "communication_disabled_until",
@@ -42,7 +36,7 @@ export class GuildAuditLogEntryCreate {
       reason: entry.reason,
       expiresAt: typeof until === "string" ? new Date(until) : null,
       note: outranked
-        ? `Overrode a ${kind} set by <@${outranked.id}>, who outranks them.`
+        ? `Overrode a timeout set by <@${outranked.id}>, who outranks them.`
         : undefined,
     });
   }

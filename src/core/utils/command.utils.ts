@@ -6,7 +6,12 @@ import {
   STAFF_ROLES,
   TRANSFER_ROLES,
 } from "@/shared/config/roles";
-import { GuildMember, PermissionFlagsBits, type TextChannel } from "discord.js";
+import {
+  GuildMember,
+  MessageFlags,
+  PermissionFlagsBits,
+  type TextChannel,
+} from "discord.js";
 import type {
   CommandInteraction,
   InteractionDeferReplyOptions,
@@ -106,6 +111,34 @@ export async function safeEditReply(
 // the role check inside each command is what actually authorizes.
 export const STAFF_COMMAND_PERMISSION = PermissionFlagsBits.ViewAuditLog;
 export const HELPER_COMMAND_PERMISSION = PermissionFlagsBits.PinMessages;
+
+export async function startStaffCommand(
+  interaction: CommandInteraction,
+  allowed: (member: GuildMember | null) => boolean,
+): Promise<boolean> {
+  if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
+    return false;
+  if (
+    !interaction.guild ||
+    !allowed(interaction.member as GuildMember | null)
+  ) {
+    await safeEditReply(
+      interaction,
+      "You are not allowed to use this command.",
+    );
+    return false;
+  }
+  return true;
+}
+
+export function fitLines(lines: string[], limit = 2000): string {
+  let content = "";
+  for (const line of lines) {
+    if (content.length + line.length + 1 > limit) break;
+    content += (content ? "\n" : "") + line;
+  }
+  return content;
+}
 
 export function isStaff(member: GuildMember | null | undefined): boolean {
   if (!member) return false;

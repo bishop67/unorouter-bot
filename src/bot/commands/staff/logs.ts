@@ -1,15 +1,14 @@
 import { ModLogService, utcMs } from "@/core/services/moderation/modlog.service";
 import {
+  fitLines,
   isModerator,
-  safeDeferReply,
   safeEditReply,
   STAFF_COMMAND_PERMISSION,
+  startStaffCommand,
 } from "@/core/utils/command.utils";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
-  GuildMember,
-  MessageFlags,
   User,
 } from "discord.js";
 import { Discord, Slash, SlashOption } from "discordx";
@@ -32,17 +31,9 @@ export class LogsCommand {
     user: User | undefined,
     interaction: CommandInteraction,
   ) {
-    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
-      return;
-    if (
-      !interaction.guild ||
-      !isModerator(interaction.member as GuildMember | null)
-    ) {
-      await safeEditReply(interaction, "You are not allowed to use this command.");
-      return;
-    }
+    if (!(await startStaffCommand(interaction, isModerator))) return;
 
-    const rows = await ModLogService.recent(interaction.guild.id, user?.id);
+    const rows = await ModLogService.recent(interaction.guild!.id, user?.id);
     if (!rows.length) {
       await safeEditReply(interaction, "No mod log entries.");
       return;
@@ -55,14 +46,8 @@ export class LogsCommand {
       return `<t:${when}:R> **${row.action}** <@${row.targetId}>${by}${reason}`;
     });
 
-    let content = "";
-    for (const line of lines) {
-      if (content.length + line.length + 1 > 2000) break;
-      content += (content ? "\n" : "") + line;
-    }
-
     await safeEditReply(interaction, {
-      content,
+      content: fitLines(lines),
       allowedMentions: { parse: [] },
     });
   }
