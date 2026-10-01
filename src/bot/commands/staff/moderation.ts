@@ -6,6 +6,7 @@ import {
 } from "@/core/services/moderation/rank";
 import { RolesService } from "@/core/services/roles/roles.service";
 import {
+  HELPER_COMMAND_PERMISSION,
   isHelper,
   isModerator,
   safeDeferReply,
@@ -198,7 +199,7 @@ export class ModerationCommands {
     name: "timeout",
     description: "Time out a member (helpers and moderators)",
     dmPermission: false,
-    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
+    defaultMemberPermissions: HELPER_COMMAND_PERMISSION,
   })
   async timeout(
     @SlashOption({
@@ -258,7 +259,7 @@ export class ModerationCommands {
     name: "untimeout",
     description: "Remove a member's timeout (helpers and moderators)",
     dmPermission: false,
-    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
+    defaultMemberPermissions: HELPER_COMMAND_PERMISSION,
   })
   async untimeout(
     @SlashOption({
