@@ -105,6 +105,7 @@ export async function safeEditReply(
 // dropped for accounts without 2FA on this server, which hid these from staff;
 // the role check inside each command is what actually authorizes.
 export const STAFF_COMMAND_PERMISSION = PermissionFlagsBits.ViewAuditLog;
+export const HELPER_COMMAND_PERMISSION = PermissionFlagsBits.PinMessages;
 
 export function isStaff(member: GuildMember | null | undefined): boolean {
   if (!member) return false;
