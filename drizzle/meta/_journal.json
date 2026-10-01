@@ -50,6 +50,13 @@
       "when": 1790771054211,
       "tag": "0006_mod_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790835976199,
+      "tag": "0007_watchlist",
+      "breakpoints": true
     }
   ]
 }
