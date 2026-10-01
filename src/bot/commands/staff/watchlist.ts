@@ -1,4 +1,3 @@
-import { utcMs } from "@/core/services/moderation/modlog.service";
 import { WatchlistService } from "@/core/services/moderation/watchlist.service";
 import {
   HELPER_COMMAND_PERMISSION,
@@ -14,134 +13,102 @@ import {
   PermissionFlagsBits,
   User,
 } from "discord.js";
-import { Discord, Slash, SlashGroup, SlashOption } from "discordx";
-
-const NOT_ALLOWED = "You are not allowed to use this command.";
-const since = (createdAt: string) => `<t:${Math.floor(utcMs(createdAt) / 1000)}:R>`;
-
-async function start(
-  interaction: CommandInteraction,
-  allowed: (member: GuildMember) => boolean,
-): Promise<boolean> {
-  if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
-    return false;
-  const member = interaction.member as GuildMember | null;
-  if (!interaction.guild || !member || !allowed(member)) {
-    await safeEditReply(interaction, NOT_ALLOWED);
-    return false;
-  }
-  return true;
-}
+import { Discord, Slash, SlashOption } from "discordx";
 
 @Discord()
-@SlashGroup({
-  name: "watchlist",
-  description: "Members staff should keep an eye on",
-  dmPermission: false,
-  defaultMemberPermissions: HELPER_COMMAND_PERMISSION,
-})
-@SlashGroup("watchlist")
-export class WatchlistCommands {
-  @Slash({ name: "add", description: "Put a member on the watchlist" })
-  async add(
+export class WatchlistCommand {
+  @Slash({
+    name: "watchlist",
+    description: "Show the watchlist, or add or remove a member",
+    dmPermission: false,
+    defaultMemberPermissions: HELPER_COMMAND_PERMISSION,
+  })
+  async watchlist(
     @SlashOption({
-      name: "user",
-      description: "Member to watch",
-      required: true,
+      name: "add",
+      description: "Member to put on the watchlist",
+      required: false,
       type: ApplicationCommandOptionType.User,
     })
-    user: User,
+    add: User | undefined,
+    @SlashOption({
+      name: "remove",
+      description: "Member to take off the watchlist (admins)",
+      required: false,
+      type: ApplicationCommandOptionType.User,
+    })
+    remove: User | undefined,
     interaction: CommandInteraction,
   ) {
-    if (!(await start(interaction, isHelper))) return;
-
-    if (user.bot) {
-      await safeEditReply(interaction, "Bots cannot be put on the watchlist.");
+    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
+      return;
+    const member = interaction.member as GuildMember | null;
+    if (!interaction.guild || !isHelper(member)) {
+      await safeEditReply(interaction, "You are not allowed to use this command.");
       return;
     }
-    const target = await interaction
-      .guild!.members.fetch(user.id)
-      .catch(() => null);
-    if (target && isHelper(target)) {
-      await safeEditReply(interaction, "Staff cannot be put on the watchlist.");
+    const guildId = interaction.guild.id;
+    const reply = (content: string) =>
+      safeEditReply(interaction, { content, allowedMentions: { parse: [] } });
+
+    if (add && remove) {
+      await reply("Pick either add or remove, not both.");
       return;
     }
 
-    const { added, entry } = await WatchlistService.add(
-      interaction.guild!.id,
-      user.id,
-      user.username,
-      interaction.user.id,
-    );
-    await safeEditReply(interaction, {
-      content: added
-        ? `Added <@${user.id}> to the watchlist.`
-        : `<@${user.id}> is already on the watchlist, added by <@${entry?.addedBy}> ${entry ? since(entry.createdAt) : ""}.`,
-      allowedMentions: { parse: [] },
-    });
-  }
+    if (remove) {
+      if (!member!.permissions.has(PermissionFlagsBits.Administrator)) {
+        await reply("Only admins can take someone off the watchlist.");
+        return;
+      }
+      const removed = await WatchlistService.remove(guildId, remove.id);
+      await reply(
+        removed
+          ? `Removed <@${remove.id}> from the watchlist.`
+          : `<@${remove.id}> is not on the watchlist.`,
+      );
+      return;
+    }
 
-  @Slash({ name: "view", description: "Show everyone on the watchlist" })
-  async view(interaction: CommandInteraction) {
-    if (!(await start(interaction, isHelper))) return;
+    if (add) {
+      if (add.bot) {
+        await reply("Bots cannot be put on the watchlist.");
+        return;
+      }
+      const target = await interaction.guild.members
+        .fetch(add.id)
+        .catch(() => null);
+      if (target && isHelper(target)) {
+        await reply("Staff cannot be put on the watchlist.");
+        return;
+      }
+      const { added, entry } = await WatchlistService.add(
+        guildId,
+        add.id,
+        interaction.user.id,
+      );
+      await reply(
+        added
+          ? `Added <@${add.id}> to the watchlist.`
+          : `<@${add.id}> is already on the watchlist, added by <@${entry?.addedBy}>.`,
+      );
+      return;
+    }
 
-    const rows = await WatchlistService.list(interaction.guild!.id);
+    const rows = await WatchlistService.list(guildId);
     if (!rows.length) {
-      await safeEditReply(interaction, "The watchlist is empty.");
+      await reply("The watchlist is empty.");
       return;
     }
-
     let content = `**Watchlist** (${rows.length})`;
     let shown = 0;
     for (const row of rows) {
-      const line = `\n<@${row.memberId}> (${row.username}), added by <@${row.addedBy}> ${since(row.createdAt)}`;
+      const line = `\n<@${row.memberId}>, added by <@${row.addedBy}>`;
       if (content.length + line.length > 1950) break;
       content += line;
       shown++;
     }
     if (shown < rows.length) content += `\n…and ${rows.length - shown} more`;
-
-    await safeEditReply(interaction, {
-      content,
-      allowedMentions: { parse: [] },
-    });
-  }
-}
-
-@Discord()
-export class WatchlistRemoveCommand {
-  @Slash({
-    name: "watchlist-remove",
-    description: "Take a member off the watchlist (admins)",
-    dmPermission: false,
-    defaultMemberPermissions: PermissionFlagsBits.Administrator,
-  })
-  async watchlistRemove(
-    @SlashOption({
-      name: "user",
-      description: "Member to take off the watchlist",
-      required: true,
-      type: ApplicationCommandOptionType.User,
-    })
-    user: User,
-    interaction: CommandInteraction,
-  ) {
-    if (
-      !(await start(interaction, (member) =>
-        member.permissions.has(PermissionFlagsBits.Administrator),
-      ))
-    )
-      return;
-
-    const removed = await WatchlistService.remove(
-      interaction.guild!.id,
-      user.id,
-    );
-    await safeEditReply(interaction, {
-      content: removed
-        ? `Removed <@${user.id}> from the watchlist (added by <@${removed.addedBy}>).`
-        : `<@${user.id}> is not on the watchlist.`,
-      allowedMentions: { parse: [] },
-    });
+    await reply(content);
   }
 }

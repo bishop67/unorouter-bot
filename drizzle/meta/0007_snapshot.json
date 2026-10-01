@@ -1,5 +1,5 @@
 {
-  "id": "0da52d91-73f2-415c-b80c-27d6421e397b",
+  "id": "d5d1e426-0e0c-496b-aa6f-36b2cb4c0ef8",
   "prevId": "965eea17-487d-49cc-90cb-715d6bbff0db",
   "version": "7",
   "dialect": "postgresql",
@@ -3116,12 +3116,6 @@
         },
         "member_id": {
           "name": "member_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "username": {
-          "name": "username",
           "type": "text",
           "primaryKey": false,
           "notNull": true

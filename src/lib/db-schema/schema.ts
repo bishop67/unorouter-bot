@@ -860,7 +860,6 @@ export const watchlist = pgTable(
     id: serial("id").primaryKey(),
     guildId: text("guild_id").notNull(),
     memberId: text("member_id").notNull(),
-    username: text("username").notNull(),
     addedBy: text("added_by").notNull(),
     createdAt: createdAt(),
   },
