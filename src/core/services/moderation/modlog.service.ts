@@ -1,17 +1,15 @@
 import { db } from "@/lib/db";
 import { modLog } from "@/lib/db-schema";
 import { logger } from "@/lib/logger";
-import { JAIL } from "@/shared/config/roles";
+import { JAIL, STATUS_ROLES } from "@/shared/config/roles";
 import { findTextChannel } from "@/shared/utils/channel.utils";
 import {
   AuditLogEvent,
   type Guild,
   type GuildAuditLogsEntry,
-  type GuildMember,
 } from "discord.js";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
-// Discord's own palette: green lifts, yellow warns and timeouts, red removals.
 const ACTION_COLORS = {
   "User Warned": 0xfee75c,
   "User Jailed": 0xed4245,
@@ -35,20 +33,30 @@ interface ModLogEntry {
   expiresAt?: Date | null;
 }
 
-// created_at and expires_at are UTC timestamps without a zone, read as strings.
 export const utcMs = (value: string) =>
   Date.parse(`${value.replace(" ", "T")}Z`);
 
-const changesJail = (entry: GuildAuditLogsEntry, key: "$add" | "$remove") =>
+const changesRole = (
+  entry: GuildAuditLogsEntry,
+  key: "$add" | "$remove",
+  matches: (name: string) => boolean,
+) =>
   entry.changes.some(
     (change) =>
       change.key === key &&
       Array.isArray(change.new) &&
-      change.new.some((role) => role.name === JAIL),
+      change.new.some((role) => matches(role.name)),
   );
 
+const isJail = (name: string) => name === JAIL;
+const isOtherStatusRole = (name: string) =>
+  !isJail(name) && STATUS_ROLES.includes(name);
+
 export class ModLogService {
-  static actionFromAudit(entry: GuildAuditLogsEntry): ModAction | null {
+  static async actionFromAudit(
+    guild: Guild,
+    entry: GuildAuditLogsEntry,
+  ): Promise<ModAction | null> {
     switch (entry.action) {
       case AuditLogEvent.MemberKick:
         return "User Kicked";
@@ -64,10 +72,13 @@ export class ModLogService {
         return change.new ? "User Timed Out" : "User Untimed Out";
       }
       case AuditLogEvent.MemberRoleUpdate:
-        if (!JAIL) return null;
-        if (changesJail(entry, "$add")) return "User Jailed";
-        if (changesJail(entry, "$remove")) return "User Unjailed";
-        return null;
+        if (!JAIL || !entry.targetId) return null;
+        if (changesRole(entry, "$add", isJail)) return "User Jailed";
+        if (changesRole(entry, "$remove", isJail)) return "User Unjailed";
+        return changesRole(entry, "$add", isOtherStatusRole) &&
+          (await this.isJailed(guild, entry.targetId))
+          ? "User Unjailed"
+          : null;
       default:
         return null;
     }
@@ -124,64 +135,53 @@ export class ModLogService {
       .catch((err) => logger.error("modlog post failed", { err }));
   }
 
-  // Discord logs nothing when a timeout runs out and AutoMod timeouts are not
-  // recorded here, so only an unexpired row counts as the standing timeout.
-  static async timeoutSetter(
+  private static async latest(
     guildId: string,
     targetId: string,
-  ): Promise<string | null> {
-    const [latest] = await db
+    actions: [ModAction, ModAction],
+  ) {
+    const [row] = await db
       .select()
       .from(modLog)
       .where(
         and(
           eq(modLog.guildId, guildId),
           eq(modLog.targetId, targetId),
-          inArray(modLog.action, ["User Timed Out", "User Untimed Out"]),
+          inArray(modLog.action, actions),
         ),
       )
       .orderBy(desc(modLog.createdAt), desc(modLog.id))
       .limit(1);
+    return row;
+  }
+
+  static async timeoutSetter(
+    guildId: string,
+    targetId: string,
+  ): Promise<string | null> {
+    const latest = await this.latest(guildId, targetId, [
+      "User Timed Out",
+      "User Untimed Out",
+    ]);
     if (latest?.action !== "User Timed Out" || !latest.expiresAt) return null;
     return utcMs(latest.expiresAt) > Date.now() ? latest.moderatorId : null;
   }
 
-  // Staff often unjail by giving a status role (Verified); the bot then strips
-  // Jail itself, so that removal's audit entry names the bot. Credit whoever
-  // added the status role instead.
-  static async recordStatusRoleUnjail(
-    target: Pick<GuildMember, "id" | "guild">,
-    addedRole: string,
-  ) {
-    const findAdder = async () => {
-      const logs = await target.guild
-        .fetchAuditLogs({ type: AuditLogEvent.MemberRoleUpdate, limit: 10 })
-        .catch(() => null);
-      return logs?.entries.find(
-        (entry) =>
-          entry.targetId === target.id &&
-          Date.now() - entry.createdTimestamp < 60_000 &&
-          entry.changes.some(
-            (change) =>
-              change.key === "$add" &&
-              Array.isArray(change.new) &&
-              change.new.some((role) => role.name === addedRole),
-          ),
-      );
-    };
+  static async jailSetter(
+    guildId: string,
+    targetId: string,
+  ): Promise<string | null> {
+    const latest = await this.latest(guildId, targetId, [
+      "User Jailed",
+      "User Unjailed",
+    ]);
+    return latest?.action === "User Jailed" ? latest.moderatorId : null;
+  }
 
-    // The audit entry can land a moment after the member update event.
-    let entry = await findAdder();
-    if (!entry) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      entry = await findAdder();
-    }
-
-    await this.record(target.guild, {
-      action: "User Unjailed",
-      targetId: target.id,
-      moderatorId: entry?.executorId ?? null,
-    });
+  static async isJailed(guild: Guild, targetId: string): Promise<boolean> {
+    const member = guild.members.cache.get(targetId);
+    if (member?.roles.cache.some((role) => isJail(role.name))) return true;
+    return (await this.jailSetter(guild.id, targetId)) !== null;
   }
 
   static recent(guildId: string, targetId?: string) {

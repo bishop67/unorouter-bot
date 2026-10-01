@@ -1,4 +1,3 @@
-import { ModLogService } from "@/core/services/moderation/modlog.service";
 import { db } from "@/lib/db";
 import { memberRole, memberMessages, role } from "@/lib/db-schema";
 import { and, count, eq, ne, sql } from "drizzle-orm";
@@ -161,11 +160,6 @@ export class RolesService {
 
     // Check if role is a status role; if yes, remove unused status roles
     if (STATUS_ROLES.includes(newAddedRole)) {
-      if (JAIL && oldRoles.includes(JAIL))
-        ModLogService.recordStatusRoleUnjail(args.newMember, newAddedRole).catch(
-          () => {},
-        );
-
       args.newMember.roles.cache.forEach(
         (role) =>
           newAddedRole !== role.name &&

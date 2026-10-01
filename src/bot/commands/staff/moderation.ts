@@ -1,20 +1,23 @@
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { ModLogService } from "@/core/services/moderation/modlog.service";
-import { timeoutChangeBlocked } from "@/core/services/moderation/timeout-rank";
+import {
+  timeoutChangeBlocked,
+  unjailBlocked,
+} from "@/core/services/moderation/rank";
 import { RolesService } from "@/core/services/roles/roles.service";
 import {
+  HELPER_COMMAND_PERMISSION,
   isHelper,
   isModerator,
-  safeDeferReply,
   safeEditReply,
   STAFF_COMMAND_PERMISSION,
+  startStaffCommand,
 } from "@/core/utils/command.utils";
 import { JAIL, VERIFIED } from "@/shared/config/roles";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
   GuildMember,
-  MessageFlags,
   User,
 } from "discord.js";
 import { Discord, Slash, SlashChoice, SlashOption } from "discordx";
@@ -28,25 +31,6 @@ const TIMEOUT_CHOICES = [
   { name: "1 day", value: 1440 },
   { name: "1 week", value: 10080 },
 ];
-
-async function start(
-  interaction: CommandInteraction,
-  allowed: (member: GuildMember | null) => boolean,
-): Promise<boolean> {
-  if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
-    return false;
-  if (
-    !interaction.guild ||
-    !allowed(interaction.member as GuildMember | null)
-  ) {
-    await safeEditReply(
-      interaction,
-      "You are not allowed to use this command.",
-    );
-    return false;
-  }
-  return true;
-}
 
 async function fetchTarget(
   interaction: CommandInteraction,
@@ -69,16 +53,16 @@ async function fetchTarget(
   return target;
 }
 
-// Replies and returns true when a standing timeout outranks whoever ran the command.
 async function blockedByRank(
   interaction: CommandInteraction,
   target: GuildMember,
+  check: typeof timeoutChangeBlocked = timeoutChangeBlocked,
 ): Promise<boolean> {
   const actor = await interaction
     .guild!.members.fetch(interaction.user.id)
     .catch(() => null);
   const blocked = actor
-    ? await timeoutChangeBlocked(target, actor)
+    ? await check(target, actor)
     : "Could not resolve your member record.";
   if (!blocked) return false;
   await safeEditReply(interaction, blocked);
@@ -110,7 +94,7 @@ export class ModerationCommands {
     reason: string,
     interaction: CommandInteraction,
   ) {
-    if (!(await start(interaction, isModerator))) return;
+    if (!(await startStaffCommand(interaction, isModerator))) return;
     const target = await fetchTarget(interaction, user);
     if (!target) return;
 
@@ -156,7 +140,7 @@ export class ModerationCommands {
     user: User,
     interaction: CommandInteraction,
   ) {
-    if (!(await start(interaction, isModerator))) return;
+    if (!(await startStaffCommand(interaction, isModerator))) return;
     const target = await fetchTarget(interaction, user);
     if (!target) return;
 
@@ -167,6 +151,7 @@ export class ModerationCommands {
       await safeEditReply(interaction, `<@${user.id}> is not jailed.`);
       return;
     }
+    if (await blockedByRank(interaction, target, unjailBlocked)) return;
 
     const audit = `Unjailed by ${interaction.user.username}`;
     const ok = await target.roles
@@ -194,7 +179,7 @@ export class ModerationCommands {
     name: "timeout",
     description: "Time out a member (helpers and moderators)",
     dmPermission: false,
-    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
+    defaultMemberPermissions: HELPER_COMMAND_PERMISSION,
   })
   async timeout(
     @SlashOption({
@@ -221,7 +206,7 @@ export class ModerationCommands {
     reason: string,
     interaction: CommandInteraction,
   ) {
-    if (!(await start(interaction, isHelper))) return;
+    if (!(await startStaffCommand(interaction, isHelper))) return;
     const target = await fetchTarget(interaction, user);
     if (!target) return;
     if (await blockedByRank(interaction, target)) return;
@@ -254,7 +239,7 @@ export class ModerationCommands {
     name: "untimeout",
     description: "Remove a member's timeout (helpers and moderators)",
     dmPermission: false,
-    defaultMemberPermissions: STAFF_COMMAND_PERMISSION,
+    defaultMemberPermissions: HELPER_COMMAND_PERMISSION,
   })
   async untimeout(
     @SlashOption({
@@ -266,7 +251,7 @@ export class ModerationCommands {
     user: User,
     interaction: CommandInteraction,
   ) {
-    if (!(await start(interaction, isHelper))) return;
+    if (!(await startStaffCommand(interaction, isHelper))) return;
     const target = await fetchTarget(interaction, user);
     if (!target) return;
 
