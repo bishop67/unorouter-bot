@@ -6,6 +6,7 @@ export const CHANNEL_SPAM_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 // Repeats separated by more than this are not spam; without it the counter
 // never resets and the same message posted on three different days warns.
 export const DUPLICATE_SPAM_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+export const INVITE_JAIL_WARNINGS = 4; // Jail at 4th external invite
 
 // Ticket open/close churn limiter. Actions beyond LIMIT in the rolling window
 // are refused with a retry hint; at JAIL_LIMIT the user is jailed (chat
