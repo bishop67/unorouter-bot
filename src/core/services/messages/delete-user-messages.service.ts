@@ -278,6 +278,7 @@ export class DeleteUserMessagesService {
     log(
       `[DeleteUserMessages] Finished. Deleted ${totalDeleted} messages total for user ${params.memberId}`,
     );
+    return totalDeleted;
   }
 
   private static async sendJailNotification(params: {
