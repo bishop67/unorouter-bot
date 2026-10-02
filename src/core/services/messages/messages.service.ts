@@ -9,6 +9,7 @@ import { isAdmin } from "@/core/utils/command.utils";
 import { SHOULD_USER_LEVEL_UP } from "@/shared/config/features";
 import { LEVEL_LIST, levelUpMessage } from "@/shared/config/levels";
 import { JAIL } from "@/shared/config/roles";
+import { INVITE_JAIL_WARNINGS } from "@/shared/config/spam";
 import {
   GuildTextBasedChannel,
   Message,
@@ -307,7 +308,8 @@ export class MessagesService {
     }
 
     if (hasExternalInvite) {
-      await message.delete();
+      // The duplicate-spam step may already have removed it; the warning still counts.
+      await message.delete().catch(() => {});
 
       const currentWarnings = memberGuildData.warnings + 1;
 
@@ -316,7 +318,7 @@ export class MessagesService {
         .set({ warnings: currentWarnings })
         .where(eq(memberGuild.id, memberGuildData.id));
 
-      if (currentWarnings < 4) {
+      if (currentWarnings < INVITE_JAIL_WARNINGS) {
         await ModLogService.record(message.guild, {
           action: "User Warned",
           targetId: member.id,
@@ -326,7 +328,7 @@ export class MessagesService {
 
         try {
           await member.send(
-            `Stop posting invites, you have been warned. Warnings: ${currentWarnings}, you will be muted at 3 warnings.`,
+            `Stop posting invites, you have been warned. Warnings: ${currentWarnings}, you will be muted at ${INVITE_JAIL_WARNINGS} warnings.`,
           );
         } catch (error) {}
       } else {
@@ -339,7 +341,7 @@ export class MessagesService {
         });
 
         try {
-          await member.send(`You have been muted asks a mod to unmute you.`);
+          await member.send("You have been muted. Ask a mod to unmute you.");
         } catch (error) {}
       }
     }
