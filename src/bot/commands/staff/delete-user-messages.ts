@@ -1,5 +1,6 @@
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { ModLogService } from "@/core/services/moderation/modlog.service";
+import { RolesService } from "@/core/services/roles/roles.service";
 import {
   isHelper,
   isModerator,
@@ -8,6 +9,7 @@ import {
   safeEditReply,
   STAFF_COMMAND_PERMISSION,
 } from "@/core/utils/command.utils";
+import { JAIL } from "@/shared/config/roles";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
@@ -72,9 +74,24 @@ export class DeleteUserMessages {
       return;
     }
 
+    if (!/^\d{17,20}$/.test(memberId)) {
+      await safeEditReply(interaction, "user-id must be a Discord user ID.");
+      return;
+    }
+
     if (jail) {
       if (!isModerator(interaction.member as GuildMember)) {
         await safeEditReply(interaction, "Only moderators can jail.");
+        return;
+      }
+      const jailRole = JAIL
+        ? RolesService.getGuildStatusRoles(interaction.guild)[JAIL]
+        : undefined;
+      if (!jailRole?.editable) {
+        await safeEditReply(
+          interaction,
+          "Jail failed, the jail role is missing or above the bot's role.",
+        );
         return;
       }
       const target = await interaction.guild.members
@@ -98,18 +115,17 @@ export class DeleteUserMessages {
       moderatorId: interaction.user.id,
     };
 
-    // Logged once the sweep ends, so the entry carries the real count.
+    // Recorded before the sweep so a restart mid-run cannot lose the entry; the
+    // count is filled in once the sweep ends.
+    const logged = await ModLogService.record(params.guild, {
+      action: "Messages Deleted",
+      targetId: memberId,
+      moderatorId: params.moderatorId,
+      reason: params.reason,
+    });
     const sweep = () =>
       DeleteUserMessagesService.deleteUserMessages(params)
-        .then((amount) =>
-          ModLogService.record(params.guild, {
-            action: "Messages Deleted",
-            targetId: memberId,
-            moderatorId: params.moderatorId,
-            reason: params.reason,
-            amount,
-          }),
-        )
+        .then((amount) => ModLogService.setAmount(logged, amount))
         .catch(() => {});
 
     if (jail) {

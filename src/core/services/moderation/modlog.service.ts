@@ -7,6 +7,8 @@ import {
   AuditLogEvent,
   type Guild,
   type GuildAuditLogsEntry,
+  type Message,
+  type User,
 } from "discord.js";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
@@ -33,6 +35,13 @@ interface ModLogEntry {
   note?: string;
   amount?: number;
   expiresAt?: Date | null;
+}
+
+interface LoggedEntry {
+  id?: number;
+  entry: ModLogEntry;
+  user: User | null;
+  message: Message | null;
 }
 
 export const utcMs = (value: string) =>
@@ -92,59 +101,96 @@ export class ModLogService {
     }
   }
 
-  static async record(guild: Guild, entry: ModLogEntry) {
-    const reason = entry.reason?.trim() || null;
+  private static embed(entry: ModLogEntry, user: User | null, at: Date) {
+    const mention = targetMention(entry.action, entry.targetId);
+    const lines = [
+      `**${entry.action}**`,
+      targetsChannel(entry.action)
+        ? mention
+        : `${mention} (${user?.username ?? "unknown"})`,
+      `**By:** ${entry.moderatorId ? `<@${entry.moderatorId}>` : "unknown"}`,
+      entry.amount !== undefined && `**Amount:** ${entry.amount}`,
+      entry.reason && `**Reason:** ${entry.reason.slice(0, 1000)}`,
+      entry.note && `**Note:** ${entry.note}`,
+      `-# ${entry.targetId}`,
+    ];
 
-    await db
+    return {
+      color: ACTION_COLORS[entry.action],
+      author: user
+        ? { name: user.username, icon_url: user.displayAvatarURL() }
+        : undefined,
+      description: lines.filter(Boolean).join("\n"),
+      timestamp: at.toISOString(),
+      footer: { text: "Mod Log" },
+    };
+  }
+
+  static async record(guild: Guild, input: ModLogEntry): Promise<LoggedEntry> {
+    const entry = { ...input, reason: input.reason?.trim() || null };
+
+    const [row] = await db
       .insert(modLog)
       .values({
         guildId: guild.id,
         action: entry.action,
         targetId: entry.targetId,
         moderatorId: entry.moderatorId,
-        reason,
+        reason: entry.reason,
         amount: entry.amount ?? null,
         expiresAt: entry.expiresAt?.toISOString() ?? null,
       })
-      .catch((err) => logger.error("modlog insert failed", { err }));
+      .returning({ id: modLog.id })
+      .catch((err) => {
+        logger.error("modlog insert failed", { err });
+        return [];
+      });
+    const logged: LoggedEntry = { id: row?.id, entry, user: null, message: null };
 
     const channel = findTextChannel(
       guild,
       process.env.MOD_LOG_CHANNEL?.trim() || "mod-logs",
     );
-    if (!channel) return;
+    if (!channel) return logged;
 
-    const onChannel = targetsChannel(entry.action);
-    const user = onChannel
-      ? null
-      : await guild.client.users.fetch(entry.targetId).catch(() => null);
-    const mention = targetMention(entry.action, entry.targetId);
-    const lines = [
-      `**${entry.action}**`,
-      onChannel ? mention : `${mention} (${user?.username ?? "unknown"})`,
-      `**By:** ${entry.moderatorId ? `<@${entry.moderatorId}>` : "unknown"}`,
-      entry.amount !== undefined && `**Amount:** ${entry.amount}`,
-      reason && `**Reason:** ${reason.slice(0, 1000)}`,
-      entry.note && `**Note:** ${entry.note}`,
-      `-# ${entry.targetId}`,
-    ];
+    if (!targetsChannel(entry.action))
+      logged.user = await guild.client.users
+        .fetch(entry.targetId)
+        .catch(() => null);
 
-    await channel
+    logged.message = await channel
       .send({
+        embeds: [this.embed(entry, logged.user, new Date())],
+        allowedMentions: { parse: [] },
+      })
+      .catch((err) => {
+        logger.error("modlog post failed", { err });
+        return null;
+      });
+    return logged;
+  }
+
+  // Fills in the count on an entry recorded before the work that produces it.
+  static async setAmount(logged: LoggedEntry, amount: number) {
+    if (logged.id !== undefined)
+      await db
+        .update(modLog)
+        .set({ amount })
+        .where(eq(modLog.id, logged.id))
+        .catch((err) => logger.error("modlog amount update failed", { err }));
+
+    await logged.message
+      ?.edit({
         embeds: [
-          {
-            color: ACTION_COLORS[entry.action],
-            author: user
-              ? { name: user.username, icon_url: user.displayAvatarURL() }
-              : undefined,
-            description: lines.filter(Boolean).join("\n"),
-            timestamp: new Date().toISOString(),
-            footer: { text: "Mod Log" },
-          },
+          this.embed(
+            { ...logged.entry, amount },
+            logged.user,
+            logged.message.createdAt,
+          ),
         ],
         allowedMentions: { parse: [] },
       })
-      .catch((err) => logger.error("modlog post failed", { err }));
+      .catch((err) => logger.error("modlog amount edit failed", { err }));
   }
 
   private static async latest(
