@@ -20,6 +20,7 @@ const ACTION_COLORS = {
   "User Timed Out": 0xfee75c,
   "User Untimed Out": 0x57f287,
   "Messages Deleted": 0xed4245,
+  "Channel Purged": 0xed4245,
 } as const;
 
 export type ModAction = keyof typeof ACTION_COLORS;
@@ -30,11 +31,18 @@ interface ModLogEntry {
   moderatorId: string | null;
   reason?: string | null;
   note?: string;
+  amount?: number;
   expiresAt?: Date | null;
 }
 
 export const utcMs = (value: string) =>
   Date.parse(`${value.replace(" ", "T")}Z`);
+
+// A purge targets a channel, every other action targets a member.
+const targetsChannel = (action: string) => action === "Channel Purged";
+
+export const targetMention = (action: string, targetId: string) =>
+  targetsChannel(action) ? `<#${targetId}>` : `<@${targetId}>`;
 
 const changesRole = (
   entry: GuildAuditLogsEntry,
@@ -95,6 +103,7 @@ export class ModLogService {
         targetId: entry.targetId,
         moderatorId: entry.moderatorId,
         reason,
+        amount: entry.amount ?? null,
         expiresAt: entry.expiresAt?.toISOString() ?? null,
       })
       .catch((err) => logger.error("modlog insert failed", { err }));
@@ -105,13 +114,16 @@ export class ModLogService {
     );
     if (!channel) return;
 
-    const user = await guild.client.users
-      .fetch(entry.targetId)
-      .catch(() => null);
+    const onChannel = targetsChannel(entry.action);
+    const user = onChannel
+      ? null
+      : await guild.client.users.fetch(entry.targetId).catch(() => null);
+    const mention = targetMention(entry.action, entry.targetId);
     const lines = [
       `**${entry.action}**`,
-      `<@${entry.targetId}> (${user?.username ?? "unknown"})`,
+      onChannel ? mention : `${mention} (${user?.username ?? "unknown"})`,
       `**By:** ${entry.moderatorId ? `<@${entry.moderatorId}>` : "unknown"}`,
+      entry.amount !== undefined && `**Amount:** ${entry.amount}`,
       reason && `**Reason:** ${reason.slice(0, 1000)}`,
       entry.note && `**Note:** ${entry.note}`,
       `-# ${entry.targetId}`,
