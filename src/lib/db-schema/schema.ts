@@ -846,6 +846,7 @@ export const modLog = pgTable(
     targetId: text("target_id").notNull(),
     moderatorId: text("moderator_id"),
     reason: text("reason"),
+    amount: integer("amount"),
     expiresAt: timestamp("expires_at", { precision: 3, mode: "string" }),
     createdAt: createdAt(),
   },

@@ -1,6 +1,6 @@
 {
-  "id": "d5d1e426-0e0c-496b-aa6f-36b2cb4c0ef8",
-  "prevId": "965eea17-487d-49cc-90cb-715d6bbff0db",
+  "id": "5910d768-930b-4159-82f9-686d0453943a",
+  "prevId": "d5d1e426-0e0c-496b-aa6f-36b2cb4c0ef8",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2016,6 +2016,12 @@
         "reason": {
           "name": "reason",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
