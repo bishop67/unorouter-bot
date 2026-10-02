@@ -145,7 +145,12 @@ export class ModLogService {
         logger.error("modlog insert failed", { err });
         return [];
       });
-    const logged: LoggedEntry = { id: row?.id, entry, user: null, message: null };
+    const logged: LoggedEntry = {
+      id: row?.id,
+      entry,
+      user: null,
+      message: null,
+    };
 
     const channel = findTextChannel(
       guild,
