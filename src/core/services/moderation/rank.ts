@@ -2,24 +2,13 @@ import { ModLogService } from "@/core/services/moderation/modlog.service";
 import { isModerator } from "@/core/utils/command.utils";
 import type { Guild, GuildMember } from "discord.js";
 
-// Rank follows the server's role order; the owner outranks everyone.
-function rank(member: GuildMember): number {
-  return member.id === member.guild.ownerId
-    ? Number.POSITIVE_INFINITY
-    : member.roles.highest.position;
-}
+const rank = (member: GuildMember) => member.roles.highest.position;
 
-/**
- * The member who set `targetId`'s standing timeout, when they rank at or above
- * `actorId`. Null when the change is allowed, including when the setter left.
- */
 export async function outrankingSetter(
   guild: Guild,
-  targetId: string,
+  setterId: string | null,
   actorId: string,
-  setterId?: string | null,
 ): Promise<GuildMember | null> {
-  setterId ??= await ModLogService.timeoutSetter(guild.id, targetId);
   if (!setterId || setterId === actorId) return null;
 
   const [setter, actor] = await Promise.all([
@@ -27,11 +16,12 @@ export async function outrankingSetter(
     guild.members.fetch(actorId).catch(() => null),
   ]);
   if (!setter || !actor || setter.user.bot) return null;
-  return rank(setter) >= rank(actor) ? setter : null;
+  return rank(setter) > rank(actor) ? setter : null;
 }
 
-// Why `actor` may not change `target`'s standing timeout, or null when they may.
-// Shortening a timeout is the same override as lifting it.
+const outranked = (setter: GuildMember, what: string) =>
+  `That ${what} was set by ${setter.user.username}, who ranks above you, so only someone of their rank or higher can change it.`;
+
 export async function timeoutChangeBlocked(
   target: GuildMember,
   actor: GuildMember,
@@ -44,8 +34,15 @@ export async function timeoutChangeBlocked(
       ? null
       : "That timeout was not set through this bot, so only moderators can change it.";
 
-  const higher = await outrankingSetter(target.guild, target.id, actor.id, setterId);
-  return higher
-    ? `That timeout was set by ${higher.user.username}, who ranks at or above you, so only someone higher can change it.`
-    : null;
+  const higher = await outrankingSetter(target.guild, setterId, actor.id);
+  return higher ? outranked(higher, "timeout") : null;
+}
+
+export async function unjailBlocked(
+  target: GuildMember,
+  actor: GuildMember,
+): Promise<string | null> {
+  const setterId = await ModLogService.jailSetter(target.guild.id, target.id);
+  const higher = await outrankingSetter(target.guild, setterId, actor.id);
+  return higher ? outranked(higher, "jail") : null;
 }

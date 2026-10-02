@@ -837,8 +837,6 @@ export const voteRoleHold = pgTable(
   ],
 );
 
-// Moderation history for /modlog. Plain ids, no FKs: the target of a ban may
-// never have been a member row.
 export const modLog = pgTable(
   "mod_logs",
   {
@@ -853,5 +851,19 @@ export const modLog = pgTable(
   },
   (table) => [
     index("idx_mod_logs_guild_target").on(table.guildId, table.targetId),
+  ],
+);
+
+export const watchlist = pgTable(
+  "watchlist",
+  {
+    id: serial("id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    memberId: text("member_id").notNull(),
+    addedBy: text("added_by").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("uq_watchlist_guild_member").on(table.guildId, table.memberId),
   ],
 );
