@@ -1,4 +1,5 @@
 import { MessagesService } from "@/core/services/messages/messages.service";
+import { ModLogService } from "@/core/services/moderation/modlog.service";
 import {
   isStaff,
   safeDeferReply,
@@ -80,6 +81,15 @@ export class DeleteMessagesCommand {
       deleted,
       skipped,
     });
+
+    if (deleted > 0) {
+      await ModLogService.record(channel.guild, {
+        action: "Channel Purged",
+        targetId: channel.id,
+        moderatorId: interaction.user.id,
+        amount: deleted,
+      });
+    }
 
     await safeEditReply(
       interaction,
