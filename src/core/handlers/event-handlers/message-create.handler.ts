@@ -36,7 +36,9 @@ export async function handleMessageCreate(message: Message): Promise<void> {
     await SpamDetectionService.detectSpamFirstMessageWithAi(message);
   if (isSpam) return;
 
-  await DuplicateSpamService.checkDuplicateSpam(message);
+  // The duplicate check deleted and warned for this message, so it is done:
+  // one warning per message, and a removed message must not count toward levels.
+  if (await DuplicateSpamService.checkDuplicateSpam(message)) return;
 
   await MessagesService.checkWarnings(message);
 

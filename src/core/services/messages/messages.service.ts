@@ -308,7 +308,7 @@ export class MessagesService {
     }
 
     if (hasExternalInvite) {
-      // The duplicate-spam step may already have removed it; the warning still counts.
+      // A failed delete (already gone, missing permission) must not skip the warning.
       await message.delete().catch(() => {});
 
       const currentWarnings = memberGuildData.warnings + 1;
