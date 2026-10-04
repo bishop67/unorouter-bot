@@ -26,6 +26,7 @@ spec:
     metadata:
       labels: { app: unorouter-bot }
     spec:
+      automountServiceAccountToken: false
       imagePullSecrets:
         - name: ghcr-pull
       containers:
