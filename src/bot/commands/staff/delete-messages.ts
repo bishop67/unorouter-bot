@@ -1,16 +1,15 @@
 import { MessagesService } from "@/core/services/messages/messages.service";
+import { ModLogService } from "@/core/services/moderation/modlog.service";
 import {
   isStaff,
-  safeDeferReply,
   safeEditReply,
   STAFF_COMMAND_PERMISSION,
+  startStaffCommand,
 } from "@/core/utils/command.utils";
 import { logger } from "@/lib/logger";
 import {
   ApplicationCommandOptionType,
   CommandInteraction,
-  GuildMember,
-  MessageFlags,
   type GuildTextBasedChannel,
 } from "discord.js";
 import { Discord, Slash, SlashOption } from "discordx";
@@ -37,9 +36,7 @@ export class DeleteMessagesCommand {
     amount: number,
     interaction: CommandInteraction,
   ) {
-    if (!(await safeDeferReply(interaction, { flags: [MessageFlags.Ephemeral] })))
-      return;
-    if (!isStaff(interaction.member as GuildMember)) return;
+    if (!(await startStaffCommand(interaction, isStaff))) return;
 
     const channel = interaction.channel as GuildTextBasedChannel | null;
     if (!channel || !interaction.guildId) {
@@ -80,6 +77,15 @@ export class DeleteMessagesCommand {
       deleted,
       skipped,
     });
+
+    if (deleted > 0) {
+      await ModLogService.record(channel.guild, {
+        action: "Channel Purged",
+        targetId: channel.id,
+        moderatorId: interaction.user.id,
+        amount: deleted,
+      });
+    }
 
     await safeEditReply(
       interaction,

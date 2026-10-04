@@ -9,9 +9,8 @@ import { isAdmin } from "@/core/utils/command.utils";
 import { SHOULD_USER_LEVEL_UP } from "@/shared/config/features";
 import { LEVEL_LIST, levelUpMessage } from "@/shared/config/levels";
 import { JAIL } from "@/shared/config/roles";
+import { INVITE_JAIL_WARNINGS } from "@/shared/config/spam";
 import {
-  Collection,
-  FetchMessagesOptions,
   GuildTextBasedChannel,
   Message,
   PartialMessage,
@@ -137,37 +136,19 @@ export class MessagesService {
     channel: GuildTextBasedChannel,
     limit: number = 100,
   ): Promise<Message[]> {
-    let out: Message[] = [];
-    if (limit <= 100) {
-      let messages: Collection<string, Message> = await channel.messages.fetch({
-        limit: limit,
+    const out: Message[] = [];
+    while (out.length < limit) {
+      // Ask only for what is still owed: a full page on the last round would
+      // hand the caller more than the limit it asked for.
+      const page = Math.min(100, limit - out.length);
+      const messages = await channel.messages.fetch({
+        limit: page,
+        ...(out.length ? { before: out[out.length - 1].id } : {}),
       });
-      const messagesArray = Array.from(messages.values(), (value) => value);
-      out.push(...messagesArray);
-    } else {
-      const rounds = limit / 100 + (limit % 100 ? 1 : 0);
-      let lastId: string = "";
-      for (let x = 0; x < rounds; x++) {
-        const options: FetchMessagesOptions = {
-          limit: 100,
-        };
-
-        if (lastId.length > 0) options.before = lastId;
-
-        const messages: Collection<string, Message> =
-          await channel.messages.fetch(options);
-
-        const messagesArray = Array.from(messages.values(), (value) => value);
-        out.push(...messagesArray);
-
-        lastId = messagesArray[messagesArray.length - 1]?.id || "";
-      }
+      out.push(...messages.values());
+      if (messages.size < page) break;
     }
-    // remove duplicates
-    return out.filter(
-      (message, index, self) =>
-        self.findIndex((m) => m.id === message.id) === index,
-    );
+    return out;
   }
 
   // Hosts where the first path segment is the invite code (discord.gg/CODE).
@@ -327,7 +308,8 @@ export class MessagesService {
     }
 
     if (hasExternalInvite) {
-      await message.delete();
+      // A failed delete (already gone, missing permission) must not skip the warning.
+      await message.delete().catch(() => {});
 
       const currentWarnings = memberGuildData.warnings + 1;
 
@@ -336,7 +318,7 @@ export class MessagesService {
         .set({ warnings: currentWarnings })
         .where(eq(memberGuild.id, memberGuildData.id));
 
-      if (currentWarnings < 4) {
+      if (currentWarnings < INVITE_JAIL_WARNINGS) {
         await ModLogService.record(message.guild, {
           action: "User Warned",
           targetId: member.id,
@@ -346,7 +328,7 @@ export class MessagesService {
 
         try {
           await member.send(
-            `Stop posting invites, you have been warned. Warnings: ${currentWarnings}, you will be muted at 3 warnings.`,
+            `Stop posting invites, you have been warned. Warnings: ${currentWarnings}, you will be muted at ${INVITE_JAIL_WARNINGS} warnings.`,
           );
         } catch (error) {}
       } else {
@@ -359,7 +341,7 @@ export class MessagesService {
         });
 
         try {
-          await member.send(`You have been muted asks a mod to unmute you.`);
+          await member.send("You have been muted. Ask a mod to unmute you.");
         } catch (error) {}
       }
     }

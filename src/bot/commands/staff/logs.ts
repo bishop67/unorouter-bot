@@ -1,4 +1,8 @@
-import { ModLogService, utcMs } from "@/core/services/moderation/modlog.service";
+import {
+  ModLogService,
+  targetMention,
+  utcMs,
+} from "@/core/services/moderation/modlog.service";
 import {
   fitLines,
   isModerator,
@@ -43,7 +47,8 @@ export class LogsCommand {
       const when = Math.floor(utcMs(row.createdAt) / 1000);
       const by = row.moderatorId ? ` by <@${row.moderatorId}>` : "";
       const reason = row.reason ? `: ${row.reason.slice(0, 80)}` : "";
-      return `<t:${when}:R> **${row.action}** <@${row.targetId}>${by}${reason}`;
+      const amount = row.amount === null ? "" : ` (${row.amount})`;
+      return `<t:${when}:R> **${row.action}**${amount} ${targetMention(row.action, row.targetId)}${by}${reason}`;
     });
 
     await safeEditReply(interaction, {
