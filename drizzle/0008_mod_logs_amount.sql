@@ -1,0 +1,1 @@
+ALTER TABLE "mod_logs" ADD COLUMN "amount" integer;

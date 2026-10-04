@@ -35,7 +35,7 @@ src/bot/interactions/                        button + modal handlers: claim_conn
 src/core/services/grant/grant.service.ts     new-api /api/user/discord_grant client, connect/boost bonuses, log channel announce
 src/core/services/server-tag/                server tag wear windows: $/day while the guild tag is worn
 src/core/services/roles/                     role + jail isolation logic
-src/core/services/moderation/modlog.service.ts  mod log: jails, unjails, timeouts, warns, kicks, bans to DB + the mod-logs channel (MOD_LOG_CHANNEL)
+src/core/services/moderation/modlog.service.ts  mod log: jails, unjails, timeouts, warns, kicks, bans, message deletions (with amount) to DB + the mod-logs channel (MOD_LOG_CHANNEL)
 src/core/services/messages/                  XP + level-up
 src/core/utils/command.utils.ts              purgeOwnPanels, safeDefer/EditReply, isStaff
 src/shared/config/                           env-driven branding, roles, levels, features
