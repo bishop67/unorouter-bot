@@ -1,5 +1,5 @@
 import { AiChatService } from "@/core/services/ai/ai-chat.service";
-import { AI_TOOLS } from "@/shared/ai/ai-tools";
+import { createAiTools } from "@/shared/ai/ai-tools";
 import { BOT_NAME, NAME_TRIGGER_PATTERN } from "@/shared/config/branding";
 import { ConfigValidator } from "@/shared/config/validator";
 import { error } from "console";
@@ -27,10 +27,20 @@ export async function handleAiChatMessage(
     return;
   }
 
-  try {
-    const response = await AiChatService.generateResponse(message, AI_TOOLS);
+  const guild = message.guild;
+  const member = message.member;
+  if (!guild || !member) return;
 
-    if (!response || (!response.text && !response.gifUrl && !response.stickerId))
+  try {
+    const response = await AiChatService.generateResponse(
+      message,
+      createAiTools({ guild, member }),
+    );
+
+    if (
+      !response ||
+      (!response.text && !response.gifUrl && !response.stickerId)
+    )
       return;
 
     const text = response.text || "";

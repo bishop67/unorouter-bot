@@ -24,7 +24,7 @@ export function startWebhookServer(): void {
     .get("/health", () => ({ ok: true }))
     // Live payout amounts, read from the same config the payout code uses, so a
     // consumer (the website docs) can never advertise a figure the bot no longer
-    // pays. Cluster-internal only; the service has no public ingress.
+    // pays. Cluster-internal only; the tunnel exposes just the top.gg webhook.
     .get("/rewards", () => rewardsPayload())
     .use(tagRoutes)
     .use(voteRoutes)

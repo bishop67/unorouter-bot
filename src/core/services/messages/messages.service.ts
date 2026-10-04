@@ -286,6 +286,8 @@ export class MessagesService {
     let hasExternalInvite = false;
 
     for (const code of inviteCodes) {
+      // Anything else would be spliced raw into the REST path.
+      if (!/^[A-Za-z0-9-]+$/.test(code)) continue;
       try {
         const invite = await message.client.fetchInvite(code);
         if (invite.guild?.id !== message.guild.id) {

@@ -12,6 +12,8 @@ import {
 } from "@/shared/config/spam";
 import type { UserSpamState } from "@/types";
 
+const MAX_HASH_BYTES = 10 * 1024 * 1024;
+
 export class DuplicateSpamService {
   private static userStates = new Map<string, UserSpamState>();
 
@@ -200,14 +202,26 @@ export class DuplicateSpamService {
     attachment: Attachment,
   ): Promise<string> {
     try {
-      const response = await fetch(attachment.url);
-      if (!response.ok) throw new Error("Failed to fetch");
+      if (attachment.size > MAX_HASH_BYTES) throw new Error("Too large");
+      const response = await fetch(attachment.url, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok || !response.body) throw new Error("Failed to fetch");
 
-      const buffer = await response.arrayBuffer();
-      return createHash("sha256")
-        .update(Buffer.from(buffer))
-        .digest("hex")
-        .slice(0, 32);
+      const hash = createHash("sha256");
+      const reader = response.body.getReader();
+      let received = 0;
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        received += chunk.value.byteLength;
+        if (received > MAX_HASH_BYTES) {
+          await reader.cancel();
+          throw new Error("Too large");
+        }
+        hash.update(chunk.value);
+      }
+      return hash.digest("hex").slice(0, 32);
     } catch {
       // No URL in the fallback: Discord mints a fresh one per upload, so the
       // same file re-posted would hash differently and slip past the check.
