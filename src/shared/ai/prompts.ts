@@ -6,7 +6,6 @@ export interface ChatPromptContext {
   displayName: string;
   channelName: string;
   channelId: string;
-  guildId: string;
   isStaff: boolean;
   isLinked: boolean;
   isBooster: boolean;
@@ -104,7 +103,7 @@ export function buildChatSystemPrompt(context: ChatPromptContext): string {
   const facts = [
     `- Username: ${context.username}${context.displayName && context.displayName !== context.username ? ` (display name: ${context.displayName})` : ""}`,
     `- Posting in channel: #${context.channelName}`,
-    `- IDs for tool calls (guildId: ${context.guildId}, channelId: ${context.channelId})`,
+    `- Current channel ID for tool calls: ${context.channelId}`,
     `- Discord linked to a ${BOT_NAME} account: ${context.isLinked ? "yes" : "no (cannot receive reward credits until they link)"}`,
     context.isStaff ? "- This user is server staff." : null,
     context.isBooster ? "- This user is currently boosting the server." : null,

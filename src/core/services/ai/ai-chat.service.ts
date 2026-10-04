@@ -145,7 +145,6 @@ export class AiChatService {
       displayName: member?.displayName || message.author.globalName || "",
       channelName,
       channelId: message.channel.id,
-      guildId: message.guild?.id || "",
       isStaff: isStaff(member),
       isLinked: this.hasRole(member, CONNECTED_ROLE),
       isBooster: !!member?.premiumSince,
