@@ -53,7 +53,7 @@ spec:
       value: when_required
     - name: AWS_RESPONSE_CHECKSUM_VALIDATION
       value: when_required
-  imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-bookworm
+  imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-bookworm@sha256:045f843b885679b7f1265c2961f3fa66c2d374e9ebe1dfcc4aa7fb3b8e58bd1f
   instances: 2
   # required, not the default preferred: a replacement replica landed next to another
   # instance twice during the node rolls (2026-09-17). Pending until its node is back beats
