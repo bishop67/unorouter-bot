@@ -27,6 +27,11 @@ spec:
       labels: { app: unorouter-bot }
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
       imagePullSecrets:
         - name: ghcr-pull
       containers:
@@ -35,6 +40,9 @@ spec:
           # NEVER set this back to :latest -- a floating tag never changes the manifest, so
           # ArgoCD sees no diff and the deploy silently does not happen.
           image: ghcr.io/unorouter/unorouter-bot:c63d86b4800eaa945966460b44853dff4694ebe6@sha256:380a262255223a5af222473fa33e2545aabbc1e901479b12a5014da5e378e54c
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
           resources:
             requests: { memory: 256Mi, cpu: 50m }
             limits: { memory: 768Mi }
