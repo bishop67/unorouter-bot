@@ -9,6 +9,7 @@ import "./events/user-update";
 import "./events/invite-create";
 import "./events/invite-delete";
 import "./events/message-create";
+import "./events/message-delete";
 import "./events/message-reaction-add";
 import "./events/message-update";
 import "./events/thread-create";
