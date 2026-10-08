@@ -7,6 +7,7 @@ import { ServerTagService } from "@/core/services/server-tag/server-tag.service"
 import { GiveawayService } from "@/core/services/giveaway/giveaway.service";
 import { InviteService } from "@/core/services/invites/invite.service";
 import { MemberDataService } from "@/core/services/members/member-data.service";
+import { RecentMessagesService } from "@/core/services/messages/recent-messages.service";
 import { VoteService } from "@/core/services/vote/vote.service";
 import { WEBSITE_URL } from "@/shared/config/branding";
 import { ConfigValidator } from "@/shared/config/validator";
@@ -103,6 +104,7 @@ bot.once("clientReady", async () => {
   // Started after bootGuild so its first tick reconciles against a warm member cache.
   ServerTagService.startCron(bot);
   GiveawayService.startCron(bot);
+  RecentMessagesService.startPrune();
   // Keep member-count channels fresh even if a join/leave rename was rate-limited
   // (Discord caps channel renames at 2/10min).
   setInterval(

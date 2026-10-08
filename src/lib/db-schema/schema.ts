@@ -243,6 +243,23 @@ export const memberMessages = pgTable(
   ],
 );
 
+// Every guild message for the 14 days bulk delete can reach, so a member sweep is a
+// lookup instead of a history crawl. Kept apart from member_messages, whose count pays levels.
+export const recentMessage = pgTable(
+  "recent_messages",
+  {
+    messageId: text("message_id").primaryKey(),
+    guildId: text("guild_id").notNull(),
+    channelId: text("channel_id").notNull(),
+    authorId: text("author_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("idx_recent_messages_guild_author").on(table.guildId, table.authorId),
+    index("idx_recent_messages_created").on(table.createdAt),
+  ],
+);
+
 // --- Domain entities ---
 
 export const ticket = pgTable(
