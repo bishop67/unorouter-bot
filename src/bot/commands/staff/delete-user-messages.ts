@@ -1,6 +1,7 @@
 import { DeleteUserMessagesService } from "@/core/services/messages/delete-user-messages.service";
 import { ModLogService } from "@/core/services/moderation/modlog.service";
 import { RolesService } from "@/core/services/roles/roles.service";
+import { logger } from "@/lib/logger";
 import {
   isHelper,
   isModerator,
@@ -53,6 +54,14 @@ export class DeleteUserMessages {
       required: false,
     })
     reason: string | undefined,
+    @SlashOption({
+      name: "thorough",
+      description:
+        "Also scan every channel's history for messages the bot missed (slow)",
+      type: ApplicationCommandOptionType.Boolean,
+      required: false,
+    })
+    thorough: boolean = false,
     interaction: CommandInteraction,
   ) {
     if (
@@ -106,6 +115,14 @@ export class DeleteUserMessages {
       }
     }
 
+    if (!DeleteUserMessagesService.claimSweep(interaction.guild.id, memberId)) {
+      await safeEditReply(
+        interaction,
+        "A deletion for this user is already running.",
+      );
+      return;
+    }
+
     const params = {
       guild: interaction.guild,
       memberId,
@@ -115,33 +132,43 @@ export class DeleteUserMessages {
       moderatorId: interaction.user.id,
     };
 
-    // Recorded before the sweep so a restart mid-run cannot lose the entry; the
-    // count is filled in once the sweep ends.
-    const logged = await ModLogService.record(params.guild, {
-      action: "Messages Deleted",
-      targetId: memberId,
-      moderatorId: params.moderatorId,
-      reason: params.reason,
-    });
-    const sweep = () =>
-      DeleteUserMessagesService.deleteUserMessages(params)
-        .then((amount) => ModLogService.setAmount(logged, amount))
-        .catch(() => {});
+    try {
+      // Recorded before the sweep so a restart mid-run cannot lose the entry; the
+      // count is filled in once the sweep ends.
+      const logged = await ModLogService.record(params.guild, {
+        action: "Messages Deleted",
+        targetId: memberId,
+        moderatorId: params.moderatorId,
+        reason: params.reason,
+      });
 
-    if (jail) {
-      await DeleteUserMessagesService.jailUser(params);
-      sweep();
+      if (jail) await DeleteUserMessagesService.jailUser(params);
       await safeEditReply(
         interaction,
-        "User jailed. Messages are being deleted in the background.",
+        jail ? "User jailed. Deleting messages..." : "Deleting messages...",
       );
-      return;
-    }
 
-    sweep();
-    await safeEditReply(
-      interaction,
-      "Message deletion started in the background.",
-    );
+      const { deleted, unreadable } =
+        await DeleteUserMessagesService.deleteUserMessages(params, thorough);
+      await ModLogService.setAmount(logged, deleted);
+      // A thorough crawl can outlive the 15 minute interaction token.
+      await safeEditReply(
+        interaction,
+        `Deleted ${deleted} message${deleted === 1 ? "" : "s"}.` +
+          (unreadable.length
+            ? ` Could not reach ${unreadable.join(", ")}.`
+            : ""),
+      ).catch(() => {});
+    } catch (err) {
+      logger.error("delete-user-messages failed", {
+        memberId,
+        error: String(err),
+      });
+      await safeEditReply(interaction, "Message deletion failed.").catch(
+        () => {},
+      );
+    } finally {
+      DeleteUserMessagesService.releaseSweep(interaction.guild.id, memberId);
+    }
   }
 }

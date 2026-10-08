@@ -4,6 +4,7 @@ import { RolesService } from "@/core/services/roles/roles.service";
 import { TicketService } from "@/core/services/tickets/ticket.service";
 import { db } from "@/lib/db";
 import { member, memberGuild, memberRole, role } from "@/lib/db-schema";
+import { RecentMessagesService } from "@/core/services/messages/recent-messages.service";
 import { and, eq, sql } from "drizzle-orm";
 import { JAIL } from "@/shared/config/roles";
 import type { DeleteUserMessagesParams } from "@/types";
@@ -13,6 +14,7 @@ import {
   ForumChannel,
   Guild,
   GuildTextBasedChannel,
+  RESTJSONErrorCodes,
   TextChannel,
   ThreadChannel,
   User,
@@ -49,7 +51,45 @@ async function runWithConcurrency<T>(
   return results;
 }
 
+export interface SweepResult {
+  deleted: number;
+  unreadable: string[];
+}
+
+// Never sweep the jail channel: it holds the appeal conversation, which is the one
+// record staff need when reviewing whether a jail was correct.
+const isJailChannel = (channel: { name?: string | null }) =>
+  !!JAIL && !!channel.name?.toLowerCase().includes(JAIL.toLowerCase());
+
+const isMissingAccess = (err: unknown) =>
+  err instanceof DiscordAPIError &&
+  (err.code === RESTJSONErrorCodes.MissingAccess ||
+    err.code === RESTJSONErrorCodes.MissingPermissions);
+
+async function deleteEach(channel: GuildTextBasedChannel, ids: string[]) {
+  let deleted = 0;
+  for (const id of ids) {
+    try {
+      await channel.messages.delete(id);
+      deleted++;
+    } catch (err) {
+      if (
+        err instanceof DiscordAPIError &&
+        err.code === RESTJSONErrorCodes.UnknownMessage
+      )
+        continue;
+      if (!isMissingAccess(err)) error(err);
+      return { deleted, reachable: false };
+    }
+  }
+  return { deleted, reachable: true };
+}
+
 export class DeleteUserMessagesService {
+  // One sweep per member: a second one only halves the first's share of each
+  // channel's rate limit.
+  private static sweeping = new Set<string>();
+
   /**
    * Jail user and start message deletion in background.
    * Returns as soon as the jail is applied.
@@ -153,13 +193,90 @@ export class DeleteUserMessagesService {
     );
   }
 
+  /** False while a sweep of this member already runs; release it when done. */
+  static claimSweep(guildId: string, memberId: string) {
+    const key = `${guildId}:${memberId}`;
+    if (this.sweeping.has(key)) return false;
+    this.sweeping.add(key);
+    return true;
+  }
+
+  static releaseSweep(guildId: string, memberId: string) {
+    this.sweeping.delete(`${guildId}:${memberId}`);
+  }
+
   /**
-   * Delete user messages across all channels. Scoped to last 14 days.
+   * Delete the member's messages from the last 14 days: what recent_messages
+   * recorded, then with thorough a crawl of every channel for anything it missed.
    */
-  static async deleteUserMessages(params: DeleteUserMessagesParams) {
+  static async deleteUserMessages(
+    params: DeleteUserMessagesParams,
+    thorough = false,
+  ): Promise<SweepResult> {
     log(
-      `[DeleteUserMessages] Starting message deletion for user ${params.memberId} in guild ${params.guild.name}`,
+      `[DeleteUserMessages] Starting message deletion for user ${params.memberId} in guild ${params.guild.name} (thorough: ${thorough})`,
     );
+    const unreadable = new Set<string>();
+    let deleted = await this.deleteRecorded(params, unreadable);
+    if (thorough) deleted += await this.crawl(params, unreadable);
+    log(
+      `[DeleteUserMessages] Finished. Deleted ${deleted} messages total for user ${params.memberId}` +
+        (unreadable.size ? `, unreadable: ${[...unreadable].join(", ")}` : ""),
+    );
+    return { deleted, unreadable: [...unreadable] };
+  }
+
+  private static async deleteRecorded(
+    params: DeleteUserMessagesParams,
+    unreadable: Set<string>,
+  ) {
+    const channels = await RecentMessagesService.byChannel(
+      params.guild.id,
+      params.memberId,
+    );
+    let deleted = 0;
+
+    for (const [channelId, ids] of channels) {
+      const channel =
+        params.guild.channels.cache.get(channelId) ??
+        (await params.guild.channels.fetch(channelId).catch(() => null));
+      if (channel && !channel.isTextBased()) continue;
+      if (channel && isJailChannel(channel)) continue;
+
+      let reachable = true;
+      for (let i = 0; channel && reachable && i < ids.length; i += 100) {
+        const batch = ids.slice(i, i + 100);
+        try {
+          deleted += (await channel.bulkDelete(batch, true)).size;
+        } catch (err) {
+          if (isMissingAccess(err)) {
+            unreadable.add(`#${channel.name}`);
+            reachable = false;
+            break;
+          }
+          // A message already gone can fail the whole batch, so retry it one by one.
+          const each = await deleteEach(channel, batch);
+          deleted += each.deleted;
+          if (!each.reachable) {
+            unreadable.add(`#${channel.name}`);
+            reachable = false;
+          }
+        }
+      }
+      // Kept while unreadable so a retry after a permission fix still finds them.
+      if (reachable) await RecentMessagesService.forget(ids);
+    }
+
+    log(
+      `[DeleteUserMessages] Deleted ${deleted} recorded messages across ${channels.size} channels`,
+    );
+    return deleted;
+  }
+
+  private static async crawl(
+    params: DeleteUserMessagesParams,
+    unreadable: Set<string>,
+  ) {
     let totalDeleted = 0;
     const cutoff = Date.now() - MAX_DELETE_AGE_MS;
 
@@ -207,6 +324,10 @@ export class DeleteUserMessagesService {
           );
           return;
         }
+        if (isMissingAccess(err)) {
+          unreadable.add(`#${channel.name}`);
+          return;
+        }
         error(err);
       }
     };
@@ -228,15 +349,7 @@ export class DeleteUserMessagesService {
     const channelTasks: (() => Promise<void>)[] = [];
 
     for (const channel of params.guild.channels.cache.values()) {
-      // Never sweep the jail channel: it holds the appeal conversation, which is
-      // the one record staff need when reviewing whether a jail was correct.
-      if (
-        JAIL &&
-        "name" in channel &&
-        channel.name.toLowerCase().includes(JAIL.toLowerCase())
-      ) {
-        continue;
-      }
+      if (isJailChannel(channel)) continue;
       if (channel.type === ChannelType.GuildForum) {
         channelTasks.push(async () => {
           const threads = await (channel as ForumChannel).threads
@@ -275,9 +388,7 @@ export class DeleteUserMessagesService {
       `[DeleteUserMessages] Processing ${channelTasks.length} channels (concurrency: ${CHANNEL_CONCURRENCY})`,
     );
     await runWithConcurrency(channelTasks, CHANNEL_CONCURRENCY);
-    log(
-      `[DeleteUserMessages] Finished. Deleted ${totalDeleted} messages total for user ${params.memberId}`,
-    );
+    log(`[DeleteUserMessages] Crawl deleted ${totalDeleted} more messages`);
     return totalDeleted;
   }
 
