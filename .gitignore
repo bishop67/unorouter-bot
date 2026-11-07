@@ -7,3 +7,8 @@ dist
 logs
 .DS_Store
 bun.lock*
+
+# Claude
+.claude/
+CLAUDE.md
+CLAUDE.local.md
